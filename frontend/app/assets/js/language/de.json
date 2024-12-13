@@ -1,0 +1,170 @@
+{
+    "site": {
+      "name": "42 Pong"
+    },
+    "gamemode": {
+      "title": "Wähle deinen Stil",
+      "two": "Eine Runde",
+      "twoImg": "Bild von Eine Runde",
+      "tournamentDesc-one": "Alle Spieler spielen eine einzige Runde, bei der der Verlierer der Spieler ist, der als erstes all seine Leben verliert.",
+      "three": "Turnierstil",
+      "threeImg": "Bild von Turnierstil",
+      "tournamentDesc": "3/4 Spieler treten in einer Runde gegeneinander an, wobei der Verlierer ausscheidet und die verbleibenden Spieler weiterspielen, bis ein Gewinner feststeht."
+    },
+    "nav": {
+      "play": "Spielen!",
+      "about": "Über",
+      "profile": "Profil",
+      "login": "Einloggen",
+      "logout": "Ausloggen",
+      "language": "Sprache wählen"
+    },
+    "home": {
+      "logoAlt": "Logo",
+      "title": "Bereit, Los, Spiel!",
+      "description": "Tauche in eine Welt voller endloser Spannung und epischer Herausforderungen ein!",
+      "playButton": "Spielen!"
+    },
+    "featured": {
+      "title": "Wähle Dein Spiel",
+      "pingPong": "Ping Pong",
+      "ticTacToe": "Tic Tac Toe",
+      "pingPongImg": "Bild der Ping-Pong-Spielauswahl",
+      "tttImg": "Bild der Tic-Tac-Toe-Spielauswahl"
+    },
+    "language": {
+      "english": "Englisch",
+      "arabic": "Arabisch",
+      "german": "Deutsch",
+      "turkish": "Türkisch"
+    },
+    "ppmode": {
+      "title": "Wähle Deinen Modus",
+      "single": "Einzelspieler",
+      "multi": "Mehrspieler",
+      "tournament": "Turnier",
+      "singleImg": "Bild des Einzelspielermodus",
+      "multiImg": "Bild des Mehrspielermodus",
+      "tournamentImg": "Bild des Turniermodus",
+      "singleDesc": "Futuristisches Duell zwischen Mensch und KI in einer minimalistischen Pong-Umgebung",
+      "multiDesc": "Engagiere dich in einem lebhaften Pong-Duell mit 2-4 Spielern in einer futuristischen Arcade-Umgebung",
+      "tournamentDesc": "Intensives 8-Spieler-Turnier in einer fokussierten, wettbewerbsorientierten Szene"
+    },
+    "ppmulti": {
+      "title": "Mehrspieler",
+      "two": "2 Spieler",
+      "three": "3 Spieler",
+      "four": "4 Spieler",
+      "twoImg": "Bild für den 2-Spieler-Modus",
+      "threeImg": "Bild für den 3-Spieler-Modus",
+      "fourImg": "Bild für den 4-Spieler-Modus"
+    },
+    "404": {
+      "title": "404",
+      "message": "Hoppla! Du hast das Internet kaputt gemacht!",
+      "link": "Zurück zur Sicherheit!"
+    },
+    "tournament": {
+      "error": "Es werden genau 8 Spieler für das Turnier benötigt.",
+      "title": "Turnier",
+      "bracket": {
+        "quarterFinals": "Viertelfinale",
+        "semiFinals": "Halbfinale",
+        "final": "Finale",
+        "match": "Spiel"
+      },
+      "restartMessage": "Klicken Sie, um neu zu starten"
+    },
+    "game": {
+      "winnerMessage": "ist der Gewinner! 🏆",
+      "restartMessage": "Klicken Sie, um neu zu starten",
+      "roundName": {
+        "quarterFinals": "Viertelfinale",
+        "semiFinals": "Halbfinale",
+        "final": "Finale"
+      },
+      "matchNumber": "Spiel",
+      "countdown": "Das Spiel beginnt in",
+      "winner": {
+        "single": "Gewinnt!",
+        "lose": "Verliert!"
+      }
+    },
+    
+    "profile": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "title": "Profil",
+      "usernameLabel": "Nutzername:",
+      "emailLabel": "E-Mail:",
+      "backButton": "Zurück zur Startseite",
+      "history": "Turnierverlauf anzeigen",
+      "enable2FA": "2FA aktivieren",
+      "disable2FA": "2FA deaktivieren"
+    },
+    "aboutview": {
+      "title": "Team",
+      "teamone": "Alexandr Serebryakov",
+      "teamoneDesc": "Softwareentwickler",
+      "teamoneImg": "Bild von Alexandr Serebryakov",
+      "teamtwo": "Artur Khabibrakhmanov",
+      "teamtwoDesc": "Datenwissenschaftler",
+      "teamtwoImg": "Bild von Artur Khabibrakhmanov",
+      "teamthree": "Aram Keryan",
+      "teamthreeDesc": "Datenwissenschaftler / Lehrer",
+      "teamthreeImg": "Bild von Aram Keryan",
+      "teamfour": "Nauman Munir",
+      "teamfourDesc": "Softwareentwickler",
+      "teamfourImg": "Bild von Nauman Munir",
+      "teamfive": "Alaa Bashir",
+      "teamfiveDesc": "Maschinenbauingenieur",
+      "teamfiveImg": "Bild von Alaa Bashir"
+    },
+    "login": {
+      "title": "Melden Sie sich bei Ihrem Konto an",
+      "subtitle": "Geben Sie Ihren Benutzernamen und Ihr Passwort ein, um sich anzumelden",
+      "usernameLabel": "Benutzername",
+      "usernameError": "Bitte geben Sie Ihren Benutzernamen ein.",
+      "passwordLabel": "Passwort",
+      "passwordError": "Bitte geben Sie Ihr Passwort ein!",
+      "otp": "Geben Sie Ihr OTP ein, falls aktiviert",
+      "submitButton": "Anmelden",
+      "loginIntra": "Mit intra anmelden",
+      "noAccount": "Haben Sie kein Konto?",
+      "createAccount": "Konto erstellen"
+    },
+    "register": {
+      "createAccount": "Konto erstellen",
+      "enterDetails": "Geben Sie Ihre persönlichen Daten ein, um ein Konto zu erstellen",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "invalidFirstName": "Bitte geben Sie Ihren Vornamen ein!",
+      "invalidLastName": "Bitte geben Sie Ihren Nachnamen ein!",
+      "yourEmail": "Ihre E-Mail",
+      "invalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein!",
+      "username": "Benutzername",
+      "invalidUsername": "Bitte wählen Sie einen Benutzernamen.",
+      "password": "Passwort",
+      "invalidPassword": "Bitte geben Sie Ihr Passwort ein!",
+      "createButton": "Konto erstellen",
+      "alreadyAccount": "Haben Sie bereits ein Konto?",
+      "login": "Anmelden"
+    },
+    "form": {
+      "title": "Spielername Eingabe",
+      "label": "Geben Sie den Namen für Spieler ein",
+      "inputPlaceholder": "Spielernamen eingeben",
+      "errorMessage": "Bitte geben Sie einen gültigen Namen ein.",
+      "submitButton": "Absenden",
+      "usedNameError": "Dieser Name wurde bereits verwendet."
+    },
+    "qr": {
+      "description": "Scannen, um die Zwei-Faktor-Authentifizierung zu aktivieren",
+      "submitButton": "Bestätigen"
+    },
+    "history": {
+      "empty": "Keine Turniere zum Anzeigen.",
+      "title": "'s Turnier",
+      "participants": "Teilnehmer:"
+    }
+}

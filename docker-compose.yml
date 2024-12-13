@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - tournaments
+    env_file:
+      - .env
+    networks:
+      - main-network
+      - tournaments-network
+
+  db:
+    image: postgres:16
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+    - .env
+    networks:
+      - main-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3500:443"
+    depends_on:
+      - web
+    networks:
+      - main-network
+
+  tournaments:
+    build:
+      context: ./service2
+      dockerfile: Dockerfile
+    volumes:
+      - .:/service2
+    depends_on:
+      - tournaments_db
+    env_file:
+      - .env
+    networks:
+      - tournaments-network
+
+  tournaments_db:
+    image: postgres:16
+    volumes:
+      - tournaments_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${TOURNAMENT_DB}
+      - POSTGRES_USER=${TOURNAMENT_DB_USER}
+      - POSTGRES_PASSWORD=${TOURNAMENT_DB_PASSWORD}
+    networks:
+      - tournaments-network
+
+volumes:
+  postgres_data:
+  tournaments_postgres_data:
+
+networks:
+  main-network:
+    driver: bridge
+  tournaments-network:
+    driver: bridge

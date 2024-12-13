@@ -1,0 +1,163 @@
+{
+  "site": {
+    "name": "42 Pong"
+  },
+  "gamemode": {
+    "title": "Choose your Style",
+    "two": "One Round",
+    "twoImg": "Image of One Round",
+    "tournamentDesc-one": "All players compete for a single round where the loser is decided based on the first player who loses all their lives.",
+    "three": "Tournament Style",
+    "threeImg": "Image of Tournament Style",
+    "tournamentDesc": "3/4 players compete in a round, with the loser eliminated, and the remaining players continue to play until one winner is declared."
+  },
+  "nav": {
+    "play": "Play!",
+    "about": "About",
+    "profile": "Profile",
+    "login": "Login",
+    "logout": "Logout",
+    "language": "Select Language"
+  },
+  "home": {
+    "logoAlt": "Logo",
+    "title": "Ready, Set, Game On!",
+    "description": "Step into a world of endless excitement and epic challenges!",
+    "playButton": "Play!"
+  },
+  "featured": {
+    "title": "Choose Your Game",
+    "pingPong": "Ping Pong",
+    "ticTacToe": "Tic Tac Toe",
+    "pingPongImg": "Image of ping pong game selection",
+    "tttImg": "Image of tic tac toe game selection"
+  },
+  "language": {
+    "english": "English",
+    "arabic": "Arabic",
+    "german": "German",
+    "turkish": "Turkish"
+  },
+  "ppmode": {
+    "title": "Choose Your Mode",
+    "single": "Single Player",
+    "multi": "Multiple Player",
+    "tournament": "Tournament",
+    "singleImg": "Image of Single Player mode",
+    "multiImg": "Image of Multiple Player mode",
+    "tournamentImg": "Image of Tournament mode",
+    "singleDesc": "Futuristic duel between a human and an AI in a minimalistic pong setting",
+    "multiDesc": "Engage in a vibrant pong battle with 2-4 players in a futuristic arcade setting",
+    "tournamentDesc": "Intense 8-player pong tournament captured in a focused, competitive scene"
+  },
+  "ppmulti": {
+    "title": "Multiple Players",
+    "two": "2 Players",
+    "three": "3 Players",
+    "four": "4 Players",
+    "twoImg": "Image for 2 players mode",
+    "threeImg": "Image for 3 players mode",
+    "fourImg": "Image for 4 players mode"
+  },
+  "404": {
+    "title": "404",
+    "message": "Oops! You broke the internet!",
+    "link": "Go back to safety!"
+  },
+    "tournament": {
+      "error": "Exactly 8 players are required for the tournament.",
+      "title": "Tournament"
+    },
+    "game": {
+      "winnerMessage": "is the winner! 🏆",
+      "restartMessage": "Click to restart",
+      "roundName": {
+        "quarterFinals": "Quarter-finals",
+        "semiFinals": "Semi-finals",
+        "final": "Final"
+      },
+      "matchNumber": "Match",
+      "countdown": "Game starts in",
+      "winner": {
+        "single": "Wins!",
+        "lose": "Lose!"
+      }
+    },
+    "profile": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "title": "Profile",
+      "usernameLabel": "Username:",
+      "emailLabel": "Email:",
+      "backButton": "Back to Home",
+      "history": "View Tournament History",
+      "enable2FA": "Enable 2FA",
+      "disable2FA": "Disable 2FA"
+
+    },
+    "aboutview": {
+      "title": "Team",
+      "teamone": "Alexandr Serebryakov",
+      "teamoneDesc": "Software Developer",
+      "teamoneImg": "Image of Alexandr Serebryakov",
+      "teamtwo": "Artur Khabibrakhmanov",
+      "teamtwoDesc": "Data Scientist",
+      "teamtwoImg": "Image of Artur Khabibrakhmanov",
+      "teamthree": "Aram Keryan",
+      "teamthreeDesc": "Data Scientist / Educator",
+      "teamthreeImg": "Image of Aram Keryan",
+      "teamfour": "Nauman Munir",
+      "teamfourDesc": "Software Developer",
+      "teamfourImg": "Image of Nauman Munir",
+      "teamfive": "Alaa Bashir",
+      "teamfiveDesc": "Mechanical Engineer",
+      "teamfiveImg": "Image of Alaa Bashir"
+    },
+    "login": {
+      "title": "Login to Your Account",
+      "subtitle": "Enter your username & password to login",
+      "usernameLabel": "Username",
+      "usernameError": "Please enter your username.",
+      "passwordLabel": "Password",
+      "passwordError": "Please enter your password!",
+      "otp": "Enter your OTP if enabled",
+      "submitButton": "Login",
+      "loginIntra": "Login with intra",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create an account"
+    },
+    "register": {
+      "createAccount": "Create an Account",
+      "enterDetails": "Enter your personal details to create an account",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "invalidFirstName": "Please, enter your first name!",
+      "invalidLastName": "Please, enter your last name!",
+      "yourEmail": "Your Email",
+      "invalidEmail": "Please enter a valid Email address!",
+      "username": "Username",
+      "invalidUsername": "Please choose a username.",
+      "password": "Password",
+      "invalidPassword": "Please enter your password!",
+      "createButton": "Create Account",
+      "alreadyAccount": "Already have an account?",
+      "login": "Log in"
+    },
+    "form": {
+      "title": "Player Name Entry",
+      "label": "Enter name for Player",
+      "inputPlaceholder": "Enter player's name",
+      "errorMessage": "Please enter a valid name.",
+      "usedNameError": "This name has already been used.",
+      "submitButton": "Submit"
+    },
+    "qr": {
+      "description": "Scan to activate 2FA",
+      "submitButton": "Verify"
+    },
+    "history": {
+      "empty": "No tournaments to display.",
+      "title": "'s Tournament",
+      "participants": "Participants:"
+    }
+}
