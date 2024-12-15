@@ -1,21 +1,24 @@
-FROM python:3.12-alpine
+FROM python:3.11-alpine
 
-WORKDIR /app
+WORKDIR /app/backend  # or /app/service2 for the tournament service
 
-RUN apk update && apk add --no-cache \
-    build-base \
+# Install system dependencies
+RUN apk add --no-cache \
     postgresql-dev \
     gcc \
+    python3-dev \
     musl-dev \
-    libffi-dev \
-    openssl-dev
+    libffi-dev
 
+# Copy requirements first for better caching
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install --upgrade pip && pip install -r requirements.txt
-
+# Copy project files
 COPY . .
 
+# Expose port
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py makemigrations api && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+# Command to run the application
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
