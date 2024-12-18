@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ft_transcendence</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <h1>ft_transcendence</h1>
+    <div id="navigation">
+        <button onclick="showSection('game')">Play</button>
+        <button onclick="showSection('tournament')">Tournament</button>
+        <button onclick="showSection('profile')">Profile</button>
+        <button onclick="showSection('leaderboard')">Leaderboard</button>
+    </div>
+
+    <div id="game-section">
+        <canvas id="pongCanvas" width="600" height="400"></canvas>
+        <div>
+            <div>Player: <span id="playerScore">0</span></div>
+            <div>Computer: <span id="computerScore">0</span></div>
+        </div>
+        <button id="startButton">Start Game</button>
+    </div>
+
+    <div id="tournament-section" style="display: none;">
+        <h2>Tournaments</h2>
+        <!-- Tournament content will go here -->
+    </div>
+
+    <div id="profile-section" style="display: none;">
+        <h2>Profile</h2>
+        <!-- Profile content will go here -->
+    </div>
+
+    <div id="leaderboard-section" style="display: none;">
+        <h2>Leaderboard</h2>
+        <!-- Leaderboard content will go here -->
+    </div>
+
+    <script src="js/game.js"></script>
+    <script>
+        function showSection(sectionName) {
+            // Hide all sections
+            document.getElementById('game-section').style.display = 'none';
+            document.getElementById('tournament-section').style.display = 'none';
+            document.getElementById('profile-section').style.display = 'none';
+            document.getElementById('leaderboard-section').style.display = 'none';
+            
+            // Show the selected section
+            document.getElementById(sectionName + '-section').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

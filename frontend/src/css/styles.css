@@ -1,0 +1,24 @@
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: white;
+}
+
+canvas {
+    border: 2px solid black;
+    display: block;
+    margin: 20px 0;
+}
+
+button {
+    margin: 5px;
+    padding: 5px 10px;
+}
+
+#game-section {
+    margin-top: 20px;
+}
+
+#navigation {
+    margin-bottom: 20px;
+}
