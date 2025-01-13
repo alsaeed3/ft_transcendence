@@ -56,4 +56,4 @@ def dashboard(request):
 	return render(request, 'dashboard.html', {'user': request.user})
 
 def pong(request):
-	pass
+	return render(request, 'pong.html')
