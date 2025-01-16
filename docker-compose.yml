@@ -24,7 +24,7 @@ services:
       - database
 
   database:
-    image: postgres:13.1
+    image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
