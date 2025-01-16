@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  nginx-proxy:
+    build: ./nginx-proxy
+    ports:
+      - "80:80"  # Only this needs to be exposed to the internet
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - frontend-net
+      - backend-net
+
+  frontend:
+    build: ./frontend
+    expose:
+      - "8080"  # Internal only
+    depends_on:
+      - backend
+    networks:
+      - frontend-net
+
+  backend:
+    build: ./backend
+    expose:
+      - "8000"  # Internal only
+    depends_on:
+      - database
+    networks:
+      - backend-net
+
+  database:
+    image: postgres:16
+    expose:
+      - "5432"  # Internal only
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+
+volumes:
+  postgres_data:
+
+networks:
+  frontend-net:  # For nginx and frontend
+  backend-net:   # For nginx, backend and database
