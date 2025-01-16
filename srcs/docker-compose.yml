@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   nginx-proxy:
-    build: ./nginx-proxy
+    build: ./services/nginx-proxy
     ports:
       - "80:80"  # Only this needs to be exposed to the internet
     depends_on:
@@ -13,7 +13,7 @@ services:
       - backend-net
 
   frontend:
-    build: ./frontend
+    build: ./services/frontend
     expose:
       - "8080"  # Internal only
     depends_on:
@@ -22,7 +22,7 @@ services:
       - frontend-net
 
   backend:
-    build: ./backend
+    build: ./services/backend
     expose:
       - "8000"  # Internal only
     depends_on:
