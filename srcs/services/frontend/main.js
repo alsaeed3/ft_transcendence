@@ -2,7 +2,7 @@ document.getElementById('fetchData').addEventListener('click', fetchData);
 
 async function fetchData() {
 	try {
-		const response = await fetch('http://localhost:80/api/data/');
+		const response = await fetch('http://localhost:80/api/oauth/login');
 		const data = await response.json();
 		displayData(data);
 	} catch (error) {

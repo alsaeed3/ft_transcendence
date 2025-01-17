@@ -4,4 +4,6 @@ from . import views
 
 urlpatterns = [
 	path('data/', views.get_data, name='get_data'),
+    path('oauth/login/', views.ft_oauth_login, name='oauth_login'),
+    path('oauth/callback/', views.ft_oauth_callback, name='oauth_login')
 ]

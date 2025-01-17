@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,7 +49,9 @@ INSTALLED_APPS = [
 
 CORS_ALLOWED_ORIGINS = [
 	"http://localhost:80"
+    "http://localhost:8080"
 ]
+
 
 MIDDLEWARE = [
 	'corsheaders.middleware.CorsMiddleware',
@@ -132,3 +138,12 @@ STATIC_ROOT = 'app/static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# SECRET_KEY =  os.getenv('DJANGO_SECRET_KEY')
+
+FT_CLIENT_ID = os.getenv('FT_CLIENT_ID')
+FT_CLIENT_SECRET = os.getenv('FT_CLIENT_SECRET')
+FT_REDIRECT_URI = os.getenv('FT_REDIRECT_URI')
+LOGIN_URL = '/login'
+FT_AUTH0_DOMAIN= os.getenv('FT_AUTH0_DOMAIN') 

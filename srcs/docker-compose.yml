@@ -18,6 +18,8 @@ services:
       - "8080"  # Internal only
     depends_on:
       - backend
+    env_file:
+      - .env
     networks:
       - frontend-net
 
@@ -27,6 +29,8 @@ services:
       - "8000"  # Internal only
     depends_on:
       - database
+    env_file:
+      - .env
     networks:
       - backend-net
 
