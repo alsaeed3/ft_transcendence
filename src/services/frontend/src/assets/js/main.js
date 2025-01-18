@@ -34,7 +34,9 @@
 const routes = {
     '/home': '<h1>Welcome to the Home Page</h1>',
     '/register': 'src/components/register.html',
-    '/login': 'src/components/login.html' // Correct path to login.html
+    '/login': 'src/components/login.html',
+    '/about': 'src/components/about.html',
+    '/game': 'src/components/game.html'
 };
 
 const router = async () => {
