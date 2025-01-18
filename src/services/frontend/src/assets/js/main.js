@@ -33,7 +33,7 @@
 
 const routes = {
     '/home': '<h1>Welcome to the Home Page</h1>',
-    '/register': '<h1>Register Page</h1>',
+    '/register': 'src/components/register.html',
     '/login': 'src/components/login.html' // Correct path to login.html
 };
 
@@ -76,7 +76,8 @@ const attachEventListeners = () => {
             console.log(data);
         });
     }
-    const login42 = document.getElementById('login42');
+
+    const login42 = document.getElementById('loginWith42');
     if (login42) {
         login42.addEventListener('click', async (event) => {
             event.preventDefault();
