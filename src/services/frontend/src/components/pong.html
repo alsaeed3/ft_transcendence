@@ -1,0 +1,20 @@
+<div class="pong-container">
+	<div class="game-settings">
+		<label for="paddleColor">Paddle Color:</label>
+		<input type="color" id="paddleColor" value="#FFFFFF">
+		
+		<label for="ballColor">Ball Color:</label>
+		<input type="color" id="ballColor" value="#FFFFFF">
+		
+		<label for="gameSpeed">Game Speed:</label>
+		<input type="range" id="gameSpeed" min="1" max="10" value="5">
+	</div>
+	
+	<canvas id="pongCanvas" width="800" height="400"></canvas>
+	
+	<div class="score-board">
+		<span id="playerScore">0</span>
+		<span>-</span>
+		<span id="computerScore">0</span>
+	</div>
+</div>

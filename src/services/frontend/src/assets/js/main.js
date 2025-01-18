@@ -36,7 +36,7 @@ const routes = {
     '/register': 'src/components/register.html',
     '/login': 'src/components/login.html',
     '/about': 'src/components/about.html',
-    '/game': 'src/components/game.html'
+    '/pong': 'src/components/pong.html'
 };
 
 const router = async () => {

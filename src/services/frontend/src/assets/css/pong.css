@@ -1,0 +1,34 @@
+.pong-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 20px;
+	padding: 20px;
+	background-color: #000000;
+}
+
+.game-settings {
+	display: flex;
+	gap: 20px;
+	margin-bottom: 20px;
+}
+
+.game-settings label {
+	color: white;
+	margin-right: 5px;
+}
+
+#pongCanvas {
+	border: 2px solid white;
+	background-color: #000000;
+}
+
+.score-board {
+	font-size: 32px;
+	color: white;
+	font-family: monospace;
+}
+
+.score-board span {
+	margin: 0 10px;
+}
