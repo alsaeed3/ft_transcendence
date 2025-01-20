@@ -2,44 +2,32 @@ version: '3.8'
 
 services:
   nginx:
-    build: 
-      context: .
-      dockerfile: services/nginx/Dockerfile
+    build: ./services/nginx
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      - DOMAIN_NAME=${DOMAIN_NAME}
-      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     depends_on:
       - backend
     networks:
-      - ft_net
-    restart: unless-stopped
+      - main-network
+    volumes:
+      - ./services/frontend:/usr/share/nginx/html
 
   backend:
     build: ./services/backend
     expose:
-      - "8000"
+      - "8000"  # Internal only
     depends_on:
       - database
     env_file:
       - .env
     networks:
-      - ft_net
-    restart: unless-stopped
+      - main-network
 
   database:
     image: postgres:16
     expose:
-      - "5432"
+      - "5432"  # Internal only
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -48,13 +36,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - ft_net
-    restart: unless-stopped
+      - main-network
 
 volumes:
   postgres_data:
-  letsencrypt:
 
 networks:
-  ft_net:
+  main-network:
     driver: bridge
