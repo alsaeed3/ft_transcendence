@@ -9,7 +9,13 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.conf import settings
 from urllib.parse import urlencode
-# from .models import Feature
+from .models import User, Tournament
+from .serializers import UserSerializer, TournamentSerializer
+from rest_framework.views import viewsets
+
+class TournamentViewSet(viewsets.ModelViewSet):
+    queryset = Tournament.objects.all()
+    serializer_class = TournamentSerializer
 
 # Create your views here.
 @api_view(['GET'])
