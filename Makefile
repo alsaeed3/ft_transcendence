@@ -94,5 +94,4 @@ rmc:
 # Remove all images, volumes, networks and containers
 clean: stop down-all rmn rmv rmc rmi
 
-
 .PHONY: default up down down-v down-all restart logs logs-% shell-% exec rmi rmv rmn rmc clean

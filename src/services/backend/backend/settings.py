@@ -36,15 +36,9 @@ ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
 # Application definition
 
 INSTALLED_APPS = [
-    'rest_framework',
-    'rest_framework.authtoken',
-    'rest_auth',
-    'django.contrib.sites',
-    'allauth',
-    'allauth.account',
-    'rest_auth.registration',
-    'corsheaders',
-    'webapp',
+	'users.apps.UsersConfig',
+	'corsheaders',
+	'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -53,14 +47,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
-# CORS settings
-CORS_ORIGIN_ALLOW_ALL = True  # Allow all origins (for development only)
-# CORS_ALLOWED_ORIGINS = [
-# 	"https://localhost:443"
-# ]
+REST_FRAMEWORK = {
+	'DEFAULT_AUTHENTICATION_CLASSES': (
+		'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
 
-# Email backend (for development)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+CORS_ALLOWED_ORIGINS = [
+	"https://localhost:443"
+]
 
 
 MIDDLEWARE = [
@@ -74,24 +69,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# Django Rest Framework settings
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-}
-
-# Authentication backends
-AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-)
-
-# Rest Auth settings
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Disable email verification for simplicity
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
-ACCOUNT_EMAIL_REQUIRED = False
 
 ROOT_URLCONF = 'backend.urls'
 
