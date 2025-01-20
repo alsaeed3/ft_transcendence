@@ -1,43 +1,45 @@
 version: '3.8'
 
 services:
-  nginx-proxy:
-    build: ./services/nginx-proxy
+  nginx:
+    build: 
+      context: .
+      dockerfile: services/nginx/Dockerfile
     ports:
-      - "80:80"  # Only this needs to be exposed to the internet
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME}
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     depends_on:
       - backend
-      - frontend
     networks:
-      - frontend-net
-      - backend-net
-
-  frontend:
-    build: ./services/frontend
-    expose:
-      - "8080"  # Internal only
-    depends_on:
-      - backend
-    env_file:
-      - .env
-    networks:
-      - frontend-net
+      - ft_net
+    restart: unless-stopped
 
   backend:
     build: ./services/backend
     expose:
-      - "8000"  # Internal only
+      - "8000"
     depends_on:
       - database
     env_file:
       - .env
     networks:
-      - backend-net
+      - ft_net
+    restart: unless-stopped
 
   database:
     image: postgres:16
     expose:
-      - "5432"  # Internal only
+      - "5432"
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -46,11 +48,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - backend-net
+      - ft_net
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  letsencrypt:
 
 networks:
-  frontend-net:  # For nginx and frontend
-  backend-net:   # For nginx, backend and database
+  ft_net:
+    driver: bridge
