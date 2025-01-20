@@ -36,7 +36,7 @@ ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
 # Application definition
 
 INSTALLED_APPS = [
-	'webapp',
+	'users.apps.UsersConfig',
 	'corsheaders',
 	'rest_framework',
     'django.contrib.admin',
@@ -47,9 +47,14 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
+REST_FRAMEWORK = {
+	'DEFAULT_AUTHENTICATION_CLASSES': (
+		'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
 CORS_ALLOWED_ORIGINS = [
-	"http://localhost:80",
-    "http://localhost:8080"
+	"https://localhost:443"
 ]
 
 

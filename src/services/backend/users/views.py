@@ -9,7 +9,16 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.conf import settings
 from urllib.parse import urlencode
-# from .models import Feature
+from .models import Profile
+from .serializers import ProfileSerializer
+
+class ProfileDetail(generics.RetrieveUpdateAPIView):
+	queryset = Profile.objects.all()
+	serializer_class = ProfileSerializer
+	permission_classes = [IsAuthenticated]
+
+	def get_object(self):
+		return self.request.user.profile
 
 # Create your views here.
 @api_view(['GET'])
@@ -39,5 +48,5 @@ def ft_oauth_login(request):
 
 
 def ft_oauth_callback(request):
-	
+
 	return render(request, 'home.html')
