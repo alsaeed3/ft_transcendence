@@ -15,9 +15,9 @@ RUN  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 COPY services/nginx/conf/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy frontend files
-COPY services/frontend/ /usr/share/nginx/static/
+COPY services/frontend/ /usr/share/nginx/html/
 
-WORKDIR /usr/share/nginx/static
+WORKDIR /usr/share/nginx/html
 
 # Expose ports
 EXPOSE 80 443
