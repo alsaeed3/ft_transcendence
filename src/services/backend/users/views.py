@@ -1,16 +1,21 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
-from django.contrib.auth.models import User, auth
-from django.contrib import messages
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from django.core import serializers
+from urllib.parse import urlencode
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.conf import settings
-from urllib.parse import urlencode
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from .models import Profile
-from .serializers import ProfileSerializer
+from .serializers import ProfileSerializer, UserRegistrationSerializer
+
+class UserRegistrationView(generics.CreateAPIView):
+    serializer_class = UserRegistrationSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "User registered successfully."}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileDetail(generics.RetrieveUpdateAPIView):
 	queryset = Profile.objects.all()

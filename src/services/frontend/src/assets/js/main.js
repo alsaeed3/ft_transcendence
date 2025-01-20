@@ -1,118 +1,46 @@
-// document.getElementById('fetchData').addEventListener('click', fetchData);
+import { router } from '/static/js/modules/router.js';
+import { setupRegistrationForm, setupLoginForm } from '/static/js/modules/auth.js';
 
-// async function fetchData() {
-//     try {
-//         const response = await fetch('http://localhost:80/api/data/');
-//         const data = await response.json();
-//         displayData(data);
-//     } catch (error) {
-//         console.error('Error fetching data:', error);
-//     }
-// }
-
-// function displayData(data) {
-//     const contentDiv = document.getElementById('content');
-//     contentDiv.innerHTML = '';
-
-//     if (Array.isArray(data) && data.length > 0) {
-//         data.forEach(item => {
-//             const itemElement = document.createElement('div');
-//             itemElement.className = 'card mb-3';
-//             itemElement.innerHTML = `
-//                 <div class="card-body">
-//                     <h5 class="card-title">${item.title}</h5>
-//                     <p class="card-text">${item.description}</p>
-//                 </div>
-//             `;
-//             contentDiv.appendChild(itemElement);
-//         });
-//     } else {
-//         contentDiv.innerHTML = `<p>${data.message}</p>`;
-//     }
-// }
-
-const routes = {
-    '/home': '<h1>Welcome to the Home Page</h1>',
-    '/register': 'src/components/register.html',
-    '/login': 'src/components/login.html',
-    '/about': 'src/components/about.html',
-    '/pong': 'src/components/pong.html'
+// Load components dynamically
+const loadComponent = async (path) => {
+    const response = await fetch(path);
+    return response.text();
 };
 
-const router = async () => {
-    const content = document.getElementById('app');
-    let request = location.hash.slice(1).toLowerCase() || '/home';
-    let route = routes[request];
+// Define routes
+router.addRoute('#/', async () => {
+    document.getElementById('main').innerHTML = `
+        <h1 class="text-center mt-5">Welcome to Pong Game</h1>
+    `;
+});
 
-    if (route.endsWith('.html')) {
-        const response = await fetch(route);
-        const html = await response.text();
-        content.innerHTML = html;
-    } else {
-        content.innerHTML = route;
-    }
+router.addRoute('#/login', async () => {
+    document.getElementById('main').innerHTML = await loadComponent('/static/components/auth/login.html');
+    setupLoginForm();
+});
 
-    // Re-attach event listeners after content is loaded
-    attachEventListeners();
-};
+router.addRoute('#/register', async () => {
+    document.getElementById('main').innerHTML = await loadComponent('/static/components/auth/register.html');
+    setupRegistrationForm();
+});
 
-const attachEventListeners = () => {
-    const loginForm = document.getElementById('loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+router.addRoute('#/about', async () => {
+    document.getElementById('main').innerHTML = await loadComponent('/static/components/about.html');
+});
 
-            const formData = new FormData(loginForm);
-            const username = formData.get('username');
-            const password = formData.get('password');
+router.addRoute('#/pong', async () => {
+    document.getElementById('main').innerHTML = await loadComponent('/static/components/pong.html');
+    // Initialize Pong game
+    const script = document.createElement('script');
+    script.src = '/static/js/pong.js';
+    document.body.appendChild(script);
+});
 
-            const response = await fetch('http://localhost:80/api/login/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
+// Initialize router
+router.init();
 
-            const data = await response.json();
-            console.log(data);
-        });
-    }
-
-    const login42 = document.getElementById('loginWith42');
-    if (login42) {
-        login42.addEventListener('click', async (event) => {
-            event.preventDefault();
-
-            const response = await fetch('http://localhost:80/api/oauth/login/');
-            const data = await response.json();
-            console.log(data);
-        });
-    }
-
-    const registerForm = document.getElementById('registerForm');
-    if (registerForm) {
-        registerForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const formData = new FormData(registerForm);
-            const username = formData.get('username');
-            const password = formData.get('password');
-            const email = formData.get('email');
-
-            const response = await fetch('http://localhost:80/api/register/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password, email })
-            });
-
-            const data = await response.json();
-            console.log(data);
-        });
-    }
-};
-
-window.addEventListener('hashchange', router);
-window.addEventListener('DOMContentLoaded', router);
+// Load header and footer
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('header').innerHTML = await loadComponent('/static/components/header.html');
+    document.getElementById('footer').innerHTML = await loadComponent('/static/components/footer.html');
+});
