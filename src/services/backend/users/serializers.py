@@ -1,11 +1,11 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import Profile
+from .models import UserProfile
 
 class ProfileSerializer(serializers.ModelSerializer):
 	class Meta:
-		model = Profile
+		model = UserProfile
 		fields = ['profile_picture', 'bio', 'language_preference']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
