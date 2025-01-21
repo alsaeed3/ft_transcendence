@@ -37,6 +37,9 @@ ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
 
 INSTALLED_APPS = [
 	'users.apps.UsersConfig',
+    'dashboard.apps.UsersConfig',
+    'friends.apps.UsersConfig',
+    'matches.apps.UsersConfig',
 	'corsheaders',
 	'rest_framework',
     'django.contrib.admin',
