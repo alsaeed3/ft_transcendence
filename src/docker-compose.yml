@@ -12,6 +12,7 @@ services:
       - main-network
     volumes:
       - ./services/frontend:/usr/share/nginx/html
+      - static_volume:/usr/share/nginx/static
 
   backend:
     build: ./services/backend
@@ -23,6 +24,8 @@ services:
       - .env
     networks:
       - main-network
+    volumes:
+      - static_volume:/app/static
 
   database:
     image: postgres:16
@@ -40,6 +43,7 @@ services:
 
 volumes:
   postgres_data:
+  static_volume:
 
 networks:
   main-network:

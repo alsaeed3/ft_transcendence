@@ -1,5 +1,5 @@
 // src/assets/js/modules/auth.js
-import { registerUser, loginUser } from '/static/js/modules/api.js';
+import { registerUser, loginUser } from '/assets/js/modules/api.js';
 
 export const setupRegistrationForm = () => {
     const form = document.getElementById('registerForm');

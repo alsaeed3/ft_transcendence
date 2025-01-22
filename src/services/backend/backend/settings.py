@@ -13,6 +13,14 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
+
+def get_env_variable(var_name):
+    try:
+        return os.getenv(var_name)
+    except KeyError:
+        error_msg = f"Set the {var_name} environment variable"
+        raise ImproperlyConfigured(error_msg)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,10 +33,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG')
+DEBUG = get_env_variable('DJANGO_DEBUG')
 
 ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
 
@@ -58,6 +66,13 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
 	"https://localhost:443"
+]
+
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+CSRF_TRUSTED_ORIGINS = [
+    'https://localhost',
+    'http://localhost',
 ]
 
 
@@ -100,11 +115,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'NAME': get_env_variable('DB_NAME'),
+        'USER': get_env_variable('DB_USER'),
+        'PASSWORD': get_env_variable('DB_PASSWORD'),
+        'HOST': get_env_variable('DB_HOST'),
+        'PORT': get_env_variable('DB_PORT'),
+        'CONN_MAX_AGE': 60,  # 1 minute connection persistence
+        'OPTIONS': {
+            'connect_timeout': 5,
+        }
     }
 }
 
@@ -143,8 +162,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = 'app/static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = '/app/static/'
+STATICFILES_DIRS = []
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -152,10 +172,10 @@ STATIC_ROOT = 'app/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# SECRET_KEY =  os.getenv('DJANGO_SECRET_KEY')
+# SECRET_KEY =  get_env_variable('DJANGO_SECRET_KEY')
 
-FT_CLIENT_ID = os.getenv('FT_CLIENT_ID')
-FT_CLIENT_SECRET = os.getenv('FT_CLIENT_SECRET')
-FT_REDIRECT_URI = os.getenv('FT_REDIRECT_URI')
+FT_CLIENT_ID = get_env_variable('FT_CLIENT_ID')
+FT_CLIENT_SECRET = get_env_variable('FT_CLIENT_SECRET')
+FT_REDIRECT_URI = get_env_variable('FT_REDIRECT_URI')
 LOGIN_URL = '/login'
-FT_AUTH0_DOMAIN= os.getenv('FT_AUTH0_DOMAIN') 
+FT_AUTH0_DOMAIN= get_env_variable('FT_AUTH0_DOMAIN') 

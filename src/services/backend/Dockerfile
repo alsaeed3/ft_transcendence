@@ -1,13 +1,24 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install Python dependencies
 RUN pip install --upgrade pip
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# Copy project files
 COPY . .
+
+# Ensure entrypoint script is executable
+RUN chmod +x /app/tools/entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "backend.wsgi:application"]
+ENTRYPOINT ["/app/tools/entrypoint.sh"]

@@ -1,5 +1,5 @@
-import { router } from '/static/js/modules/router.js';
-import { setupRegistrationForm, setupLoginForm } from '/static/js/modules/auth.js';
+import { router } from '/assets/js/modules/router.js';
+import { setupRegistrationForm, setupLoginForm } from '/assets/js/modules/auth.js';
 
 // Load components dynamically
 const loadComponent = async (path) => {
@@ -15,24 +15,24 @@ router.addRoute('#/', async () => {
 });
 
 router.addRoute('#/login', async () => {
-    document.getElementById('main').innerHTML = await loadComponent('/static/components/auth/login.html');
+    document.getElementById('main').innerHTML = await loadComponent('/assets/components/auth/login.html');
     setupLoginForm();
 });
 
 router.addRoute('#/register', async () => {
-    document.getElementById('main').innerHTML = await loadComponent('/static/components/auth/register.html');
+    document.getElementById('main').innerHTML = await loadComponent('/assets/components/auth/register.html');
     setupRegistrationForm();
 });
 
 router.addRoute('#/about', async () => {
-    document.getElementById('main').innerHTML = await loadComponent('/static/components/about.html');
+    document.getElementById('main').innerHTML = await loadComponent('/assets/components/about.html');
 });
 
 router.addRoute('#/pong', async () => {
-    document.getElementById('main').innerHTML = await loadComponent('/static/components/pong.html');
+    document.getElementById('main').innerHTML = await loadComponent('/assets/components/pong.html');
     // Initialize Pong game
     const script = document.createElement('script');
-    script.src = '/static/js/pong.js';
+    script.src = '/assets/js/pong.js';
     document.body.appendChild(script);
 });
 
@@ -41,6 +41,6 @@ router.init();
 
 // Load header and footer
 document.addEventListener('DOMContentLoaded', async () => {
-    document.getElementById('header').innerHTML = await loadComponent('/static/components/header.html');
-    document.getElementById('footer').innerHTML = await loadComponent('/static/components/footer.html');
+    document.getElementById('header').innerHTML = await loadComponent('/assets/components/header.html');
+    document.getElementById('footer').innerHTML = await loadComponent('/assets/components/footer.html');
 });
