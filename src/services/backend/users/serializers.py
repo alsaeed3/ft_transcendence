@@ -28,3 +28,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+    
+
+# Abdullah 42auth 
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['login_42', 'user_id_42']
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(source='userprofile')
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile']
