@@ -10,11 +10,11 @@ class UserProfile(models.Model):
 	bio = models.TextField(blank=True, null=True)
 	language_preference = models.CharField(max_length=20, default='en')
 	two_factor_enabled = models.BooleanField(default=False) # For 2FA
-	nickname = models.CharField(max_length=255, blank=True, null=True)
-	email = models.EmailField(blank=True, null=True)
-	first_name = models.CharField(max_length=30, blank=True, null=True)
-	last_name = models.CharField(max_length=30, blank=True, null=True)
+	# nickname = models.CharField(max_length=255, blank=True, null=True)
 	user_id_42 = models.CharField(max_length=255, blank=True, null=True)
+	login_42 = models.CharField(max_length=255, blank=True, null=True)
+	is_42_auth = models.BooleanField(default=False)
+
 	def __str__(self):
 		return f'{self.user.username} UserProfile'
 	
@@ -23,8 +23,4 @@ class UserProfile(models.Model):
 
 
 
-	#  login_42 = user_data.get('login')
-    # email = user_data.get('email')
-    # first_name = user_data.get('first_name')
-    # last_name = user_data.get('last_name')
-    # user_id_42 = user_data.get('id') 
+
