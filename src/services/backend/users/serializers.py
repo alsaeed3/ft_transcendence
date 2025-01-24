@@ -28,9 +28,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
-    
 
-# Abdullah 42auth 
+# Abdullah 42auth
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
