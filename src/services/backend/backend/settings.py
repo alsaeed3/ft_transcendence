@@ -38,8 +38,7 @@ SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_env_variable('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
-
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
 
 # Application definition
 
@@ -65,7 +64,12 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-	"https://localhost:443"
+    "http://localhost",
+    "http://localhost:80",
+    "https://localhost",
+    "https://localhost:443",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80"
 ]
 
 CSRF_COOKIE_SECURE = True
@@ -73,6 +77,7 @@ SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'http://localhost',
+    'http://127.0.0.1'
 ]
 
 

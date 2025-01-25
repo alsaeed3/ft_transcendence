@@ -13,15 +13,29 @@ import requests
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import login
 from django.http import JsonResponse
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
 
-class UserRegistrationView(generics.CreateAPIView):
-    serializer_class = UserRegistrationSerializer
+class UserRegistrationView(APIView):
+    permission_classes = [AllowAny]
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "User registered successfully."}, status=status.HTTP_201_CREATED)
+            user = serializer.save()  # Save the user and get the user instance
+
+            # Create a UserProfile for the newly registered user with default values
+            UserProfile.objects.create(
+                user=user,
+                profile_picture='/static/profile_pictures/default.jpg',  # Default profile picture
+                bio='',  # Empty bio by default
+                language_preference='en',  # Default language preference
+                two_factor_enabled=False,  # 2FA disabled by default
+                user_id_42=None,  # No 42 user ID by default
+                login_42=None,  # No 42 login by default
+                is_42_auth=False  # Not authenticated via 42 by default
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileDetail(generics.RetrieveUpdateAPIView):
