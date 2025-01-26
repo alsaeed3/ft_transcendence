@@ -13,7 +13,8 @@ import requests
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import login
 from django.http import JsonResponse
-import os
+import os 
+
 class UserRegistrationView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
 
@@ -32,12 +33,22 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 	def get_object(self):
 		return self.request.user.UserProfile
 
+# Create your views here.
+@api_view(['GET'])
+def get_data(request):
+	data = [
+		{"title": "Item 1", "description": "This is item 1"},
+		{"title": "Item 2", "description": "This is item 2"},
+		{"title": "Item 3", "description": "This is item 3"},
+	]
+	return Response(data)
+
 # /////////////////// 42 auth //////////////////////////
 @api_view(['GET'])
-def ft_oauth_login(request):
-	baseurl = 'https://api.intra.42.fr/oauth/authorize'
+def ft_oauth_login(request): 
+	baseurl = os.getenv('FT_OAUTH_URL')
 	parameters = {
-		'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
+		'client_id': os.getenv('FT_CLIENT_ID'),
 		'response_type': 'code',
 		'redirect_uri': os.getenv('FT_REDIRECT_URI'),
 	}
@@ -54,7 +65,7 @@ def ft_oauth_callback(request):
         'client_id': os.getenv('FT_CLIENT_ID'),
         'client_secret': os.getenv('FT_CLIENT_SECRET'),
         'code': code,
-        'redirect_uri': os.getenv('FT_REDIRECT_URI'), 
+        'redirect_uri': 'https://localhost:443/api/users/oauth/callback/', 
     }
     token_response = requests.post(token_url, data=token_data)
     if token_response.status_code != 200:
