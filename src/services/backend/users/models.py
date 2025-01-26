@@ -14,6 +14,7 @@ class UserProfile(models.Model):
 	user_id_42 = models.CharField(max_length=255, blank=True, null=True)
 	login_42 = models.CharField(max_length=255, blank=True, null=True)
 	is_42_auth = models.BooleanField(default=False)
+	is_42_2fa_enabled = models.BooleanField(default=False)  # New field
 
 	def __str__(self):
 		return f'{self.user.username} UserProfile'

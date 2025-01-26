@@ -13,6 +13,7 @@ import requests
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import login
 from django.http import JsonResponse
+import os
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
@@ -99,7 +100,7 @@ def ft_oauth_login(request):
     parameters = {
         'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
         'response_type': 'code',
-        'redirect_uri': 'https://localhost:443/api/oauth/callback/',
+        'redirect_uri': os.getenv('FT_REDIRECT_URI'),
     }
     url =  f"{baseurl}?{urlencode(parameters)}"
     return redirect(url)
@@ -111,10 +112,10 @@ def ft_oauth_callback(request):
     token_url = 'https://api.intra.42.fr/oauth/token/'
     token_data = {
         'grant_type': 'authorization_code',
-        'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
-        'client_secret': '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',
+        'client_id': os.getenv('FT_CLIENT_ID'),
+        'client_secret': os.getenv('FT_CLIENT_SECRET'),
         'code': code,
-        'redirect_uri': 'https://localhost:443/api/oauth/callback/', 
+        'redirect_uri': 'https://localhost:443/api/users/oauth/callback/', #
     }
     token_response = requests.post(token_url, data=token_data)
     if token_response.status_code != 200:
@@ -173,20 +174,6 @@ def ft_oauth_callback(request):
                 is_42_auth=is_42_auth
                 )
 
-    # Authenticate the user
-    login(request, user)
-
-    # Return user details
-    # user_data = {
-    #     'id': user.id,
-    #     'username': user.username,
-    #     'email': user.email,
-    #     'first_name': user.first_name,
-    #     'last_name': user.last_name,
-    #     'login_42': profile.login_42,
-    #     'user_id_42': profile.user_id_42,
-    #     'is_42_auth': profile.is_42_auth,
-    # }
     serializer = UserSerializer(user)
     return JsonResponse(serializer.data, status=200)
 
