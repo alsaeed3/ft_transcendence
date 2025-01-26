@@ -10,7 +10,7 @@ function initGame() {
     let playerScore = 0;
     let computerScore = 0;
 
-    // Game settings as variables
+    // Game settings as variable
     let paddleWidth = 20;
     let paddleHeight = 120;
     let ballRadius = 10;
