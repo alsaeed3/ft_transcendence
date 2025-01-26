@@ -30,7 +30,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
 
 # Abdullah 42auth
-
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile

@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+from datetime import timedelta
 
 def get_env_variable(var_name):
     try:
@@ -38,8 +39,7 @@ SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_env_variable('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = ['backend', 'localhost', '127.0.0.1', '0.0.0.0']
-
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
 
 # Application definition
 
@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'matches.apps.MatchesConfig',
 	'corsheaders',
 	'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,8 +66,20 @@ REST_FRAMEWORK = {
     ),
 }
 
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Access token validity
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Refresh token validity
+    'ROTATE_REFRESH_TOKENS': True,                  # Rotate refresh tokens
+    'BLACKLIST_AFTER_ROTATION': True,               # Blacklist old refresh tokens
+}
+
 CORS_ALLOWED_ORIGINS = [
-	"https://localhost:443"
+    "http://localhost",
+    "http://localhost:80",
+    "https://localhost",
+    "https://localhost:443",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80"
 ]
 
 CSRF_COOKIE_SECURE = True
@@ -73,6 +87,7 @@ SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'http://localhost',
+    'http://127.0.0.1'
 ]
 
 

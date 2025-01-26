@@ -14,35 +14,96 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import login
 from django.http import JsonResponse
 import os
-class UserRegistrationView(generics.CreateAPIView):
-    serializer_class = UserRegistrationSerializer
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken#, AccessToken
+from django.http import Http404
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+class UserRegistrationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "User registered successfully."}, status=status.HTTP_201_CREATED)
+            user = serializer.save()
+
+            # Create a UserProfile for the newly registered user with default values
+            UserProfile.objects.create(
+                user=user,
+                profile_picture='/static/profile_pictures/default.jpg',  # Default profile picture
+                bio='',  # Empty bio by default
+                language_preference='en',  # Default language preference
+                two_factor_enabled=False,  # 2FA disabled by default
+                user_id_42=None,  # No 42 user ID by default
+                login_42=None,  # No 42 login by default
+                is_42_auth=False  # Not authenticated via 42 by default
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ProfileDetail(generics.RetrieveUpdateAPIView):
-	queryset = UserProfile.objects.all()
-	serializer_class = ProfileSerializer
-	permission_classes = [IsAuthenticated]
+class UserLoginView(APIView):
+    permission_classes = [AllowAny]
 
-	def get_object(self):
-		return self.request.user.UserProfile
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {'error': 'Invalid username or password'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    
+class UserLogoutView(APIView):
+    def post(self, request):
+        try:
+            refresh_token = request.data['refresh']
+            # access_token = request.data['access']
+
+            # Blacklist the refresh token
+            refresh_token = RefreshToken(refresh_token)
+            refresh_token.blacklist()
+
+            # Blacklist the access token (optional)
+            # access_token = AccessToken(access_token)
+            # access_token.blacklist()
+
+            return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ProfileDetail(generics.RetrieveUpdateAPIView):
+    queryset = UserProfile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        try:
+            return self.request.user.userprofile
+        except UserProfile.DoesNotExist:
+            raise Http404("UserProfile does not exist for this user.")
 
 # /////////////////// 42 auth //////////////////////////
 @api_view(['GET'])
 def ft_oauth_login(request):
-	baseurl = 'https://api.intra.42.fr/oauth/authorize'
-	parameters = {
-		'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
-		'response_type': 'code',
-		'redirect_uri': os.getenv('FT_REDIRECT_URI'),
-	}
-	url =  f"{baseurl}?{urlencode(parameters)}"
-	return redirect(url)
+    baseurl = 'https://api.intra.42.fr/oauth/authorize'
+    parameters = {
+        'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
+        'response_type': 'code',
+        'redirect_uri': os.getenv('FT_REDIRECT_URI'),
+    }
+    url =  f"{baseurl}?{urlencode(parameters)}"
+    return redirect(url)
 
 @api_view(['GET'])
 def ft_oauth_callback(request):
