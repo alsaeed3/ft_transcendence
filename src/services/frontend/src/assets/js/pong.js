@@ -27,46 +27,73 @@ function initGame() {
 
     // AI properties
     let lastAIUpdate = Date.now();
-    const AI_UPDATE_INTERVAL = 1000;
-    let aiMoveUp = false;
-    let aiMoveDown = false;
+    const AI_UPDATE_INTERVAL = 1000; // Strict 1-second refresh rate
+    let aiMoveUp = false;    // Simulated keyboard up
+    let aiMoveDown = false;  // Simulated keyboard down
     let predictedY = canvas.height / 2;
+    let difficultyFactor = 0.85; // AI makes mistakes 15% of the time
 
     function updateAI() {
         const currentTime = Date.now();
         
+        // Only update AI decisions once per second
         if (currentTime - lastAIUpdate >= AI_UPDATE_INTERVAL) {
-            if (ballSpeedX < 0) {
+            // Reset simulated keyboard inputs
+            aiMoveUp = false;
+            aiMoveDown = false;
+            
+            if (ballSpeedX < 0) { // Ball moving towards AI
                 let futureX = ballX;
                 let futureY = ballY;
                 let tempSpeedX = ballSpeedX;
                 let tempSpeedY = ballSpeedY;
+                let bounceCount = 0;
                 
-                while (futureX > paddleWidth) {
+                // Predict ball trajectory with bounces
+                while (futureX > paddleWidth && bounceCount < 3) {
                     futureX += tempSpeedX;
                     futureY += tempSpeedY;
                     
+                    // Predict bounces
                     if (futureY <= 0 || futureY >= canvas.height) {
                         tempSpeedY = -tempSpeedY;
+                        bounceCount++;
                     }
                 }
                 
-                predictedY = futureY;
+                // Add human-like imperfection
+                if (Math.random() > difficultyFactor) {
+                    // Intentionally make a mistake in prediction
+                    predictedY = futureY + (Math.random() * 100 - 50);
+                } else {
+                    predictedY = futureY;
+                }
             } else {
-                predictedY = canvas.height / 2;
+                // Return to center with some randomization when ball is moving away
+                predictedY = canvas.height / 2 + (Math.random() * 100 - 50);
+            }
+            
+            // Simulate keyboard decision making
+            const paddleCenter = paddle1Y + paddleHeight/2;
+            const deadzone = 20; // Small deadzone to prevent jitter
+            
+            if (paddleCenter < predictedY - deadzone) {
+                aiMoveDown = true;
+                aiMoveUp = false;
+            } else if (paddleCenter > predictedY + deadzone) {
+                aiMoveUp = true;
+                aiMoveDown = false;
             }
             
             lastAIUpdate = currentTime;
         }
         
-        const paddleCenter = paddle1Y + paddleHeight/2;
-        if (paddleCenter < predictedY - 10) {
-            paddle1Y += PADDLE_SPEED;
-        } else if (paddleCenter > predictedY + 10) {
-            paddle1Y -= PADDLE_SPEED;
+        // Move paddle based on simulated keyboard input
+        if (aiMoveUp) {
+            paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+        } else if (aiMoveDown) {
+            paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
         }
-        
-        paddle1Y = Math.max(0, Math.min(canvas.height - paddleHeight, paddle1Y));
     }
 
     function moveBall() {
