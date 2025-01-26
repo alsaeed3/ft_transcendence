@@ -15,6 +15,9 @@ from django.contrib.auth import login
 from django.http import JsonResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken#, AccessToken
+from django.http import Http404
 
 class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -22,7 +25,7 @@ class UserRegistrationView(APIView):
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()  # Save the user and get the user instance
+            user = serializer.save()
 
             # Create a UserProfile for the newly registered user with default values
             UserProfile.objects.create(
@@ -38,35 +41,68 @@ class UserRegistrationView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class UserLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {'error': 'Invalid username or password'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    
+class UserLogoutView(APIView):
+    def post(self, request):
+        try:
+            refresh_token = request.data['refresh']
+            # access_token = request.data['access']
+
+            # Blacklist the refresh token
+            refresh_token = RefreshToken(refresh_token)
+            refresh_token.blacklist()
+
+            # Blacklist the access token (optional)
+            # access_token = AccessToken(access_token)
+            # access_token.blacklist()
+
+            return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class ProfileDetail(generics.RetrieveUpdateAPIView):
-	queryset = UserProfile.objects.all()
-	serializer_class = ProfileSerializer
-	permission_classes = [IsAuthenticated]
+    queryset = UserProfile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
 
-	def get_object(self):
-		return self.request.user.UserProfile
-
-# Create your views here.
-@api_view(['GET'])
-def get_data(request):
-	data = [
-		{"title": "Item 1", "description": "This is item 1"},
-		{"title": "Item 2", "description": "This is item 2"},
-		{"title": "Item 3", "description": "This is item 3"},
-	]
-	return Response(data)
+    def get_object(self):
+        try:
+            return self.request.user.userprofile
+        except UserProfile.DoesNotExist:
+            raise Http404("UserProfile does not exist for this user.")
 
 # /////////////////// 42 auth //////////////////////////
 @api_view(['GET'])
 def ft_oauth_login(request):
-	baseurl = 'https://api.intra.42.fr/oauth/authorize'
-	parameters = {
-		'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
-		'response_type': 'code',
-		'redirect_uri': 'https://localhost:443/api/oauth/callback/',
-	}
-	url =  f"{baseurl}?{urlencode(parameters)}"
-	return redirect(url)
+    baseurl = 'https://api.intra.42.fr/oauth/authorize'
+    parameters = {
+        'client_id': 'u-s4t2ud-3875c51ca2d8d944d23520992353c921e7559a450f1cb4cf08c60123cdf632d5',
+        'response_type': 'code',
+        'redirect_uri': 'https://localhost:443/api/oauth/callback/',
+    }
+    url =  f"{baseurl}?{urlencode(parameters)}"
+    return redirect(url)
 
 @api_view(['GET'])
 def ft_oauth_callback(request):

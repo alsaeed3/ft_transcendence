@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+from datetime import timedelta
 
 def get_env_variable(var_name):
     try:
@@ -49,6 +50,8 @@ INSTALLED_APPS = [
     'matches.apps.MatchesConfig',
 	'corsheaders',
 	'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -61,6 +64,13 @@ REST_FRAMEWORK = {
 	'DEFAULT_AUTHENTICATION_CLASSES': (
 		'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Access token validity
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Refresh token validity
+    'ROTATE_REFRESH_TOKENS': True,                  # Rotate refresh tokens
+    'BLACKLIST_AFTER_ROTATION': True,               # Blacklist old refresh tokens
 }
 
 CORS_ALLOWED_ORIGINS = [
