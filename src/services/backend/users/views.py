@@ -54,7 +54,7 @@ def ft_oauth_callback(request):
         'client_id': os.getenv('FT_CLIENT_ID'),
         'client_secret': os.getenv('FT_CLIENT_SECRET'),
         'code': code,
-        'redirect_uri': os.getenv('FT_REDIRECT_URI'), 
+        'redirect_uri': 'https://localhost:443/api/users/oauth/callback/', #
     }
     token_response = requests.post(token_url, data=token_data)
     if token_response.status_code != 200:
@@ -113,20 +113,6 @@ def ft_oauth_callback(request):
                 is_42_auth=is_42_auth
                 )
 
-    # Authenticate the user
-    login(request, user)
-
-    # Return user details
-    # user_data = {
-    #     'id': user.id,
-    #     'username': user.username,
-    #     'email': user.email,
-    #     'first_name': user.first_name,
-    #     'last_name': user.last_name,
-    #     'login_42': profile.login_42,
-    #     'user_id_42': profile.user_id_42,
-    #     'is_42_auth': profile.is_42_auth,
-    # }
     serializer = UserSerializer(user)
     return JsonResponse(serializer.data, status=200)
 
