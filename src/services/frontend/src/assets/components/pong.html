@@ -1,21 +1,85 @@
-<div class="pong-container">
-	<h1 class="text-center">Play Pong</h1>
-	<div class="game-settings">
-		<label for="paddleColor">Paddle Color:</label>
-		<input type="color" id="paddleColor" value="#FFFFFF">
-		
-		<label for="ballColor">Ball Color:</label>
-		<input type="color" id="ballColor" value="#FFFFFF">
-		
-		<label for="gameSpeed">Game Speed:</label>
-		<input type="range" id="gameSpeed" min="1" max="10" value="5">
+<div class="container-fluid py-4">
+	<!-- Game Settings Panel -->
+	<div class="row mb-4">
+		<div class="col-md-6 mx-auto">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">Game Settings</h5>
+				</div>
+				<div class="card-body">
+					<div class="row g-3">
+						<div class="col-md-6">
+							<label for="paddleWidth" class="form-label">Paddle Width</label>
+							<input type="range" class="form-range" id="paddleWidth" min="10" max="50" value="20" 
+								   oninput="updateGameSettings(
+									   parseInt(this.value),
+									   parseInt(document.getElementById('paddleHeight').value),
+									   parseInt(document.getElementById('paddleSpeed').value),
+									   parseInt(document.getElementById('ballSpeed').value)
+								   )">
+							<div class="text-center"><span id="paddleWidthValue">20</span></div>
+						</div>
+						<div class="col-md-6">
+							<label for="paddleHeight" class="form-label">Paddle Height</label>
+							<input type="range" class="form-range" id="paddleHeight" min="60" max="200" value="120"
+								   oninput="updateGameSettings(
+									   parseInt(document.getElementById('paddleWidth').value),
+									   parseInt(this.value),
+									   parseInt(document.getElementById('paddleSpeed').value),
+									   parseInt(document.getElementById('ballSpeed').value)
+								   )">
+							<div class="text-center"><span id="paddleHeightValue">120</span></div>
+						</div>
+						<div class="col-md-6">
+							<label for="paddleSpeed" class="form-label">Paddle Speed</label>
+							<input type="range" class="form-range" id="paddleSpeed" min="1" max="15" value="5"
+								   oninput="updateGameSettings(
+									   parseInt(document.getElementById('paddleWidth').value),
+									   parseInt(document.getElementById('paddleHeight').value),
+									   parseInt(this.value),
+									   parseInt(document.getElementById('ballSpeed').value)
+								   )">
+							<div class="text-center"><span id="paddleSpeedValue">5</span></div>
+						</div>
+						<div class="col-md-6">
+							<label for="ballSpeed" class="form-label">Ball Speed</label>
+							<input type="range" class="form-range" id="ballSpeed" min="1" max="10" value="4"
+								   oninput="updateGameSettings(
+									   parseInt(document.getElementById('paddleWidth').value),
+									   parseInt(document.getElementById('paddleHeight').value),
+									   parseInt(document.getElementById('paddleSpeed').value),
+									   parseInt(this.value)
+								   )">
+							<div class="text-center"><span id="ballSpeedValue">4</span></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
-	
-	<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto"></canvas>
-	
-	<div class="score-board">
-		<span id="playerScore">0</span>
-		<span>-</span>
-		<span id="computerScore">0</span>
+
+	<!-- Score and Game Canvas -->
+	<div class="row justify-content-center">
+		<div class="col-auto position-relative">
+			<!-- Swapped score order: computer (left) vs player (right) -->
+			<div class="score-board text-center mb-3">
+				<h2 class="display-6">
+					<span id="computerScore" class="me-3">0</span>
+					<span class="text-muted">vs</span>
+					<span id="playerScore" class="ms-3">0</span>
+				</h2>
+			</div>
+			
+			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border"></canvas>
+		</div>
 	</div>
 </div>
+
+<script>
+// Update value displays
+document.querySelectorAll('.form-range').forEach(range => {
+	range.addEventListener('input', function() {
+		document.getElementById(this.id + 'Value').textContent = this.value;
+	});
+});
+</script>
