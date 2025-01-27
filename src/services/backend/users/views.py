@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from .models import UserProfile
+from dashboard.models import Dashboard
 from .serializers import ProfileSerializer, UserRegistrationSerializer, UserSerializer, UserProfileSerializer
 from django.contrib.auth.models import User
 from django.http import HttpResponse
@@ -27,17 +28,19 @@ class UserRegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
-            # Create a UserProfile for the newly registered user with default values
             UserProfile.objects.create(
                 user=user,
-                profile_picture='/static/profile_pictures/default.jpg',  # Default profile picture
-                bio='',  # Empty bio by default
-                language_preference='en',  # Default language preference
-                two_factor_enabled=False,  # 2FA disabled by default
-                user_id_42=None,  # No 42 user ID by default
-                login_42=None,  # No 42 login by default
-                is_42_auth=False  # Not authenticated via 42 by default
+                profile_picture='/static/profile_pictures/default.jpg',
+                bio='',
+                language_preference='en',
+                two_factor_enabled=False,
+                user_id_42=None,
+                login_42=None,
+                is_42_auth=False
             )
+
+            Dashboard.objects.create(user=user)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
