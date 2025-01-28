@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 from datetime import timedelta
 
+
 def get_env_variable(var_name):
     try:
         return os.getenv(var_name)
@@ -103,6 +104,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'backend.urls'
+AUTH_USER_MODEL = 'users.User'
 
 TEMPLATES = [
     {
