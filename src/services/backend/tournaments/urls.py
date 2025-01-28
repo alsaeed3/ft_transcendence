@@ -1,10 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import TournamentViewSet
-
-router = DefaultRouter()
-router.register(r'tournaments', TournamentViewSet)
+from . import views
 
 urlpatterns = [
-	path('', include(router.urls))
+	path('tournaments/', views.TournamentListView.as_view(), name='tournament-list'),
+    path('tournaments/<int:pk>/', views.TournamentDetailView.as_view(), name='tournament-detail'),
 ]
