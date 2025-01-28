@@ -1,13 +1,11 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import redirect
 from urllib.parse import urlencode
 from rest_framework.decorators import api_view
-from rest_framework import status
 from rest_framework.response import Response
-from rest_framework import generics, status
+from rest_framework import generics, status, permissions
 from rest_framework.permissions import IsAuthenticated
-from .models import UserProfile
-from dashboard.models import Dashboard
-from .serializers import ProfileSerializer, UserRegistrationSerializer, UserSerializer, UserProfileSerializer
+from .models import User
+from .serializers import ProfileSerializer, UserRegistrationSerializer, UserSerializer
 from django.contrib.auth.models import User
 from django.http import HttpResponse
 import requests
@@ -21,6 +19,16 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken#, AccessToken
 from django.http import Http404
 
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class UserDetailView(generics.RetrieveUpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
 
@@ -29,18 +37,16 @@ class UserRegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
-            UserProfile.objects.create(
-                user=user,
-                profile_picture='/static/profile_pictures/default.jpg',
-                bio='',
+            User.objects.create(
+                display_name=user.username,
+                online_status=False,
+                friends=[],
                 language_preference='en',
                 two_factor_enabled=False,
                 user_id_42=None,
                 login_42=None,
                 is_42_auth=False
             )
-
-            Dashboard.objects.create(user=user)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -86,15 +92,15 @@ class UserLogoutView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileDetail(generics.RetrieveUpdateAPIView):
-    queryset = UserProfile.objects.all()
+    queryset = User.objects.all()
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
         try:
-            return self.request.user.userprofile
-        except UserProfile.DoesNotExist:
-            raise Http404("UserProfile does not exist for this user.")
+            return self.request.user.User
+        except User.DoesNotExist:
+            raise Http404("User does not exist for this user.")
 
 # /////////////////// 42 auth //////////////////////////
 @api_view(['GET'])
@@ -149,7 +155,7 @@ def ft_oauth_callback(request):
 
     try:
         # Check if the user exists
-        profile = UserProfile.objects.get(user_id_42=user_id_42)
+        profile = User.objects.get(user_id_42=user_id_42)
         user = profile.user
     except ObjectDoesNotExist:
     # Create a new user
@@ -170,7 +176,7 @@ def ft_oauth_callback(request):
         if created:
             user.set_unusable_password()
             user.save()
-            profile = UserProfile.objects.create(
+            profile = User.objects.create(
                 user=user,
                 login_42=login_42,
                 user_id_42=user_id_42,

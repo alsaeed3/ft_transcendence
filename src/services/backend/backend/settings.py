@@ -45,8 +45,6 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
 
 INSTALLED_APPS = [
 	'users.apps.UsersConfig',
-    'dashboard.apps.DashboardConfig',
-    'friends.apps.FriendsConfig',
     'matches.apps.MatchesConfig',
 	'corsheaders',
 	'rest_framework',

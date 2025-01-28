@@ -3,10 +3,10 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from .models import UserProfile
 
-class ProfileSerializer(serializers.ModelSerializer):
-	class Meta:
-		model = UserProfile
-		fields = ['profile_picture', 'bio', 'language_preference']
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'display_name', 'avatar', 'online_status']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -32,11 +32,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 # Abdullah 42auth
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = UserProfile
+        model = User
         fields = ['login_42', 'user_id_42', 'is_42_2fa_enabled', 'is_42_auth']
 
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(source='userprofile')
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile']
+        fields = ['id', 'username', 'email', 'display_name', 'avatar', 'online_status', 'profile']
