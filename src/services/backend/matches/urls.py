@@ -1,9 +1,7 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from . import views
 
-
 urlpatterns = [
-	path('match/', views.MatchListView.as_view(), name='match-list'),
-    path('match/<int:pk>/', views.MatchDetailView.as_view(), name='match-detail'),
+	path('', views.MatchListView.as_view(), name='match-list'),
+    path('<int:pk>/', views.MatchDetailView.as_view(), name='match-detail'),
 ]
