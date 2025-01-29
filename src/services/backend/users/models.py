@@ -9,6 +9,7 @@ class User(AbstractUser):
     user_id_42 = models.IntegerField(null=True, blank=True)
     login_42 = models.CharField(max_length=255, null=True, blank=True)
     is_42_auth = models.BooleanField(default=False)
+    is_42_2fa_enabled = models.BooleanField(default=False) 
     online_status = models.BooleanField(default=False)
     
     friends = models.ManyToManyField(
