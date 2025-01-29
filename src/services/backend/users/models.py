@@ -10,8 +10,8 @@ class User(AbstractUser):
     login_42 = models.CharField(max_length=255, null=True, blank=True)
     is_42_auth = models.BooleanField(default=False)
     is_42_2fa_enabled = models.BooleanField(default=False) 
+    online_status = models.BooleanField(default=False)
     
-    # Move friends field to bottom and use string reference
     friends = models.ManyToManyField(
         'self',
         symmetrical=False,
