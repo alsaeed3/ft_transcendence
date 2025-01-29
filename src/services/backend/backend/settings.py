@@ -46,6 +46,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
 
 INSTALLED_APPS = [
 	'users.apps.UsersConfig',
+    'authentication.apps.AuthenticationConfig',
     'tournaments.apps.TournamentsConfig',
     'matches.apps.MatchesConfig',
 	'corsheaders',

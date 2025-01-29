@@ -23,6 +23,7 @@ urlpatterns = [
 	path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
+	path('api/auth/', include('authentication.urls')),
     path('api/matches/', include('matches.urls')),
     path('api/tournaments/', include('tournaments.urls'))
 ]
