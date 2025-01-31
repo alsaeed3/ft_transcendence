@@ -1,11 +1,18 @@
-API Documentation
-Base URL
-https://localhost/api/
-Authentication
+# API Documentation
+
+## Base URL
+`https://localhost/api/`
+
+## Authentication
 The API uses JWT (JSON Web Token) authentication. Include the token in the Authorization header:
+```
 Authorization: Bearer <access_token>
-Authentication Endpoints
-Register New User
+```
+
+## Authentication Endpoints
+
+### Register New User
+```http
 POST /auth/register/
 Content-Type: application/json
 
@@ -15,8 +22,10 @@ Content-Type: application/json
     "password": "string",
     "repeat_password": "string"
 }
+```
 
-Response (201 Created):
+**Response** (201 Created):
+```json
 {
     "id": "integer",
     "username": "string",
@@ -27,7 +36,10 @@ Response (201 Created):
     "login_42": "string|null",
     "is_42_auth": "boolean"
 }
-Login
+```
+
+### Login
+```http
 POST /auth/login/
 Content-Type: application/json
 
@@ -35,8 +47,10 @@ Content-Type: application/json
     "username": "string",
     "password": "string"
 }
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "refresh": "string",
     "access": "string",
@@ -51,41 +65,53 @@ Response (200 OK):
         "is_42_auth": "boolean"
     }
 }
-Logout
+```
+
+### Logout
+```http
 POST /auth/logout/
 Content-Type: application/json
 
 {
     "refresh": "string"
 }
+```
 
-Response (205 Reset Content)
-42 OAuth Login
+**Response**: 205 Reset Content
+
+### 42 OAuth Login
+```http
 GET /auth/oauth/login/
-
+```
 Redirects to 42 authorization page
-Refresh Token
+
+### Refresh Token
+```http
 POST /token/refresh/
 Content-Type: application/json
 
 {
     "refresh": "string"
 }
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "access": "string"
 }
-User Endpoints
-List Users
+```
+
+## User Endpoints
+
+### List Users
+```http
 GET /users/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
-GET /users/
-Authorization: Bearer <token>
-
-Response (200 OK):
+**Response** (200 OK):
+```json
 [
     {
         "id": "integer",
@@ -100,11 +126,16 @@ Response (200 OK):
         "is_42_auth": "boolean"
     }
 ]
-Get User Details
+```
+
+### Get User Details
+```http
 GET /users/{id}/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "id": "integer",
     "username": "string",
@@ -117,11 +148,16 @@ Response (200 OK):
     "login_42": "string|null",
     "is_42_auth": "boolean"
 }
-Get Own Profile
+```
+
+### Get Own Profile
+```http
 GET /users/profile/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "id": "integer",
     "username": "string",
@@ -134,16 +170,18 @@ Response (200 OK):
     "login_42": "string|null",
     "is_42_auth": "boolean"
 }
-Match Endpoints
-List Matches
+```
+
+## Match Endpoints
+
+### List Matches
+```http
 GET /matches/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
-GET /matches/
-Authorization: Bearer <token>
-
-Response (200 OK):
+**Response** (200 OK):
+```json
 [
     {
         "id": "integer",
@@ -157,11 +195,16 @@ Response (200 OK):
         "winner": "integer|null"
     }
 ]
-Get Match Details
+```
+
+### Get Match Details
+```http
 GET /matches/{id}/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "id": "integer",
     "tournament": "integer|null",
@@ -173,12 +216,18 @@ Response (200 OK):
     "end_time": "datetime|null",
     "winner": "integer|null"
 }
-Tournament Endpoints
-List Tournaments
+```
+
+## Tournament Endpoints
+
+### List Tournaments
+```http
 GET /tournaments/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 [
     {
         "id": "integer",
@@ -200,7 +249,10 @@ Response (200 OK):
         ]
     }
 ]
-Create Tournament
+```
+
+### Create Tournament
+```http
 POST /tournaments/
 Authorization: Bearer <token>
 Content-Type: application/json
@@ -209,8 +261,10 @@ Content-Type: application/json
     "name": "string",
     "participants": ["integer"]
 }
+```
 
-Response (201 Created):
+**Response** (201 Created):
+```json
 {
     "id": "integer",
     "name": "string",
@@ -221,11 +275,16 @@ Response (201 Created):
     "winner": null,
     "matches": []
 }
-Get Tournament Details
+```
+
+### Get Tournament Details
+```http
 GET /tournaments/{id}/
 Authorization: Bearer <token>
+```
 
-Response (200 OK):
+**Response** (200 OK):
+```json
 {
     "id": "integer",
     "name": "string",
@@ -245,32 +304,41 @@ Response (200 OK):
         }
     ]
 }
-Status Values
+```
+
+### Status Values
 Tournament status can be one of:
+- `PENDING`
+- `ONGOING`
+- `COMPLETED`
 
-PENDING
-ONGOING
-COMPLETED
-
-Error Responses
+## Error Responses
 All endpoints may return these error responses:
-401 Unauthorized
+
+### 401 Unauthorized
+```json
 {
     "detail": "Authentication credentials were not provided."
 }
+```
 
-403 Forbidden
+### 403 Forbidden
+```json
 {
     "detail": "You do not have permission to perform this action."
 }
+```
 
-404 Not Found
+### 404 Not Found
+```json
 {
     "detail": "Not found."
 }
+```
 
-400 Bad Request
+### 400 Bad Request
+```json
 {
     "field_name": ["error message"]
 }
-
+```

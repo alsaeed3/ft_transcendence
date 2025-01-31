@@ -149,4 +149,3 @@ def ft_oauth_callback(request):
     }, status=status.HTTP_200_OK)
 
     # return JsonResponse(AuthUserSerializer(user).data, status=200)
-
