@@ -31,7 +31,6 @@ function initGame() {
     let aiMoveUp = false;    // Simulated keyboard up
     let aiMoveDown = false;  // Simulated keyboard down
     let targetY = canvas.height / 2;
-    let difficultyFactor = 0.85; // AI makes mistakes 15% of the time
 
     function updateAI() {
         const currentTime = Date.now();
@@ -55,14 +54,10 @@ function initGame() {
                     }
                 }
                 
-                // Add human-like mistakes (rule: realistic challenge)
-                if (Math.random() > difficultyFactor) {
-                    targetY = predictedY + (Math.random() * 100 - 50);
-                } else {
-                    targetY = predictedY;
-                }
+                // Add slight randomization to target position
+                targetY = predictedY + (Math.random() * 100 - 50);
             } else {
-                // Return to center when ball moving away (rule: strategic decision-making)
+                // Return to center when ball moving away
                 targetY = canvas.height / 2 + (Math.random() * 100 - 50);
             }
             
