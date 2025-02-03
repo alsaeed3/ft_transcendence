@@ -56,7 +56,7 @@ const refreshAccessToken = async () => {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
 
-        const response = await fetch(`${API_BASE}auth/token/refresh/`, {
+        const response = await fetch(`${API_BASE}auth/refresh/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh: refreshToken })
@@ -129,11 +129,15 @@ const fetchMatchHistory = async () => {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        const matches = data.matches || data;
+
+        // Ensure we're getting an array
+        const matches = Array.isArray(data) ? data : (data.matches || []);
 
         // Filter user's matches and sort by date (most recent first)
         const userMatches = matches
-            .filter(match => match.player1 === profile.id || match.player2 === profile.id)
+            .filter(match => {
+                return match.player1 === profile.id || match.player2 === profile.id;
+            })
             .sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
 
         return userMatches;
@@ -158,6 +162,7 @@ const loadMainPage = async () => {
         }
 
         const matches = await fetchMatchHistory();
+
         if (matches && matches.length > 0) {
             document.getElementById('match-history').innerHTML = `
                 <h5 class="text-white mb-3">Recent Matches (Last ${RECENT_MATCHES_LIMIT})</h5>
@@ -167,10 +172,26 @@ const loadMainPage = async () => {
                         const isPlayer1 = match.player1 === profile.id;
                         const playerScore = isPlayer1 ? match.player1_score : match.player2_score;
                         const opponentScore = isPlayer1 ? match.player2_score : match.player1_score;
+                        
+                        // Get opponent name and match type
+                        const matchTypeKey = `match_${match.id}_type`;
+                        const storedMatchType = localStorage.getItem(matchTypeKey);
+                        const isPVP = storedMatchType === 'PVP' || match.match_type === 'PVP';
+
+                        let opponentName;
+                        if (isPVP) {
+                            const matchKey = `match_${match.id}_player2`;
+                            opponentName = localStorage.getItem(matchKey) || 'Player 2';
+                        } else {
+                            opponentName = 'Computer';
+                        }
+
                         const matchDate = new Date(match.end_time).toLocaleDateString();
+                        const matchTypeDisplay = isPVP ? 'PVP Match' : 'AI Match';
+
                         return `
                             <div class="mb-3 text-white">
-                                <div>You vs Computer</div>
+                                <div>${matchTypeDisplay}: You vs ${opponentName}</div>
                                 <div>Score: ${playerScore}-${opponentScore}</div>
                                 <small class="text-muted">${matchDate}</small>
                             </div>
@@ -223,9 +244,66 @@ document.getElementById('register-link').addEventListener('click', toggleForms);
 document.getElementById('login-link').addEventListener('click', toggleForms);
 
 // Game Controls
-document.getElementById('play-player-btn').addEventListener('click', () => {
-    // Implement game start logic
-    alert('Starting player vs player match!');
+document.getElementById('play-player-btn').addEventListener('click', async () => {
+    if (!accessToken) {
+        window.location.href = '/';
+        return;
+    }
+
+    try {
+        const response = await fetch('/src/assets/components/player2-setup.html');
+        const html = await response.text();
+        
+        // Hide main page
+        document.getElementById('main-page').classList.remove('active-page');
+        
+        // Create and show setup page
+        const setupDiv = document.createElement('div');
+        setupDiv.id = 'setup-page';
+        setupDiv.classList.add('page', 'active-page');
+        setupDiv.innerHTML = html;
+        document.body.appendChild(setupDiv);
+
+        // Add event listeners after adding to DOM
+        const setupForm = document.getElementById('player2-setup-form');
+        const cancelBtn = document.getElementById('cancel-btn');
+
+        setupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const player2Name = document.getElementById('player2-name').value;
+            localStorage.setItem('player2Name', player2Name);
+
+            // Load pong game
+            const pongResponse = await fetch('/src/assets/components/pong.html');
+            const pongHtml = await pongResponse.text();
+            
+            // Remove setup page
+            setupDiv.remove();
+            
+            // Create and show game page
+            const gameDiv = document.createElement('div');
+            gameDiv.id = 'game-page';
+            gameDiv.classList.add('page', 'active-page');
+            gameDiv.innerHTML = pongHtml;
+            document.body.appendChild(gameDiv);
+
+            // Initialize PvP game
+            requestAnimationFrame(() => {
+                if (typeof initGame === 'function') {
+                    initGame('PVP');
+                }
+            });
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            setupDiv.remove();
+            document.getElementById('main-page').classList.add('active-page');
+        });
+
+    } catch (error) {
+        console.error('Error loading setup page:', error);
+        alert('Failed to load the setup page');
+    }
 });
 
 document.getElementById('play-ai-btn').addEventListener('click', async () => {

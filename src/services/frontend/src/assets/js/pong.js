@@ -1,4 +1,4 @@
-function initGame() {
+function initGame(mode = 'AI') {
     const canvas = document.getElementById('pongCanvas');
     if (!canvas) return; // Exit if canvas isn't loaded yet
     
@@ -35,6 +35,32 @@ function initGame() {
     const WINNING_SCORE = 2;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
+
+    // Add username variables
+    let username = '';
+    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'Computer';
+
+    // Fetch username at start
+    async function fetchUsername() {
+        try {
+            const response = await fetch(`${API_BASE}users/profile/`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const userData = await response.json();
+                username = userData.username;
+            }
+        } catch (error) {
+            console.error('Error fetching username:', error);
+        }
+    }
+
+    // Call it immediately
+    fetchUsername();
 
     function updateAI() {
         const currentTime = Date.now();
@@ -87,7 +113,9 @@ function initGame() {
     function checkWinCondition() {
         if (playerScore >= WINNING_SCORE || computerScore >= WINNING_SCORE) {
             gameActive = false;
-            const winner = playerScore > computerScore ? 'PLAYER WINS' : 'COMPUTER WINS';
+            const winner = playerScore > computerScore ? 
+                `${username} WINS` : 
+                (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
             gameOverMessage.querySelector('h2').textContent = winner;
             gameOverMessage.classList.remove('d-none');
             
@@ -119,12 +147,13 @@ function initGame() {
 
             // If token expired, try to refresh it
             if (response.status === 401) {
+                // Try to refresh token
                 const refreshToken = localStorage.getItem('refreshToken');
                 if (!refreshToken) {
                     throw new Error('No refresh token available');
                 }
 
-                const refreshResponse = await fetch(`${API_BASE}auth/token/refresh/`, {
+                const refreshResponse = await fetch(`${API_BASE}auth/refresh/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ refresh: refreshToken })
@@ -137,7 +166,7 @@ function initGame() {
                 const tokenData = await refreshResponse.json();
                 localStorage.setItem('accessToken', tokenData.access);
                 
-                // Retry profile fetch with new token
+                // Retry with new token
                 response = await fetch(`${API_BASE}users/profile/`, {
                     headers: {
                         'Authorization': `Bearer ${tokenData.access}`,
@@ -161,7 +190,8 @@ function initGame() {
                 player2_score: computerScore,
                 start_time: new Date().toISOString(),
                 end_time: new Date().toISOString(),
-                winner: userData.id
+                winner: playerScore > computerScore ? userData.id : userData.id,
+                match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
             };
 
             const matchResponse = await fetch(`${API_BASE}matches/`, {
@@ -174,21 +204,36 @@ function initGame() {
             });
 
             if (!matchResponse.ok) {
+                const errorData = await matchResponse.json();
+                console.error('Match save error details:', errorData);
                 throw new Error('Failed to save match result');
             }
 
-            // Only redirect after successful match save
+            // Store player2 name with match ID
+            const savedMatch = await matchResponse.json();
+            if (mode === 'PVP') {
+                const matchKey = `match_${savedMatch.id}_player2`;
+                localStorage.setItem(matchKey, player2Name);
+                
+                // Also store match type
+                const matchTypeKey = `match_${savedMatch.id}_type`;
+                localStorage.setItem(matchTypeKey, 'PVP');
+            }
+
+            // Redirect only after successful save
             setTimeout(() => {
                 window.location.href = '/';
             }, 3000);
 
         } catch (error) {
             console.error('Error saving match:', error);
-            // On any auth error, redirect to login after showing game over
-            setTimeout(() => {
+            // On auth error, clear storage and redirect
+            if (error.message.includes('token') || error.message.includes('401')) {
                 localStorage.clear();
-                window.location.href = '/';
-            }, 3000);
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+            }
         }
     }
 
@@ -276,11 +321,21 @@ function initGame() {
     // Keyboard controls
     document.addEventListener('keydown', (event) => {
         switch(event.key.toLowerCase()) {
-            case 'p':  // Up - changed from 'w'
+            case 'p':  // Player 1 (right) controls
                 paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
                 break;
-            case 'l':  // Down - changed from 's'
+            case 'l':
                 paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+                break;
+            case 'w':  // Player 2 (left) controls
+                if (mode === 'PVP') {
+                    paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+                }
+                break;
+            case 's':
+                if (mode === 'PVP') {
+                    paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+                }
                 break;
         }
     });
@@ -295,7 +350,9 @@ function initGame() {
         const deltaTime = currentTime - lastTime;
         
         if (deltaTime >= frameInterval && gameActive) {
-            updateAI();
+            if (mode === 'AI') {
+                updateAI();  // Only run AI in AI mode
+            }
             moveBall();
             draw();
             lastTime = currentTime - (deltaTime % frameInterval);
