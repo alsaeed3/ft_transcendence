@@ -131,48 +131,34 @@ function initGame(mode = 'AI') {
 
     async function saveMatchResult(playerScore, computerScore) {
         try {
-            // Get current access token
-            const accessToken = localStorage.getItem('accessToken');
-            if (!accessToken) {
+            let currentToken = localStorage.getItem('accessToken');
+            if (!currentToken) {
                 throw new Error('No access token available');
             }
 
-            // First try to get user profile with current token
             let response = await fetch(`${API_BASE}users/profile/`, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${currentToken}`,
                     'Content-Type': 'application/json'
                 }
             });
 
-            // If token expired, try to refresh it
             if (response.status === 401) {
-                // Try to refresh token
-                const refreshToken = localStorage.getItem('refreshToken');
-                if (!refreshToken) {
-                    throw new Error('No refresh token available');
+                try {
+                    currentToken = await window.refreshAccessToken();
+                    response = await fetch(`${API_BASE}users/profile/`, {
+                        headers: {
+                            'Authorization': `Bearer ${currentToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (refreshError) {
+                    localStorage.clear();
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+                    throw refreshError;
                 }
-
-                const refreshResponse = await fetch(`${API_BASE}auth/refresh/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh: refreshToken })
-                });
-
-                if (!refreshResponse.ok) {
-                    throw new Error('Token refresh failed');
-                }
-
-                const tokenData = await refreshResponse.json();
-                localStorage.setItem('accessToken', tokenData.access);
-                
-                // Retry with new token
-                response = await fetch(`${API_BASE}users/profile/`, {
-                    headers: {
-                        'Authorization': `Bearer ${tokenData.access}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
             }
 
             if (!response.ok) {
@@ -198,7 +184,7 @@ function initGame(mode = 'AI') {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    'Authorization': `Bearer ${currentToken}`
                 },
                 body: JSON.stringify(matchData)
             });
@@ -227,7 +213,6 @@ function initGame(mode = 'AI') {
 
         } catch (error) {
             console.error('Error saving match:', error);
-            // On auth error, clear storage and redirect
             if (error.message.includes('token') || error.message.includes('401')) {
                 localStorage.clear();
                 setTimeout(() => {

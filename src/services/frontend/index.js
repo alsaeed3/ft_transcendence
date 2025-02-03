@@ -364,3 +364,6 @@ if (accessToken) {
 } else {
     showPage(pages.landing);
 }
+
+// Make refreshAccessToken available globally
+window.refreshAccessToken = refreshAccessToken;
