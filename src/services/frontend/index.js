@@ -183,6 +183,12 @@ const toggleForms = () => {
 document.getElementById('register-link').addEventListener('click', toggleForms);
 document.getElementById('login-link').addEventListener('click', toggleForms);
 
+// OAuth Login
+document.getElementById('oauth-login-link').addEventListener('click', (e) => {
+    e.preventDefault(); // Prevent the default anchor behavior
+    window.location.href = `${API_BASE}auth/oauth/login/`; // Redirect to the OAuth login endpoint
+});
+
 // Game Controls
 document.getElementById('play-player-btn').addEventListener('click', () => {
     // Implement game start logic
