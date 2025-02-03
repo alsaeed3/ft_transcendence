@@ -1,5 +1,6 @@
 const API_BASE = 'https://localhost/api/';
 let accessToken = localStorage.getItem('accessToken');
+const RECENT_MATCHES_LIMIT = 5;
 
 // DOM Elements
 const pages = {
@@ -115,7 +116,6 @@ const fetchUserProfile = async () => {
 
 const fetchMatchHistory = async () => {
     try {
-        // First get the user's profile to get their ID
         const profile = await fetchUserProfile();
         if (!profile) throw new Error('Could not get user profile');
 
@@ -131,10 +131,10 @@ const fetchMatchHistory = async () => {
         const data = await response.json();
         const matches = data.matches || data;
 
-        // Filter matches where the user was either player1 or player2
-        const userMatches = matches.filter(match => 
-            match.player1 === profile.id || match.player2 === profile.id
-        );
+        // Filter user's matches and sort by date (most recent first)
+        const userMatches = matches
+            .filter(match => match.player1 === profile.id || match.player2 === profile.id)
+            .sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
 
         return userMatches;
     } catch (error) {
@@ -148,7 +148,6 @@ const loadMainPage = async () => {
     showPage(pages.main);
     
     try {
-        // Load user stats
         const profile = await fetchUserProfile();
         if (profile) {
             document.getElementById('player-stats').innerHTML = `
@@ -158,22 +157,26 @@ const loadMainPage = async () => {
             `;
         }
 
-        // Load match history
         const matches = await fetchMatchHistory();
         if (matches && matches.length > 0) {
-            document.getElementById('match-history').innerHTML = matches
-                .slice(0, 5)
-                .map(match => {
-                    const isPlayer1 = match.player1 === profile.id;
-                    const playerScore = isPlayer1 ? match.player1_score : match.player2_score;
-                    const opponentScore = isPlayer1 ? match.player2_score : match.player1_score;
-                    return `
-                        <div class="mb-2 text-white">
-                            You vs Computer<br>
-                            Score: ${playerScore}-${opponentScore}
-                        </div>
-                    `;
-                }).join('');
+            document.getElementById('match-history').innerHTML = `
+                <h5 class="text-white mb-3">Recent Matches (Last ${RECENT_MATCHES_LIMIT})</h5>
+                ${matches
+                    .slice(0, RECENT_MATCHES_LIMIT)
+                    .map(match => {
+                        const isPlayer1 = match.player1 === profile.id;
+                        const playerScore = isPlayer1 ? match.player1_score : match.player2_score;
+                        const opponentScore = isPlayer1 ? match.player2_score : match.player1_score;
+                        const matchDate = new Date(match.end_time).toLocaleDateString();
+                        return `
+                            <div class="mb-3 text-white">
+                                <div>You vs Computer</div>
+                                <div>Score: ${playerScore}-${opponentScore}</div>
+                                <small class="text-muted">${matchDate}</small>
+                            </div>
+                        `;
+                    }).join('')}
+            `;
         } else {
             document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
         }
