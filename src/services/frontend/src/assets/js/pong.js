@@ -103,29 +103,68 @@ function initGame() {
 
     async function saveMatchResult(playerScore, computerScore) {
         try {
-            // First get the current user's ID
-            const userResponse = await fetch(`${API_BASE}users/profile/`, {
+            // Get current access token
+            const accessToken = localStorage.getItem('accessToken');
+            if (!accessToken) {
+                throw new Error('No access token available');
+            }
+
+            // First try to get user profile with current token
+            let response = await fetch(`${API_BASE}users/profile/`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                    'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 }
             });
-            
-            if (!userResponse.ok) throw new Error('Failed to get user profile');
-            const userData = await userResponse.json();
 
+            // If token expired, try to refresh it
+            if (response.status === 401) {
+                const refreshToken = localStorage.getItem('refreshToken');
+                if (!refreshToken) {
+                    throw new Error('No refresh token available');
+                }
+
+                const refreshResponse = await fetch(`${API_BASE}auth/token/refresh/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: refreshToken })
+                });
+
+                if (!refreshResponse.ok) {
+                    throw new Error('Token refresh failed');
+                }
+
+                const tokenData = await refreshResponse.json();
+                localStorage.setItem('accessToken', tokenData.access);
+                
+                // Retry profile fetch with new token
+                response = await fetch(`${API_BASE}users/profile/`, {
+                    headers: {
+                        'Authorization': `Bearer ${tokenData.access}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to get user profile');
+            }
+
+            const userData = await response.json();
+
+            // Save match with valid token
             const matchData = {
                 tournament: null,
-                player1: userData.id,  // Current player is player1
-                player2: userData.id,  // Also player2 (representing AI game)
-                player1_score: playerScore,  // Player's score
-                player2_score: computerScore,  // Computer's score
+                player1: userData.id,
+                player2: userData.id,
+                player1_score: playerScore,
+                player2_score: computerScore,
                 start_time: new Date().toISOString(),
                 end_time: new Date().toISOString(),
-                winner: userData.id  // Always use player ID, even for loss
+                winner: userData.id
             };
 
-            const response = await fetch(`${API_BASE}matches/`, {
+            const matchResponse = await fetch(`${API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -134,13 +173,22 @@ function initGame() {
                 body: JSON.stringify(matchData)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error('Match save error details:', errorData);
+            if (!matchResponse.ok) {
                 throw new Error('Failed to save match result');
             }
+
+            // Only redirect after successful match save
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+
         } catch (error) {
             console.error('Error saving match:', error);
+            // On any auth error, redirect to login after showing game over
+            setTimeout(() => {
+                localStorage.clear();
+                window.location.href = '/';
+            }, 3000);
         }
     }
 
