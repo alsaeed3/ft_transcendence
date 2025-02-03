@@ -1,6 +1,7 @@
 const API_BASE = 'https://localhost/api/';
 var username;
 let accessToken = localStorage.getItem('accessToken');
+let refreshToken = localStorage.getItem('refreshToken');
 const RECENT_MATCHES_LIMIT = 5;
 
 // DOM Elements
@@ -15,6 +16,49 @@ const showPage = (page) => {
     page.classList.add('active-page');
 };
 
+// Auth utilities
+const refreshAccessToken = async () => {
+    try {
+        const response = await fetch(`${API_BASE}token/refresh/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: refreshToken })
+        });
+        
+        if (!response.ok) throw new Error('Token refresh failed');
+        const data = await response.json();
+        accessToken = data.access;
+        localStorage.setItem('accessToken', accessToken);
+        return accessToken;
+    } catch (error) {
+        localStorage.clear();
+        showPage(pages.landing);
+        throw error;
+    }
+};
+
+const fetchWithAuth = async (url, options = {}) => {
+    let response = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${accessToken}`
+        }
+    });
+
+    if (response.status === 401) {
+        const newToken = await refreshAccessToken();
+        response = await fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Authorization': `Bearer ${newToken}`
+            }
+        });
+    }
+    return response;
+};
+
 // Auth Functions
 const handleLogin = async (username, password) => {
     try {
@@ -23,16 +67,18 @@ const handleLogin = async (username, password) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
-
-        if (!response.ok) throw new Error('Login failed');
         
+        if (!response.ok) throw new Error('Login failed');
         const data = await response.json();
-        localStorage.setItem('accessToken', data.access);
-        localStorage.setItem('refreshToken', data.refresh);
         accessToken = data.access;
-        loadMainPage();
+        refreshToken = data.refresh;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        showPage(pages.main);
+        await loadMainPage();
     } catch (error) {
-        alert(error.message);
+        console.error('Login error:', error);
+        throw error;
     }
 };
 
@@ -52,56 +98,14 @@ const handleRegister = async (userData) => {
     }
 };
 
-// Add refresh token functionality
-const refreshAccessToken = async () => {
-    try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) throw new Error('No refresh token');
-
-        const response = await fetch(`${API_BASE}auth/refresh/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh: refreshToken })
-        });
-
-        if (!response.ok) throw new Error('Token refresh failed');
-        
-        const data = await response.json();
-        localStorage.setItem('accessToken', data.access);
-        accessToken = data.access;
-        return data.access;
-    } catch (error) {
-        console.error('Error refreshing token:', error);
-        localStorage.clear();
-        accessToken = null;
-        showPage(pages.landing);
-        throw error;
-    }
-};
-
 // Data Fetching
 const fetchUserProfile = async () => {
     try {
-        const response = await fetch(`${API_BASE}users/profile/`, {
+        const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
             headers: { 
-                Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
             }
         });
-
-        if (response.status === 401) {
-            // Try to refresh token and retry the request
-            const newToken = await refreshAccessToken();
-            const retryResponse = await fetch(`${API_BASE}users/profile/`, {
-                headers: { 
-                    Authorization: `Bearer ${newToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!retryResponse.ok) throw new Error(`HTTP error! status: ${retryResponse.status}`);
-            return await retryResponse.json();
-        }
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
@@ -121,11 +125,7 @@ const fetchMatchHistory = async () => {
         const profile = await fetchUserProfile();
         if (!profile) throw new Error('Could not get user profile');
 
-        const response = await fetch(`${API_BASE}matches/`, {
-            headers: { 
-                Authorization: `Bearer ${accessToken}`
-            }
-        });
+        const response = await fetchWithAuth(`${API_BASE}matches/`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -171,11 +171,8 @@ const handleUpdateProfile = async (e) => {
     if (avatarFile) formData.append('avatar', avatarFile);
 
     try {
-        const response = await fetch(`${API_BASE}users/profile/`, {
+        const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
             method: 'PUT',
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            },
             body: formData
         });
 
