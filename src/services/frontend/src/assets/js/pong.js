@@ -2,7 +2,7 @@ function initGame() {
     const canvas = document.getElementById('pongCanvas');
     if (!canvas) return; // Exit if canvas isn't loaded yet
     
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for non-transparent canvas
 
     // Score elements
     const playerScoreElement = document.getElementById('playerScore');
@@ -157,15 +157,27 @@ function initGame() {
         }
     });
 
-    function gameLoop() {
-        updateAI();
-        moveBall();
-        draw();
+    let lastTime = 0;
+    const targetFPS = 60;
+    const frameInterval = 1000 / targetFPS;
+
+    function gameLoop(currentTime) {
+        if (!lastTime) lastTime = currentTime;
+        
+        const deltaTime = currentTime - lastTime;
+        
+        if (deltaTime >= frameInterval) {
+            updateAI();
+            moveBall();
+            draw();
+            lastTime = currentTime - (deltaTime % frameInterval);
+        }
+        
         requestAnimationFrame(gameLoop);
     }
 
-    // Start the game
-    gameLoop();
+    // Start the game loop
+    requestAnimationFrame(gameLoop);
 }
 
 // Initialize when script loads

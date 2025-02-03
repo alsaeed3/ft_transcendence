@@ -53,22 +53,38 @@ const handleRegister = async (userData) => {
 const fetchUserProfile = async () => {
     try {
         const response = await fetch(`${API_BASE}users/profile/`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
+            headers: { 
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('Error fetching profile:', error);
+        throw error;
     }
 };
 
 const fetchMatchHistory = async () => {
     try {
         const response = await fetch(`${API_BASE}matches/`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
+            headers: { 
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('Error fetching matches:', error);
+        throw error;
     }
 };
 
@@ -76,24 +92,40 @@ const fetchMatchHistory = async () => {
 const loadMainPage = async () => {
     showPage(pages.main);
     
-    // Load user stats
-    const profile = await fetchUserProfile();
-    document.getElementById('player-stats').innerHTML = `
-        <p>Username: ${profile.username}</p>
-        <p>Wins: ${profile.stats?.wins || 0}</p>
-        <p>Losses: ${profile.stats?.losses || 0}</p>
-    `;
+    try {
+        // Load user stats
+        const profile = await fetchUserProfile();
+        if (profile) {
+            document.getElementById('player-stats').innerHTML = `
+                <p>Username: ${profile.username}</p>
+                <p>Wins: ${profile.stats?.wins || 0}</p>
+                <p>Losses: ${profile.stats?.losses || 0}</p>
+            `;
+        }
 
-    // Load match history
-    const matches = await fetchMatchHistory();
-    document.getElementById('match-history').innerHTML = matches
-        .slice(0, 5)
-        .map(match => `
-            <div class="mb-2">
-                ${match.player1} vs ${match.player2}<br>
-                Score: ${match.player1_score}-${match.player2_score}
-            </div>
-        `).join('');
+        // Load match history
+        const matches = await fetchMatchHistory();
+        if (matches && Array.isArray(matches)) {
+            document.getElementById('match-history').innerHTML = matches
+                .slice(0, 5)
+                .map(match => `
+                    <div class="mb-2">
+                        ${match.player1} vs ${match.player2}<br>
+                        Score: ${match.player1_score}-${match.player2_score}
+                    </div>
+                `).join('');
+        } else {
+            document.getElementById('match-history').innerHTML = '<p>No matches found</p>';
+        }
+    } catch (error) {
+        console.error('Error loading main page data:', error);
+        // If token is invalid, redirect to login
+        if (error.message.includes('401')) {
+            localStorage.clear();
+            accessToken = null;
+            showPage(pages.landing);
+        }
+    }
 };
 
 // Event Listeners
@@ -136,9 +168,37 @@ document.getElementById('play-player-btn').addEventListener('click', () => {
     alert('Starting player vs player match!');
 });
 
-document.getElementById('play-ai-btn').addEventListener('click', () => {
-    // Implement AI match logic
-    alert('Starting AI match!');
+document.getElementById('play-ai-btn').addEventListener('click', async () => {
+    if (!accessToken) {
+        window.location.href = '/';
+        return;
+    }
+
+    try {
+        const response = await fetch('/src/assets/components/pong.html');
+        const html = await response.text();
+        
+        // Hide main page
+        document.getElementById('main-page').classList.remove('active-page');
+        
+        // Create and show game page
+        const gameDiv = document.createElement('div');
+        gameDiv.id = 'game-page';
+        gameDiv.classList.add('page', 'active-page');
+        gameDiv.innerHTML = html;
+        document.body.appendChild(gameDiv);
+
+        // Initialize game immediately after canvas is available
+        requestAnimationFrame(() => {
+            if (typeof initGame === 'function') {
+                initGame();
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading game:', error);
+        alert('Failed to load the game');
+    }
 });
 
 document.getElementById('create-tournament-btn').addEventListener('click', async () => {
