@@ -1,8 +1,8 @@
-function initGame() {
+function initGame(mode = 'AI') {
     const canvas = document.getElementById('pongCanvas');
     if (!canvas) return; // Exit if canvas isn't loaded yet
     
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for non-transparent canvas
 
     // Score elements
     const playerScoreElement = document.getElementById('playerScore');
@@ -31,6 +31,36 @@ function initGame() {
     let aiMoveUp = false;    // Simulated keyboard up
     let aiMoveDown = false;  // Simulated keyboard down
     let targetY = canvas.height / 2;
+
+    const WINNING_SCORE = 2;
+    let gameActive = true;
+    const gameOverMessage = document.getElementById('gameOverMessage');
+
+    // Add username variables
+    let username = '';
+    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'Computer';
+
+    // Fetch username at start
+    async function fetchUsername() {
+        try {
+            const response = await fetch(`${API_BASE}users/profile/`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const userData = await response.json();
+                username = userData.username;
+            }
+        } catch (error) {
+            console.error('Error fetching username:', error);
+        }
+    }
+
+    // Call it immediately
+    fetchUsername();
 
     function updateAI() {
         const currentTime = Date.now();
@@ -80,7 +110,121 @@ function initGame() {
         }
     }
 
+    function checkWinCondition() {
+        if (playerScore >= WINNING_SCORE || computerScore >= WINNING_SCORE) {
+            gameActive = false;
+            const winner = playerScore > computerScore ? 
+                `${username} WINS` : 
+                (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
+            gameOverMessage.querySelector('h2').textContent = winner;
+            gameOverMessage.classList.remove('d-none');
+            
+            // Save match result
+            saveMatchResult(playerScore, computerScore);
+            
+            // Return to main menu after delay
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+        }
+    }
+
+    async function saveMatchResult(playerScore, computerScore) {
+        try {
+            let currentToken = localStorage.getItem('accessToken');
+            if (!currentToken) {
+                throw new Error('No access token available');
+            }
+
+            let response = await fetch(`${API_BASE}users/profile/`, {
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                try {
+                    currentToken = await window.refreshAccessToken();
+                    response = await fetch(`${API_BASE}users/profile/`, {
+                        headers: {
+                            'Authorization': `Bearer ${currentToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (refreshError) {
+                    localStorage.clear();
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+                    throw refreshError;
+                }
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to get user profile');
+            }
+
+            const userData = await response.json();
+
+            // Save match with valid token
+            const matchData = {
+                tournament: null,
+                player1: userData.id,
+                player2: userData.id,
+                player1_score: playerScore,
+                player2_score: computerScore,
+                start_time: new Date().toISOString(),
+                end_time: new Date().toISOString(),
+                winner: playerScore > computerScore ? userData.id : userData.id,
+                match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
+            };
+
+            const matchResponse = await fetch(`${API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!matchResponse.ok) {
+                const errorData = await matchResponse.json();
+                console.error('Match save error details:', errorData);
+                throw new Error('Failed to save match result');
+            }
+
+            // Store player2 name with match ID
+            const savedMatch = await matchResponse.json();
+            if (mode === 'PVP') {
+                const matchKey = `match_${savedMatch.id}_player2`;
+                localStorage.setItem(matchKey, player2Name);
+                
+                // Also store match type
+                const matchTypeKey = `match_${savedMatch.id}_type`;
+                localStorage.setItem(matchTypeKey, 'PVP');
+            }
+
+            // Redirect only after successful save
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error saving match:', error);
+            if (error.message.includes('token') || error.message.includes('401')) {
+                localStorage.clear();
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+            }
+        }
+    }
+
     function moveBall() {
+        if (!gameActive) return;
+
         ballX += ballSpeedX;
         ballY += ballSpeedY;
         
@@ -97,7 +241,8 @@ function initGame() {
             } else if (ballX < 0) {
                 playerScore++;
                 playerScoreElement.textContent = playerScore;
-                resetBall();
+                checkWinCondition();
+                if (gameActive) resetBall();
             }
         }
         
@@ -108,16 +253,29 @@ function initGame() {
             } else if (ballX > canvas.width) {
                 computerScore++;
                 computerScoreElement.textContent = computerScore;
-                resetBall();
+                checkWinCondition();
+                if (gameActive) resetBall();
             }
         }
     }
 
     function draw() {
-        ctx.fillStyle = '#000';
+        // Clear screen (black background)
+        ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.fillStyle = '#fff';
+        // Draw classic 1972 center line (dashed)
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([20, 15]); // Larger dashes for authentic look
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset dash pattern
+        
+        // Draw paddles and ball
+        ctx.fillStyle = 'white';
         ctx.fillRect(0, paddle1Y, paddleWidth, paddleHeight);
         ctx.fillRect(canvas.width - paddleWidth, paddle2Y, paddleWidth, paddleHeight);
         
@@ -148,24 +306,48 @@ function initGame() {
     // Keyboard controls
     document.addEventListener('keydown', (event) => {
         switch(event.key.toLowerCase()) {
-            case 'w':
+            case 'p':  // Player 1 (right) controls
                 paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
                 break;
-            case 's':
+            case 'l':
                 paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+                break;
+            case 'w':  // Player 2 (left) controls
+                if (mode === 'PVP') {
+                    paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+                }
+                break;
+            case 's':
+                if (mode === 'PVP') {
+                    paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+                }
                 break;
         }
     });
 
-    function gameLoop() {
-        updateAI();
-        moveBall();
-        draw();
+    let lastTime = 0;
+    const targetFPS = 60;
+    const frameInterval = 1000 / targetFPS;
+
+    function gameLoop(currentTime) {
+        if (!lastTime) lastTime = currentTime;
+        
+        const deltaTime = currentTime - lastTime;
+        
+        if (deltaTime >= frameInterval && gameActive) {
+            if (mode === 'AI') {
+                updateAI();  // Only run AI in AI mode
+            }
+            moveBall();
+            draw();
+            lastTime = currentTime - (deltaTime % frameInterval);
+        }
+        
         requestAnimationFrame(gameLoop);
     }
 
-    // Start the game
-    gameLoop();
+    // Start the game loop
+    requestAnimationFrame(gameLoop);
 }
 
 // Initialize when script loads

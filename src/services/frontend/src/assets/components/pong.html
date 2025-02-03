@@ -61,16 +61,20 @@
 	<!-- Score and Game Canvas -->
 	<div class="row justify-content-center">
 		<div class="col-auto position-relative">
-			<!-- Swapped score order: computer (left) vs player (right) -->
-			<div class="score-board text-center mb-3">
-				<h2 class="display-6">
-					<span id="computerScore" class="me-3">0</span>
-					<span class="text-muted">vs</span>
-					<span id="playerScore" class="ms-3">0</span>
-				</h2>
+			<!-- Classic 1972 Pong Scoreboard -->
+			<div class="position-absolute w-100" style="top: 40px;">
+				<div class="d-flex justify-content-between px-5" style="width: 60%; margin: 0 auto;">
+					<span id="computerScore" class="display-3 font-monospace text-white">0</span>
+					<span id="playerScore" class="display-3 font-monospace text-white">0</span>
+				</div>
 			</div>
 			
-			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border"></canvas>
+			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border-0 bg-black"></canvas>
+			
+			<!-- Game Over Message -->
+			<div id="gameOverMessage" class="position-absolute top-50 start-50 translate-middle d-none">
+				<h2 class="text-white text-center display-4 font-monospace"></h2>
+			</div>
 		</div>
 	</div>
 </div>
