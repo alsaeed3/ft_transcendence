@@ -73,18 +73,18 @@ const fetchMatchHistory = async () => {
     try {
         const response = await fetch(`${API_BASE}matches/`, {
             headers: { 
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
+                Authorization: `Bearer ${accessToken}`
             }
         });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return await response.json();
+        const data = await response.json();
+        return data.matches || data; // Handle both {matches: [...]} and direct array response
     } catch (error) {
         console.error('Error fetching matches:', error);
-        throw error;
+        return [];
     }
 };
 
@@ -105,26 +105,21 @@ const loadMainPage = async () => {
 
         // Load match history
         const matches = await fetchMatchHistory();
-        if (matches && Array.isArray(matches)) {
+        if (matches && matches.length > 0) {
             document.getElementById('match-history').innerHTML = matches
                 .slice(0, 5)
                 .map(match => `
-                    <div class="mb-2">
+                    <div class="mb-2 text-white">
                         ${match.player1} vs ${match.player2}<br>
                         Score: ${match.player1_score}-${match.player2_score}
                     </div>
                 `).join('');
         } else {
-            document.getElementById('match-history').innerHTML = '<p>No matches found</p>';
+            document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
         }
     } catch (error) {
         console.error('Error loading main page data:', error);
-        // If token is invalid, redirect to login
-        if (error.message.includes('401')) {
-            localStorage.clear();
-            accessToken = null;
-            showPage(pages.landing);
-        }
+        document.getElementById('match-history').innerHTML = '<p class="text-white">Error loading matches</p>';
     }
 };
 

@@ -91,10 +91,56 @@ function initGame() {
             gameOverMessage.querySelector('h2').textContent = winner;
             gameOverMessage.classList.remove('d-none');
             
+            // Save match result
+            saveMatchResult(playerScore, computerScore);
+            
             // Return to main menu after delay
             setTimeout(() => {
                 window.location.href = '/';
             }, 3000);
+        }
+    }
+
+    async function saveMatchResult(playerScore, computerScore) {
+        try {
+            // First get the current user's ID
+            const userResponse = await fetch(`${API_BASE}users/profile/`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!userResponse.ok) throw new Error('Failed to get user profile');
+            const userData = await userResponse.json();
+
+            const matchData = {
+                tournament: null,
+                player1: userData.id,  // Current player is player1
+                player2: userData.id,  // Also player2 (representing AI game)
+                player1_score: playerScore,  // Player's score
+                player2_score: computerScore,  // Computer's score
+                start_time: new Date().toISOString(),
+                end_time: new Date().toISOString(),
+                winner: userData.id  // Always use player ID, even for loss
+            };
+
+            const response = await fetch(`${API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Match save error details:', errorData);
+                throw new Error('Failed to save match result');
+            }
+        } catch (error) {
+            console.error('Error saving match:', error);
         }
     }
 
