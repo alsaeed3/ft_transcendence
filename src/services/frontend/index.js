@@ -119,7 +119,6 @@ const loadMainPage = async () => {
         }
     } catch (error) {
         console.error('Error loading main page data:', error);
-        // If token is invalid, redirect to login
         if (error.message.includes('401')) {
             localStorage.clear();
             accessToken = null;
@@ -169,6 +168,7 @@ document.getElementById('play-player-btn').addEventListener('click', () => {
 });
 
 document.getElementById('play-ai-btn').addEventListener('click', async () => {
+    // Check if user is logged in
     if (!accessToken) {
         window.location.href = '/';
         return;
@@ -193,7 +193,7 @@ document.getElementById('play-ai-btn').addEventListener('click', async () => {
             if (typeof initGame === 'function') {
                 initGame();
             }
-        });
+        }, 100);
 
     } catch (error) {
         console.error('Error loading game:', error);

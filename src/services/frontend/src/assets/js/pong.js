@@ -32,6 +32,10 @@ function initGame() {
     let aiMoveDown = false;  // Simulated keyboard down
     let targetY = canvas.height / 2;
 
+    const WINNING_SCORE = 2;
+    let gameActive = true;
+    const gameOverMessage = document.getElementById('gameOverMessage');
+
     function updateAI() {
         const currentTime = Date.now();
         
@@ -80,7 +84,23 @@ function initGame() {
         }
     }
 
+    function checkWinCondition() {
+        if (playerScore >= WINNING_SCORE || computerScore >= WINNING_SCORE) {
+            gameActive = false;
+            const winner = playerScore > computerScore ? 'PLAYER WINS' : 'COMPUTER WINS';
+            gameOverMessage.querySelector('h2').textContent = winner;
+            gameOverMessage.classList.remove('d-none');
+            
+            // Return to main menu after delay
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+        }
+    }
+
     function moveBall() {
+        if (!gameActive) return;
+
         ballX += ballSpeedX;
         ballY += ballSpeedY;
         
@@ -97,7 +117,8 @@ function initGame() {
             } else if (ballX < 0) {
                 playerScore++;
                 playerScoreElement.textContent = playerScore;
-                resetBall();
+                checkWinCondition();
+                if (gameActive) resetBall();
             }
         }
         
@@ -108,16 +129,29 @@ function initGame() {
             } else if (ballX > canvas.width) {
                 computerScore++;
                 computerScoreElement.textContent = computerScore;
-                resetBall();
+                checkWinCondition();
+                if (gameActive) resetBall();
             }
         }
     }
 
     function draw() {
-        ctx.fillStyle = '#000';
+        // Clear screen (black background)
+        ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.fillStyle = '#fff';
+        // Draw classic 1972 center line (dashed)
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([20, 15]); // Larger dashes for authentic look
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset dash pattern
+        
+        // Draw paddles and ball
+        ctx.fillStyle = 'white';
         ctx.fillRect(0, paddle1Y, paddleWidth, paddleHeight);
         ctx.fillRect(canvas.width - paddleWidth, paddle2Y, paddleWidth, paddleHeight);
         
@@ -148,10 +182,10 @@ function initGame() {
     // Keyboard controls
     document.addEventListener('keydown', (event) => {
         switch(event.key.toLowerCase()) {
-            case 'w':
+            case 'p':  // Up - changed from 'w'
                 paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
                 break;
-            case 's':
+            case 'l':  // Down - changed from 's'
                 paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
                 break;
         }
@@ -166,7 +200,7 @@ function initGame() {
         
         const deltaTime = currentTime - lastTime;
         
-        if (deltaTime >= frameInterval) {
+        if (deltaTime >= frameInterval && gameActive) {
             updateAI();
             moveBall();
             draw();
