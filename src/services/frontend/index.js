@@ -49,6 +49,33 @@ const handleRegister = async (userData) => {
     }
 };
 
+// Add refresh token functionality
+const refreshAccessToken = async () => {
+    try {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) throw new Error('No refresh token');
+
+        const response = await fetch(`${API_BASE}auth/refresh/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: refreshToken })
+        });
+
+        if (!response.ok) throw new Error('Token refresh failed');
+        
+        const data = await response.json();
+        localStorage.setItem('accessToken', data.access);
+        accessToken = data.access;
+        return data.access;
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        localStorage.clear();
+        accessToken = null;
+        showPage(pages.landing);
+        throw error;
+    }
+};
+
 // Data Fetching
 const fetchUserProfile = async () => {
     try {
@@ -58,19 +85,40 @@ const fetchUserProfile = async () => {
                 'Content-Type': 'application/json'
             }
         });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+
+        if (response.status === 401) {
+            // Try to refresh token and retry the request
+            const newToken = await refreshAccessToken();
+            const retryResponse = await fetch(`${API_BASE}users/profile/`, {
+                headers: { 
+                    Authorization: `Bearer ${newToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!retryResponse.ok) throw new Error(`HTTP error! status: ${retryResponse.status}`);
+            return await retryResponse.json();
         }
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     } catch (error) {
         console.error('Error fetching profile:', error);
+        if (error.message.includes('401')) {
+            localStorage.clear();
+            accessToken = null;
+            showPage(pages.landing);
+        }
         throw error;
     }
 };
 
 const fetchMatchHistory = async () => {
     try {
+        // First get the user's profile to get their ID
+        const profile = await fetchUserProfile();
+        if (!profile) throw new Error('Could not get user profile');
+
         const response = await fetch(`${API_BASE}matches/`, {
             headers: { 
                 Authorization: `Bearer ${accessToken}`
@@ -81,7 +129,14 @@ const fetchMatchHistory = async () => {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        return data.matches || data; // Handle both {matches: [...]} and direct array response
+        const matches = data.matches || data;
+
+        // Filter matches where the user was either player1 or player2
+        const userMatches = matches.filter(match => 
+            match.player1 === profile.id || match.player2 === profile.id
+        );
+
+        return userMatches;
     } catch (error) {
         console.error('Error fetching matches:', error);
         return [];
@@ -108,18 +163,25 @@ const loadMainPage = async () => {
         if (matches && matches.length > 0) {
             document.getElementById('match-history').innerHTML = matches
                 .slice(0, 5)
-                .map(match => `
-                    <div class="mb-2 text-white">
-                        ${match.player1} vs ${match.player2}<br>
-                        Score: ${match.player1_score}-${match.player2_score}
-                    </div>
-                `).join('');
+                .map(match => {
+                    const isPlayer1 = match.player1 === profile.id;
+                    const playerScore = isPlayer1 ? match.player1_score : match.player2_score;
+                    const opponentScore = isPlayer1 ? match.player2_score : match.player1_score;
+                    return `
+                        <div class="mb-2 text-white">
+                            You vs Computer<br>
+                            Score: ${playerScore}-${opponentScore}
+                        </div>
+                    `;
+                }).join('');
         } else {
             document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
         }
     } catch (error) {
         console.error('Error loading main page data:', error);
-        document.getElementById('match-history').innerHTML = '<p class="text-white">Error loading matches</p>';
+        if (error.message.includes('401')) {
+            window.location.href = '/';
+        }
     }
 };
 
