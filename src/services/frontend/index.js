@@ -119,6 +119,7 @@ const loadMainPage = async () => {
         }
     } catch (error) {
         console.error('Error loading main page data:', error);
+        // If token is invalid, redirect to login
         if (error.message.includes('401')) {
             localStorage.clear();
             accessToken = null;
