@@ -1,4 +1,5 @@
 const API_BASE = 'https://localhost/api/';
+var username;
 let accessToken = localStorage.getItem('accessToken');
 
 // DOM Elements
