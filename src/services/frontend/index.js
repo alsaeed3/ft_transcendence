@@ -4,7 +4,8 @@ let accessToken = localStorage.getItem('accessToken');
 // DOM Elements
 const pages = {
     landing: document.getElementById('landing-page'),
-    main: document.getElementById('main-page')
+    main: document.getElementById('main-page'),
+    updateProfile: document.getElementById('update-profile-page')
 };
 
 const showPage = (page) => {
@@ -72,6 +73,44 @@ const fetchMatchHistory = async () => {
     }
 };
 
+// Profile Management
+const loadUpdateProfilePage = async () => {
+    showPage(pages.updateProfile);
+    const profile = await fetchUserProfile();
+    document.getElementById('update-username').value = profile.username;
+    document.getElementById('update-email').value = profile.email;
+};
+
+const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('update-username').value;
+    const email = document.getElementById('update-email').value;
+    const password = document.getElementById('update-password').value;
+    const avatarFile = document.getElementById('update-avatar').files[0];
+
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('email', email);
+    if (password) formData.append('password', password);
+    if (avatarFile) formData.append('avatar', avatarFile);
+
+    try {
+        const response = await fetch(`${API_BASE}users/profile/`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Profile update failed');
+        alert('Profile updated successfully!');
+        loadMainPage();
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
 // UI Updates
 const loadMainPage = async () => {
     showPage(pages.main);
@@ -94,6 +133,12 @@ const loadMainPage = async () => {
                 Score: ${match.player1_score}-${match.player2_score}
             </div>
         `).join('');
+
+    // Update the avatar and username in the navbar
+    document.getElementById('username-display').textContent = profile.username;
+    if (profile.avatar) {
+        document.querySelector('#user-profile img').src = profile.avatar;
+    }
 };
 
 // Event Listeners
@@ -120,6 +165,14 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     accessToken = null;
     showPage(pages.landing);
 });
+
+// Profile Event Listeners
+document.getElementById('user-profile').addEventListener('click', loadUpdateProfilePage);
+document.getElementById('back-to-main').addEventListener('click', (e) => {
+    e.preventDefault();
+    showPage(pages.main);
+});
+document.getElementById('update-profile-form').addEventListener('submit', handleUpdateProfile);
 
 // Form Toggle
 const toggleForms = () => {
