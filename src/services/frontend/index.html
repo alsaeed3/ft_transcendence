@@ -61,9 +61,46 @@
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
                 <a class="navbar-brand" href="#">Pong</a>
-                <button class="btn btn-danger ms-auto" id="logout-btn">Logout</button>
+                <div class="ms-auto d-flex align-items-center">
+                    <div id="user-profile" class="me-3" style="cursor: pointer;">
+                        <img src="avatar.webp" alt="Avatar" class="rounded-circle" style="width: 40px; height: 40px;">
+                        <span id="username-display" class="text-white ms-2">Username</span>
+                    </div>
+                    <button class="btn btn-danger" id="logout-btn">Logout</button>
+                </div>
             </div>
         </nav>
+
+        <!-- Update Profile Form -->
+        <div id="update-profile-page" class="page">
+            <div class="container min-vh-100 d-flex flex-column justify-content-center">
+                <div class="row justify-content-center">
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body">
+                                <h2 class="card-title text-center mb-4">Update Profile</h2>
+                                <form id="update-profile-form">
+                                    <div class="mb-3">
+                                        <input type="text" class="form-control" id="update-username" placeholder="Username" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <input type="email" class="form-control" id="update-email" placeholder="Email" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <input type="password" class="form-control" id="update-password" placeholder="New Password">
+                                    </div>
+                                    <div class="mb-3">
+                                        <input type="file" class="form-control" id="update-avatar" accept="image/*">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Update</button>
+                                    <a href="#" id="back-to-main" class="text-white d-block text-center mt-2">Back to Main</a>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="container mt-4">
             <div class="row">
