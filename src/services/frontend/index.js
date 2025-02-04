@@ -158,6 +158,15 @@ const loadUpdateProfilePage = async () => {
         const profile = await fetchUserProfile();
         document.getElementById('update-username').value = profile.username;
         document.getElementById('update-email').value = profile.email;
+        
+        if (profile.avatar) {
+            // Show current avatar preview if exists
+            const avatarPreview = document.createElement('img');
+            avatarPreview.src = profile.avatar;
+            avatarPreview.className = 'mb-3 rounded-circle';
+            avatarPreview.style = 'width: 100px; height: 100px;';
+            document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
+        }
     } catch (error) {
         console.error('Error loading profile:', error);
         alert('Failed to load profile data');
