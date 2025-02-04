@@ -3,6 +3,7 @@ var username;
 let accessToken = localStorage.getItem('accessToken');
 let refreshToken = localStorage.getItem('refreshToken');
 const RECENT_MATCHES_LIMIT = 5;
+const TOKEN_REFRESH_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 // DOM Elements
 const pages = {
@@ -19,6 +20,16 @@ const showPage = (page) => {
 // Auth utilities
 const refreshAccessToken = async () => {
     try {
+        // Check if we have a valid token that doesn't need refresh yet
+        if (accessToken && refreshToken) {
+            const payload = JSON.parse(atob(accessToken.split('.')[1]));
+            const timeUntilExpiry = payload.exp * 1000 - Date.now();
+            
+            if (timeUntilExpiry > TOKEN_REFRESH_THRESHOLD) {
+                return accessToken;
+            }
+        }
+
         const response = await fetch(`${API_BASE}token/refresh/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -26,11 +37,13 @@ const refreshAccessToken = async () => {
         });
         
         if (!response.ok) throw new Error('Token refresh failed');
+        
         const data = await response.json();
         accessToken = data.access;
         localStorage.setItem('accessToken', accessToken);
         return accessToken;
     } catch (error) {
+        console.error('Token refresh failed:', error);
         localStorage.clear();
         showPage(pages.landing);
         throw error;
@@ -38,25 +51,29 @@ const refreshAccessToken = async () => {
 };
 
 const fetchWithAuth = async (url, options = {}) => {
-    let response = await fetch(url, {
-        ...options,
-        headers: {
-            ...options.headers,
-            'Authorization': `Bearer ${accessToken}`
-        }
-    });
+    try {
+        // Get fresh token if needed
+        accessToken = await refreshAccessToken();
 
-    if (response.status === 401) {
-        const newToken = await refreshAccessToken();
-        response = await fetch(url, {
+        const response = await fetch(url, {
             ...options,
             headers: {
                 ...options.headers,
-                'Authorization': `Bearer ${newToken}`
+                'Authorization': `Bearer ${accessToken}`
             }
         });
+
+        if (response.status === 401) {
+            localStorage.clear();
+            window.location.href = '/';
+            return;
+        }
+
+        return response;
+    } catch (error) {
+        console.error('Request failed:', error);
+        throw error;
     }
-    return response;
 };
 
 // Auth Functions
@@ -415,6 +432,3 @@ if (accessToken) {
 } else {
     showPage(pages.landing);
 }
-
-// Make refreshAccessToken available globally
-window.refreshAccessToken = refreshAccessToken;
