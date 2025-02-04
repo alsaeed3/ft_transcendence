@@ -163,6 +163,15 @@ const loadUpdateProfilePage = async () => {
         const profile = await fetchUserProfile();
         document.getElementById('update-username').value = profile.username;
         document.getElementById('update-email').value = profile.email;
+        
+        if (profile.avatar) {
+            // Show current avatar preview if exists
+            const avatarPreview = document.createElement('img');
+            avatarPreview.src = profile.avatar;
+            avatarPreview.className = 'mb-3 rounded-circle';
+            avatarPreview.style = 'width: 100px; height: 100px;';
+            document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
+        }
     } catch (error) {
         console.error('Error loading profile:', error);
         alert('Failed to load profile data');
@@ -570,7 +579,7 @@ const showUsersList = async () => {
         usersList.className = 'list-group';
         
         users
-            .filter(user => user.id !== currentUser.id) // Exclude current user
+            .filter(user => user.id !== currentUser.id)
             .forEach(user => {
                 const userItem = document.createElement('button');
                 userItem.className = 'list-group-item list-group-item-action';
@@ -582,15 +591,19 @@ const showUsersList = async () => {
                         </span>
                     </div>
                 `;
-                userItem.onclick = () => startChat(user.id, user.username);
+                userItem.onclick = () => {
+                    startChat(user.id, user.username);
+                    bootstrap.Modal.getInstance(document.getElementById('usersModal')).hide();
+                };
                 usersList.appendChild(userItem);
             });
-            
-        // Show users list in a modal
+
         const modalBody = document.querySelector('#usersModal .modal-body');
         modalBody.innerHTML = '';
         modalBody.appendChild(usersList);
-        new bootstrap.Modal(document.getElementById('usersModal')).show();
+        
+        const usersModal = new bootstrap.Modal(document.getElementById('usersModal'));
+        usersModal.show();
     } catch (error) {
         console.error('Error loading users:', error);
         showToast('Error loading users list', 'danger');
@@ -627,6 +640,8 @@ document.getElementById('toggle-chat').addEventListener('click', () => {
     document.getElementById('toggle-chat').innerHTML = 
         `<i class="bi ${isVisible ? 'bi-plus-lg' : 'bi-dash-lg'}"></i>`;
 });
+
+document.querySelector('[onclick="showUsersList()"]').addEventListener('click', showUsersList);
 
 // UI Updates
 const loadMainPage = async () => {
