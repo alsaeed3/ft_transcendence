@@ -14,12 +14,22 @@ services:
       - ./services/frontend:/usr/share/nginx/html
       - static_volume:/usr/share/nginx/static
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - main-network
+    volumes:
+      - redis_data:/data
+
   backend:
     build: ./services/backend
     expose:
       - "8000"  # Internal only
     depends_on:
       - database
+      - redis
     env_file:
       - .env
     networks:
@@ -42,6 +52,7 @@ services:
       - main-network
 
 volumes:
+  redis_data:
   postgres_data:
   static_volume:
 

@@ -40,7 +40,7 @@ SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_env_variable('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0', 'nginx']
 
 # Application definition
 
@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'tournaments.apps.TournamentsConfig',
     'matches.apps.MatchesConfig',
 	'corsheaders',
+    'channels',
+    'daphne',
 	'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -69,7 +71,9 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1)
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 CORS_ALLOWED_ORIGINS = [
@@ -122,7 +126,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
-
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -193,4 +197,13 @@ FT_CLIENT_ID = get_env_variable('FT_CLIENT_ID')
 FT_CLIENT_SECRET = get_env_variable('FT_CLIENT_SECRET')
 FT_REDIRECT_URI = get_env_variable('FT_REDIRECT_URI')
 LOGIN_URL = '/login'
-FT_AUTH0_DOMAIN= get_env_variable('FT_AUTH0_DOMAIN') 
+FT_AUTH0_DOMAIN= get_env_variable('FT_AUTH0_DOMAIN')
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('redis', 6379)],
+        },
+    },
+}

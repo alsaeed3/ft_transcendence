@@ -74,7 +74,7 @@ const handleLogin = async (username, password) => {
         refreshToken = data.refresh;
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
-        showPage(pages.main);
+        
         await loadMainPage();
     } catch (error) {
         console.error('Login error:', error);
@@ -184,6 +184,229 @@ const handleUpdateProfile = async (e) => {
     }
 };
 
+// ====================== WebSocket & Chat Functions ======================
+let chatSocket = null;
+let currentChatUser = null;
+const blockedUsers = new Set();
+
+// Initialize WebSocket connection
+const initWebSocket = () => {
+    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/?token=${accessToken}`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
+    
+    chatSocket = new WebSocket(wsUrl);
+
+    chatSocket.onopen = () => {
+        console.log('WebSocket connection established');
+        // Enable the send button once connected
+        const sendButton = document.getElementById('send-button');
+        if (sendButton) {
+            sendButton.disabled = false;
+        }
+    };
+
+    chatSocket.onmessage = (event) => {
+        console.log('Received message:', event.data);
+        try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+        }
+    };
+
+    chatSocket.onclose = (e) => {
+        console.log('WebSocket connection closed:', e);
+        // Disable the send button when disconnected
+        const sendButton = document.getElementById('send-button');
+        if (sendButton) {
+            sendButton.disabled = true;
+        }
+        if (!e.wasClean) {
+            setTimeout(initWebSocket, 5000);
+        }
+    };
+
+    chatSocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+};
+
+// Handle incoming WebSocket messages
+const handleWebSocketMessage = (data) => {
+    console.log('Processing message:', data);
+    
+    switch(data.type) {
+        case 'chat_message':
+            appendMessage({
+                sender_id: data.sender_id,
+                sender_display_name: data.sender_display_name,
+                content: data.message,
+                timestamp: data.timestamp
+            });
+            break;
+        case 'connection_established':
+            console.log('Chat connection established');
+            showToast('Connected to chat', 'success');
+            break;
+        case 'error':
+            console.error('WebSocket error:', data.message);
+            showToast(data.message, 'danger');
+            break;
+    }
+};
+
+// Append message to chat window
+const appendMessage = (message) => {
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) {
+        console.error('Chat messages container not found');
+        return;
+    }
+
+    const messageElement = document.createElement('div');
+    const isCurrentUser = message.sender_id === currentUser?.id;
+    
+    messageElement.className = `list-group-item list-group-item-action ${
+        isCurrentUser ? 'bg-primary' : 'bg-dark'
+    } text-white`;
+    
+    messageElement.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <strong>${message.sender_display_name}</strong>
+            <small>${new Date(message.timestamp).toLocaleTimeString()}</small>
+        </div>
+        <p class="mb-1">${message.content}</p>
+    `;
+    
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    console.log('Message appended to chat');
+};
+
+// Block user functionality
+const blockUser = async (userId) => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/block/${userId}/`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            blockedUsers.add(parseInt(userId));
+            // Remove blocked user's messages
+            document.querySelectorAll(`[data-user-id="${userId}"]`).forEach(el => {
+                el.closest('.list-group-item').remove();
+            });
+            showToast('User blocked successfully', 'success');
+        }
+    } catch (error) {
+        console.error('Blocking failed:', error);
+        showToast('Error blocking user', 'danger');
+    }
+};
+
+// Show user profile modal
+const showUserProfile = async (userId) => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/${userId}/`);
+        const user = await response.json();
+        
+        const profileContent = document.getElementById('profile-content');
+        profileContent.innerHTML = `
+            <div class="text-center">
+                <img src="${user.avatar || 'default_avatar.png'}" 
+                     class="rounded-circle mb-3" 
+                     style="width: 100px; height: 100px; object-fit: cover;">
+                <h4>${user.display_name}</h4>
+                <p>Username: ${user.username}</p>
+                ${user.is_online ? '<span class="badge bg-success">Online</span>' : ''}
+            </div>
+        `;
+        
+        new bootstrap.Modal(document.getElementById('profileModal')).show();
+    } catch (error) {
+        console.error('Error fetching profile:', error);
+        showToast('Error loading profile', 'danger');
+    }
+};
+
+// Chat functionality
+const initializeChatHandlers = () => {
+    const sendButton = document.getElementById('send-button');
+    const messageInput = document.getElementById('message-input');
+    
+    sendButton?.addEventListener('click', sendMessage);
+    messageInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+};
+
+const handleMessageKeypress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+};
+
+// Send message handler
+const sendMessage = () => {
+    const messageInput = document.getElementById('message-input');
+    const message = messageInput.value.trim();
+    
+    if (message && chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+        console.log('Sending message:', message);
+        
+        const messageData = {
+            type: 'chat_message',
+            message: message
+        };
+        
+        try {
+            chatSocket.send(JSON.stringify(messageData));
+            messageInput.value = ''; // Clear input after sending
+        } catch (error) {
+            console.error('Error sending message:', error);
+            showToast('Error sending message', 'danger');
+        }
+    }
+};
+
+// ====================== Event Listeners ======================
+document.getElementById('send-button').addEventListener('click', sendMessage);
+document.getElementById('message-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.block-user-btn')) {
+        const userId = e.target.closest('.block-user-btn').dataset.userId;
+        blockUser(userId);
+    }
+    
+    if (e.target.closest('.user-profile-link')) {
+        e.preventDefault();
+        const userId = e.target.closest('.user-profile-link').dataset.userId;
+        showUserProfile(userId);
+    }
+});
+
+// Toggle chat visibility
+document.getElementById('toggle-chat').addEventListener('click', () => {
+    const chatBody = document.querySelector('#chat-container .card-body');
+    const isVisible = chatBody.style.display !== 'none';
+    chatBody.style.display = isVisible ? 'none' : 'block';
+    document.getElementById('toggle-chat').innerHTML = 
+        `<i class="bi ${isVisible ? 'bi-plus-lg' : 'bi-dash-lg'}"></i>`;
+});
+
 // UI Updates
 const loadMainPage = async () => {
     showPage(pages.main);
@@ -191,11 +414,21 @@ const loadMainPage = async () => {
     try {
         const profile = await fetchUserProfile();
         if (profile) {
+            // Store current user information
+            currentUser = profile;
             document.getElementById('player-stats').innerHTML = `
                 <p>Username: ${profile.username}</p>
                 <p>Wins: ${profile.stats?.wins || 0}</p>
                 <p>Losses: ${profile.stats?.losses || 0}</p>
             `;
+
+             // Initialize chat handlers
+             initializeChatHandlers();
+            
+             // Initialize WebSocket if not already connected
+             if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+                 initWebSocket();
+             }
         }
 
         const matches = await fetchMatchHistory();
@@ -246,6 +479,21 @@ const loadMainPage = async () => {
     }
 };
 
+const showToast = (message, type = 'info') => {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    new bootstrap.Toast(toast, { autohide: true, delay: 3000 }).show();
+    setTimeout(() => toast.remove(), 3500);
+};
+
 // Event Listeners
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -266,8 +514,17 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {
+    // Close WebSocket connection if it exists
+    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+        chatSocket.close();
+    }
+    
+    // Clear storage and reset variables
     localStorage.clear();
     accessToken = null;
+    currentChatUser = null;
+    
+    // Show landing page
     showPage(pages.landing);
 });
 

@@ -5,11 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pong Game</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         .page { display: none; }
         .active-page { display: block; }
         .game-option-card { cursor: pointer; transition: transform 0.2s; }
         .game-option-card:hover { transform: scale(1.05); }
+        #chat-container {
+        transition: transform 0.3s ease;
+        }
+
+        #chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-messages::-webkit-scrollbar-track {
+            background: #2b3035;
+        }
+
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: #495057;
+            border-radius: 4px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -67,6 +91,43 @@
                         <span id="username-display" class="text-white ms-2">Username</span>
                     </div>
                     <button class="btn btn-danger" id="logout-btn">Logout</button>
+                </div>
+            </div>
+            <!-- chat -->
+            <div id="chat-container" class="card bg-dark position-fixed bottom-0 end-0 m-3" style="width: 300px;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Chat</h6>
+                    <button id="toggle-chat" class="btn btn-sm btn-primary">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="chat-messages" class="list-group list-group-flush mb-3" style="height: 300px; overflow-y: auto;">
+                        <!-- Messages will be appended here -->
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control bg-secondary text-white" placeholder="Type a message...">
+                        <button id="send-button" class="btn btn-primary">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Modal -->
+            <div class="modal fade" id="profileModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content bg-dark text-white">
+                        <div class="modal-header">
+                            <h5 class="modal-title">User Profile</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="profile-content">
+                                <!-- Profile content will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -157,7 +218,10 @@
         </div>
     </div>
 
+
+
     <script src="/src/assets/js/pong.js"></script>
     <script src="index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
