@@ -27,3 +27,10 @@ class AuthUserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'display_name', 'avatar',
             'user_id_42', 'login_42', 'is_42_auth'
         ]
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+class TwoFactorToggleSerializer(serializers.Serializer):
+    password = serializers.CharField(required=True)
