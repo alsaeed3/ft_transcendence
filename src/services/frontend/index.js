@@ -12,8 +12,10 @@ const pages = {
 };
 
 const showPage = (page) => {
-    Object.values(pages).forEach(p => p.classList.remove('active-page'));
-    page.classList.add('active-page');
+    Object.values(pages).forEach(p => {
+        if (p) p.style.display = 'none';
+    });
+    if (page) page.style.display = 'block';
 };
 
 // Auth utilities
@@ -152,9 +154,14 @@ const fetchMatchHistory = async () => {
 // Profile Management
 const loadUpdateProfilePage = async () => {
     showPage(pages.updateProfile);
-    const profile = await fetchUserProfile();
-    document.getElementById('update-username').value = profile.username;
-    document.getElementById('update-email').value = profile.email;
+    try {
+        const profile = await fetchUserProfile();
+        document.getElementById('update-username').value = profile.username;
+        document.getElementById('update-email').value = profile.email;
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        alert('Failed to load profile data');
+    }
 };
 
 const handleUpdateProfile = async (e) => {
@@ -191,8 +198,16 @@ const loadMainPage = async () => {
     try {
         const profile = await fetchUserProfile();
         if (profile) {
+            // Update profile display in nav
+            document.getElementById('username-display').textContent = profile.username;
+            if (profile.avatar) {
+                document.getElementById('profile-avatar').src = profile.avatar;
+            }
+
+            // Update stats
             document.getElementById('player-stats').innerHTML = `
                 <p>Username: ${profile.username}</p>
+                <p>Email: ${profile.email}</p>
                 <p>Wins: ${profile.stats?.wins || 0}</p>
                 <p>Losses: ${profile.stats?.losses || 0}</p>
             `;
@@ -272,10 +287,12 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 });
 
 // Profile Event Listeners
-document.getElementById('user-profile').addEventListener('click', loadUpdateProfilePage);
-document.getElementById('back-to-main').addEventListener('click', (e) => {
+const userProfileElement = document.getElementById('user-profile');
+userProfileElement.removeEventListener('click', loadUpdateProfilePage);
+userProfileElement.addEventListener('click', loadUpdateProfilePage);
+document.getElementById('back-to-main').addEventListener('click', async (e) => {
     e.preventDefault();
-    showPage(pages.main);
+    await loadMainPage(); // Use loadMainPage instead of showPage
 });
 document.getElementById('update-profile-form').addEventListener('submit', handleUpdateProfile);
 
