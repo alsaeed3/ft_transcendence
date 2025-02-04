@@ -6,6 +6,7 @@ const RECENT_MATCHES_LIMIT = 5;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let reconnectAttempts = 0;
 let reconnectTimeout = null;
+let currentChatPartner = null;
 
 
 // DOM Elements
@@ -194,15 +195,24 @@ let currentChatUser = null;
 const blockedUsers = new Set();
 
 // Initialize WebSocket connection
-const initWebSocket = () => {
+const initWebSocket = (otherUserId) => {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error('Max reconnection attempts reached');
         showToast('Chat connection failed. Please refresh the page.', 'danger');
         return;
     }
+
+    if (!otherUserId) {
+        console.error('No chat partner specified');
+        return;
+    }
+
     const apiHost = new URL(API_BASE).host;
     const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsScheme}://${apiHost}/ws/chat/?token=${accessToken}`;
+    
+    // Create room with sorted user IDs for consistency
+    const userIds = [currentUser.id, otherUserId].sort((a, b) => a - b);
+    const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${userIds[0]}/${userIds[1]}/?token=${accessToken}`;
 
     if (chatSocket) {
         chatSocket.close();
@@ -212,12 +222,17 @@ const initWebSocket = () => {
 
     chatSocket.onopen = () => {
         console.log('WebSocket connection established');
-        reconnectAttempts = 0; // Reset attempts on successful connection
+        reconnectAttempts = 0;
         const sendButton = document.getElementById('send-button');
         if (sendButton) {
             sendButton.disabled = false;
         }
         showToast('Chat connected', 'success');
+    };
+
+    chatSocket.onmessage = (event) => {
+        console.log('Received message:', event.data);
+        handleWebSocketMessage(event.data);
     };
 
     chatSocket.onclose = (e) => {
@@ -233,7 +248,7 @@ const initWebSocket = () => {
             console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts})`);
             
             clearTimeout(reconnectTimeout);
-            reconnectTimeout = setTimeout(initWebSocket, delay);
+            reconnectTimeout = setTimeout(() => initWebSocket(otherUserId), delay);
         }
     };
 
@@ -241,6 +256,82 @@ const initWebSocket = () => {
         console.error('WebSocket error:', error);
         showToast('Chat connection error', 'danger');
     };
+};
+
+const loadChatHistory = async (otherUserId) => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}chat/messages/${otherUserId}/`);
+        if (!response.ok) throw new Error('Failed to load chat history');
+        
+        const messages = await response.json();
+        const chatMessages = document.getElementById('chat-messages');
+        chatMessages.innerHTML = ''; // Clear existing messages
+        
+        messages.forEach(message => {
+            appendMessage({
+                sender_id: message.sender_id,
+                sender_display_name: message.sender_display_name,
+                content: message.content,
+                timestamp: message.timestamp
+            });
+        });
+        
+        // Mark messages as read
+        await fetchWithAuth(`${API_BASE}chat/messages/${otherUserId}/read/`, {
+            method: 'POST'
+        });
+    } catch (error) {
+        console.error('Error loading chat history:', error);
+        showToast('Error loading chat history', 'danger');
+    }
+};
+
+const startChat = async (userId, username) => {
+    // Validate inputs
+    if (!userId || !username) {
+        console.error('Invalid chat parameters:', { userId, username });
+        showToast('Unable to start chat', 'danger');
+        return;
+    }
+
+    // Ensure current user is set
+    if (!currentUser) {
+        console.error('Current user not set');
+        showToast('Please log in first', 'danger');
+        return;
+    }
+
+    // Set current chat partner
+    currentChatPartner = userId;
+    
+    // Update chat header
+    const chatHeader = document.getElementById('chat-header');
+    if (chatHeader) {
+        chatHeader.textContent = `Chat with ${username}`;
+    }
+    
+    // Initialize WebSocket connection
+    try {
+        // Close existing socket if open
+        if (chatSocket) {
+            chatSocket.close();
+        }
+
+        // Initialize new WebSocket
+        initWebSocket(userId);
+        
+        // Load chat history
+        await loadChatHistory(userId);
+        
+        // Show chat container
+        const chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+            chatContainer.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error starting chat:', error);
+        showToast('Failed to start chat', 'danger');
+    }
 };
 
 // Handle incoming WebSocket messages
@@ -441,27 +532,14 @@ const sendMessage = () => {
     if (message && chatSocket && chatSocket.readyState === WebSocket.OPEN) {
         console.log('Attempting to send message:', message);
         
-        // Send a proper formatted message
         const messageData = {
             type: 'chat_message',
-            message: message,
-            sender_id: currentUser?.id,
-            sender_display_name: currentUser?.username || 'Me',
-            timestamp: new Date().toISOString()
+            message: message
         };
         
         try {
             chatSocket.send(JSON.stringify(messageData));
             console.log('Message sent:', messageData);
-            
-            // Also append the message locally
-            appendMessage({
-                sender_id: currentUser?.id,
-                sender_display_name: currentUser?.username || 'Me',
-                content: message,
-                timestamp: new Date().toISOString()
-            });
-            
             messageInput.value = ''; // Clear input after sending
         } catch (error) {
             console.error('Error sending message:', error);
@@ -473,6 +551,42 @@ const sendMessage = () => {
             socketExists: !!chatSocket,
             socketState: chatSocket?.readyState
         });
+    }
+};
+
+const showUsersList = async () => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/`);
+        const users = await response.json();
+        
+        const usersList = document.createElement('div');
+        usersList.className = 'list-group';
+        
+        users
+            .filter(user => user.id !== currentUser.id) // Exclude current user
+            .forEach(user => {
+                const userItem = document.createElement('button');
+                userItem.className = 'list-group-item list-group-item-action';
+                userItem.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>${user.username}</span>
+                        <span class="badge ${user.online_status ? 'bg-success' : 'bg-secondary'} rounded-pill">
+                            ${user.online_status ? 'Online' : 'Offline'}
+                        </span>
+                    </div>
+                `;
+                userItem.onclick = () => startChat(user.id, user.username);
+                usersList.appendChild(userItem);
+            });
+            
+        // Show users list in a modal
+        const modalBody = document.querySelector('#usersModal .modal-body');
+        modalBody.innerHTML = '';
+        modalBody.appendChild(usersList);
+        new bootstrap.Modal(document.getElementById('usersModal')).show();
+    } catch (error) {
+        console.error('Error loading users:', error);
+        showToast('Error loading users list', 'danger');
     }
 };
 
@@ -526,12 +640,12 @@ const loadMainPage = async () => {
              console.log('Setting up chat for user:', profile.username);
              initializeChatHandlers();
             
-             // Initialize WebSocket if not already connected
-            if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
-                initWebSocket();
-            }
+            //  // Initialize WebSocket if not already connected
+            // if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+            //     initWebSocket();
+            // }
 
-             // Clear chat messages container
+            // Clear chat messages container
             const messagesContainer = document.getElementById('chat-messages');
             if (messagesContainer) {
                 messagesContainer.innerHTML = '';

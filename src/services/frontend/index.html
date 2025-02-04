@@ -117,38 +117,37 @@
                 </div>
             </div>
             <!-- chat -->
-            <div id="chat-container" class="card bg-dark position-fixed bottom-0 end-0 m-3" style="width: 300px;">
+            <div id="chat-container" class="card position-fixed bottom-0 end-0 m-3" style="width: 300px; display: none;">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">Chat</h6>
-                    <button id="toggle-chat" class="btn btn-sm btn-primary">
-                        <i class="bi bi-dash-lg"></i>
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="chat-messages" class="list-group list-group-flush mb-3" style="height: 300px; overflow-y: auto;">
-                        <!-- Messages will be appended here -->
-                    </div>
-                    <div class="input-group">
-                        <input type="text" id="message-input" class="form-control bg-secondary text-white" placeholder="Type a message...">
-                        <button id="send-button" class="btn btn-primary">
-                            <i class="bi bi-send"></i>
+                    <span id="chat-header">Chat</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-light" onclick="showUsersList()">
+                            <i class="bi bi-people"></i>
                         </button>
+                        <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="height: 400px;">
+                    <div id="chat-messages" class="overflow-auto mb-3" style="height: 320px;"></div>
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control" placeholder="Type a message...">
+                        <button id="send-button" class="btn btn-primary">Send</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Profile Modal -->
-            <div class="modal fade" id="profileModal" tabindex="-1">
+            <!-- Users Modal -->
+            <div class="modal fade" id="usersModal" tabindex="-1">
                 <div class="modal-dialog">
-                    <div class="modal-content bg-dark text-white">
+                    <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">User Profile</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            <h5 class="modal-title">Select User to Chat</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <div id="profile-content">
-                                <!-- Profile content will be loaded here -->
-                            </div>
+                            <!-- Users list will be inserted here -->
                         </div>
                     </div>
                 </div>

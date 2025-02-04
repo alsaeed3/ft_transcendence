@@ -9,6 +9,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from .models import Message
+from django.db.models import Q
 
 class BlockUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -83,3 +87,39 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_chat_messages(request, other_user_id):
+    """
+    Get all messages between the current user and another user
+    """
+    other_user = get_object_or_404(User, id=other_user_id)
+    
+    messages = Message.objects.filter(
+        (Q(sender=request.user, receiver_id=other_user_id) |
+         Q(sender_id=other_user_id, receiver=request.user))
+    ).order_by('timestamp')
+    
+    return Response([{
+        'id': msg.id,
+        'content': msg.content,
+        'sender_id': msg.sender.id,
+        'sender_display_name': msg.sender.display_name or msg.sender.username,
+        'timestamp': msg.timestamp,
+        'read': msg.read
+    } for msg in messages])
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_messages_read(request, other_user_id):
+    """
+    Mark all messages from other_user to current user as read
+    """
+    Message.objects.filter(
+        sender_id=other_user_id,
+        receiver=request.user,
+        read=False
+    ).update(read=True)
+    
+    return Response({'status': 'messages marked as read'})

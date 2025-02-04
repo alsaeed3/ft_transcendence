@@ -9,4 +9,6 @@ urlpatterns = [
     path('me/', views.CurrentUserView.as_view(), name='current-user'),
     # Maintain logout endpoint if needed
     path('logout/', views.UserLogoutView.as_view(), name='user-logout'),
+	path('messages/<int:other_user_id>/', views.get_chat_messages, name='chat-messages'),
+	path('messages/<int:other_user_id>/read/', views.mark_messages_read, name='mark-messages-read'),
 ]

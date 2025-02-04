@@ -1,38 +1,68 @@
+# consumers.py
 import json
 import datetime
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.contrib.auth import get_user_model
+from django.db.models import Q
+from .models import Message, User
 
-User = get_user_model()
-
-class ChatConsumer(AsyncWebsocketConsumer):
+class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_group_name = 'global_chat'
+        # Get users from the URL parameters
+        self.user1_id = self.scope['url_route']['kwargs']['user1_id']
+        self.user2_id = self.scope['url_route']['kwargs']['user2_id']
+        
+        # Create a unique room name for these two users (sorted to ensure consistency)
+        user_ids = sorted([int(self.user1_id), int(self.user2_id)])
+        self.room_name = f"private_chat_{user_ids[0]}_{user_ids[1]}"
         self.user = self.scope.get('user')
 
-        if self.user and self.user.is_authenticated:
+        if self.user and self.user.is_authenticated and str(self.user.id) in [self.user1_id, self.user2_id]:
             # Join room group
             await self.channel_layer.group_add(
-                self.room_group_name,
+                self.room_name,
                 self.channel_name
             )
             await self.accept()
             
-            # Send connection confirmation
+            # Load and send chat history
+            history = await self.get_chat_history()
             await self.send(text_data=json.dumps({
-                'type': 'connection_established',
-                'message': 'Connected to chat'
+                'type': 'chat_history',
+                'messages': history
             }))
         else:
             await self.close()
 
     async def disconnect(self, close_code):
-        # Leave room group
         await self.channel_layer.group_discard(
-            self.room_group_name,
+            self.room_name,
             self.channel_name
         )
+
+    @database_sync_to_async
+    def save_message(self, message, sender_id, receiver_id):
+        sender = User.objects.get(id=sender_id)
+        receiver = User.objects.get(id=receiver_id)
+        return Message.objects.create(
+            sender=sender,
+            receiver=receiver,
+            content=message
+        )
+
+    @database_sync_to_async
+    def get_chat_history(self):
+        messages = Message.objects.filter(
+            (Q(sender_id=self.user1_id) & Q(receiver_id=self.user2_id)) |
+            (Q(sender_id=self.user2_id) & Q(receiver_id=self.user1_id))
+        ).order_by('timestamp')
+        
+        return [{
+            'message': msg.content,
+            'sender_id': msg.sender.id,
+            'sender_display_name': msg.sender.display_name,
+            'timestamp': msg.timestamp.isoformat()
+        } for msg in messages]
 
     async def receive(self, text_data):
         try:
@@ -40,33 +70,76 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = data.get('message', '')
             
             if message:
+                # Determine receiver ID
+                receiver_id = self.user2_id if str(self.user.id) == self.user1_id else self.user1_id
+                
+                # Save message to database
+                await self.save_message(message, self.user.id, receiver_id)
+                
                 # Send message to room group
                 await self.channel_layer.group_send(
-                    self.room_group_name,
+                    self.room_name,
                     {
                         'type': 'chat_message',
                         'message': message,
                         'sender_id': self.user.id,
-                        'sender_display_name': self.user.username,
+                        'sender_display_name': self.user.display_name,
                         'timestamp': datetime.datetime.now().isoformat()
                     }
                 )
         except json.JSONDecodeError as e:
-            print(f"Error decoding message: {e}")
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': 'Invalid message format'
             }))
 
     async def chat_message(self, event):
-        # Send message to WebSocket
-        try:
-            await self.send(text_data=json.dumps({
-                'type': 'chat_message',
-                'message': event['message'],
-                'sender_id': event['sender_id'],
-                'sender_display_name': event['sender_display_name'],
-                'timestamp': event['timestamp']
-            }))
-        except Exception as e:
-            print(f"Error sending message: {e}")
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message',
+            'message': event['message'],
+            'sender_id': event['sender_id'],
+            'sender_display_name': event['sender_display_name'],
+            'timestamp': event['timestamp']
+        }))
+
+# routing.py
+from django.urls import re_path
+from .consumers import PrivateChatConsumer
+
+websocket_urlpatterns = [
+    re_path(r'ws/chat/(?P<user1_id>\d+)/(?P<user2_id>\d+)/$', PrivateChatConsumer.as_asgi()),
+]
+
+# Add these new views to views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db.models import Q
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_chat_messages(request, other_user_id):
+    messages = Message.objects.filter(
+        (Q(sender=request.user, receiver_id=other_user_id) |
+         Q(sender_id=other_user_id, receiver=request.user))
+    ).order_by('timestamp')
+    
+    return Response([{
+        'id': msg.id,
+        'content': msg.content,
+        'sender_id': msg.sender.id,
+        'sender_display_name': msg.sender.display_name,
+        'timestamp': msg.timestamp,
+        'read': msg.read
+    } for msg in messages])
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_messages_read(request, other_user_id):
+    Message.objects.filter(
+        sender_id=other_user_id,
+        receiver=request.user,
+        read=False
+    ).update(read=True)
+    
+    return Response({'status': 'messages marked as read'})
