@@ -34,6 +34,29 @@
             right: 20px;
             z-index: 9999;
         }
+        #chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        #chat-messages .list-group-item {
+            border-radius: 0.5rem;
+            word-break: break-word;
+        }
+        
+        #message-input {
+            background-color: #2b3035;
+            color: white;
+            border: 1px solid #495057;
+        }
+        
+        #message-input:focus {
+            background-color: #2b3035;
+            color: white;
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
     </style>
 </head>
 <body class="bg-dark text-light">

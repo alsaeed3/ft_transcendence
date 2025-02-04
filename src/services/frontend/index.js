@@ -3,6 +3,10 @@ var username;
 let accessToken = localStorage.getItem('accessToken');
 let refreshToken = localStorage.getItem('refreshToken');
 const RECENT_MATCHES_LIMIT = 5;
+const MAX_RECONNECT_ATTEMPTS = 5;
+let reconnectAttempts = 0;
+let reconnectTimeout = null;
+
 
 // DOM Elements
 const pages = {
@@ -191,99 +195,146 @@ const blockedUsers = new Set();
 
 // Initialize WebSocket connection
 const initWebSocket = () => {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.error('Max reconnection attempts reached');
+        showToast('Chat connection failed. Please refresh the page.', 'danger');
+        return;
+    }
+    const apiHost = new URL(API_BASE).host;
     const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/?token=${accessToken}`;
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    
+    const wsUrl = `${wsScheme}://${apiHost}/ws/chat/?token=${accessToken}`;
+
+    if (chatSocket) {
+        chatSocket.close();
+    }
+
     chatSocket = new WebSocket(wsUrl);
 
     chatSocket.onopen = () => {
         console.log('WebSocket connection established');
-        // Enable the send button once connected
+        reconnectAttempts = 0; // Reset attempts on successful connection
         const sendButton = document.getElementById('send-button');
         if (sendButton) {
             sendButton.disabled = false;
         }
-    };
-
-    chatSocket.onmessage = (event) => {
-        console.log('Received message:', event.data);
-        try {
-            const data = JSON.parse(event.data);
-            handleWebSocketMessage(data);
-        } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-        }
+        showToast('Chat connected', 'success');
     };
 
     chatSocket.onclose = (e) => {
         console.log('WebSocket connection closed:', e);
-        // Disable the send button when disconnected
         const sendButton = document.getElementById('send-button');
         if (sendButton) {
             sendButton.disabled = true;
         }
+
         if (!e.wasClean) {
-            setTimeout(initWebSocket, 5000);
+            reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts})`);
+            
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(initWebSocket, delay);
         }
     };
 
     chatSocket.onerror = (error) => {
         console.error('WebSocket error:', error);
+        showToast('Chat connection error', 'danger');
     };
 };
 
 // Handle incoming WebSocket messages
 const handleWebSocketMessage = (data) => {
-    console.log('Processing message:', data);
-    
-    switch(data.type) {
-        case 'chat_message':
-            appendMessage({
-                sender_id: data.sender_id,
-                sender_display_name: data.sender_display_name,
-                content: data.message,
-                timestamp: data.timestamp
-            });
-            break;
-        case 'connection_established':
-            console.log('Chat connection established');
-            showToast('Connected to chat', 'success');
-            break;
-        case 'error':
-            console.error('WebSocket error:', data.message);
-            showToast(data.message, 'danger');
-            break;
+    console.log('Received WebSocket data:', data);
+    try {
+        if (typeof data === 'string') {
+            data = JSON.parse(data);
+        }
+        
+        console.log('Parsed message data:', data);
+        
+        switch(data.type) {
+            case 'chat_message':
+                console.log('Processing chat message:', data);
+                if (!document.getElementById('chat-messages')) {
+                    console.error('Chat container not found when processing message');
+                    return;
+                }
+                
+                appendMessageWithLogging({
+                    sender_id: data.sender_id,
+                    sender_display_name: data.sender_display_name || 'Unknown User',
+                    content: data.message || data.content, // Handle both possible field names
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+                break;
+                
+            case 'connection_established':
+                console.log('Chat connection established');
+                showToast('Connected to chat', 'success');
+                break;
+                
+            default:
+                console.log('Unhandled message type:', data.type);
+                break;
+        }
+    } catch (error) {
+        console.error('Error handling WebSocket message:', error);
     }
+};
+
+// Debug logging wrapper for appendMessage
+const appendMessageWithLogging = (message) => {
+    console.log('Attempting to append message:', message);
+    console.log('Current chat container:', document.getElementById('chat-messages'));
+    appendMessage(message);
 };
 
 // Append message to chat window
 const appendMessage = (message) => {
     const messagesContainer = document.getElementById('chat-messages');
+    console.log('Found messages container:', messagesContainer);
+    
     if (!messagesContainer) {
         console.error('Chat messages container not found');
         return;
     }
 
-    const messageElement = document.createElement('div');
-    const isCurrentUser = message.sender_id === currentUser?.id;
-    
-    messageElement.className = `list-group-item list-group-item-action ${
-        isCurrentUser ? 'bg-primary' : 'bg-dark'
-    } text-white`;
-    
-    messageElement.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center">
-            <strong>${message.sender_display_name}</strong>
-            <small>${new Date(message.timestamp).toLocaleTimeString()}</small>
-        </div>
-        <p class="mb-1">${message.content}</p>
-    `;
-    
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    console.log('Message appended to chat');
+    try {
+        const messageElement = document.createElement('div');
+        console.log('Current user:', currentUser);
+        const isCurrentUser = message.sender_id === currentUser?.id;
+        
+        messageElement.className = `list-group-item ${
+            isCurrentUser ? 'bg-primary' : 'bg-secondary'
+        } text-white mb-2`;
+        
+        const timestamp = new Date(message.timestamp).toLocaleTimeString();
+        
+        messageElement.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <strong>${message.sender_display_name}</strong>
+                <small>${timestamp}</small>
+            </div>
+            <p class="mb-1 mt-1">${escapeHtml(message.content)}</p>
+        `;
+        
+        console.log('Created message element:', messageElement);
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        console.log('Message appended successfully');
+    } catch (error) {
+        console.error('Error appending message:', error);
+    }
+};
+
+const escapeHtml = (unsafe) => {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 };
 
 // Block user functionality
@@ -332,6 +383,35 @@ const showUserProfile = async (userId) => {
     }
 };
 
+const initializeChat = () => {
+    console.log('Initializing chat...');
+    const chatContainer = document.getElementById('chat-messages');
+    if (!chatContainer) {
+        console.error('Chat container not found during initialization');
+        return;
+    }
+    
+    // Clear existing messages
+    chatContainer.innerHTML = '';
+    
+    // Add event listeners
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    
+    if (messageInput && sendButton) {
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        sendButton.addEventListener('click', sendMessage);
+    }
+    
+    console.log('Chat initialized successfully');
+};
+
 // Chat functionality
 const initializeChatHandlers = () => {
     const sendButton = document.getElementById('send-button');
@@ -359,20 +439,40 @@ const sendMessage = () => {
     const message = messageInput.value.trim();
     
     if (message && chatSocket && chatSocket.readyState === WebSocket.OPEN) {
-        console.log('Sending message:', message);
+        console.log('Attempting to send message:', message);
         
+        // Send a proper formatted message
         const messageData = {
             type: 'chat_message',
-            message: message
+            message: message,
+            sender_id: currentUser?.id,
+            sender_display_name: currentUser?.username || 'Me',
+            timestamp: new Date().toISOString()
         };
         
         try {
             chatSocket.send(JSON.stringify(messageData));
+            console.log('Message sent:', messageData);
+            
+            // Also append the message locally
+            appendMessage({
+                sender_id: currentUser?.id,
+                sender_display_name: currentUser?.username || 'Me',
+                content: message,
+                timestamp: new Date().toISOString()
+            });
+            
             messageInput.value = ''; // Clear input after sending
         } catch (error) {
             console.error('Error sending message:', error);
             showToast('Error sending message', 'danger');
         }
+    } else {
+        console.error('Cannot send message:', {
+            messageExists: !!message,
+            socketExists: !!chatSocket,
+            socketState: chatSocket?.readyState
+        });
     }
 };
 
@@ -423,12 +523,19 @@ const loadMainPage = async () => {
             `;
 
              // Initialize chat handlers
+             console.log('Setting up chat for user:', profile.username);
              initializeChatHandlers();
             
              // Initialize WebSocket if not already connected
-             if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
-                 initWebSocket();
-             }
+            if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+                initWebSocket();
+            }
+
+             // Clear chat messages container
+            const messagesContainer = document.getElementById('chat-messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+            }
         }
 
         const matches = await fetchMatchHistory();
@@ -472,7 +579,7 @@ const loadMainPage = async () => {
             document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
         }
     } catch (error) {
-        console.error('Error loading main page data:', error);
+        console.error('Error loading main page:', error);
         if (error.message.includes('401')) {
             window.location.href = '/';
         }
@@ -514,9 +621,14 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {
+    // Clear any pending reconnection attempts
+    clearTimeout(reconnectTimeout);
+    reconnectAttempts = 0;
+    
     // Close WebSocket connection if it exists
-    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+    if (chatSocket) {
         chatSocket.close();
+        chatSocket = null;
     }
     
     // Clear storage and reset variables
