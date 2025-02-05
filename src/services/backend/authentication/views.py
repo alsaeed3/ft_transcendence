@@ -74,44 +74,6 @@ class UserLogoutView(APIView):
 # /////////////////// 42FA ////////////////////////////
 
 
-# Add these to your existing views
-# class TwoFactorLoginView(APIView):
-#     """Handle 2FA-enabled logins"""
-#     def post(self, request):
-#         username = request.data.get('username')
-#         password = request.data.get('password')
-#         user = authenticate(username=username, password=password)
-        
-#         if not user:
-#             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-#         if user.is_2fa_enabled:
-#             # try:    
-#                 otp = user.generate_otp()
-#                 # send_mail(
-#                 #     'Your Security Code',
-#                 #     f'Your one-time password is: {otp}',
-#                 #     'absalem42@gmail.com',
-#                 #     [user.email],
-#                 #     fail_silently=False,
-#                 # )
-#                 return Response({
-#                     'detail': '2FA required',
-#                     'otp' : otp,
-#                     '2fa_required': True
-#                 }, status=status.HTTP_202_ACCEPTED)
-#             # except Exception as e:
-#             #     logging.exception("Error generating OTP")
-#             #     return Response({'error': 'Failed to generate OTP'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-#         refresh = RefreshToken.for_user(user)
-#         return Response({
-#             'refresh': str(refresh),
-#             'access': str(refresh.access_token),
-#             'user': AuthUserSerializer(user).data
-#         })
-
-
 class TwoFactorLoginView(APIView):
     def post(self, request):
         username = request.data.get('username')
@@ -127,26 +89,21 @@ class TwoFactorLoginView(APIView):
         if user.is_42_auth:
             return Response({'error': 'Use 42 OAuth login'}, status=400)
 
-        # # 3. Check if user is active
-        # if not user.is_active:
-        #     return Response({'error': 'Account disabled'}, status=403)
-
         # 4. Authenticate
         authenticated_user = authenticate(username=username, password=password)
         if not authenticated_user:
             return Response({'error': 'Invalid credentials'}, status=401)
 
         # 5. Handle 2FA
-        # 5. Handle 2FA
         if user.is_2fa_enabled:
             otp = user.generate_otp()
             subject = 'Your Security Code'
             message = f'OTP: {otp}'
             try:
-                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, ['absalem42@gmail.com'], fail_silently=False)
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
             except Exception as e:
                 return Response({'error': 'Failed to send OTP'}, status=500)
-            return Response({'2fa_required': True , 'otp' : otp}, status=202)
+            return Response({'2fa_required': True , 'user' : AuthUserSerializer(user).data}, status=202)
 
         # 6. Return tokens
         refresh = RefreshToken.for_user(user)
@@ -155,24 +112,6 @@ class TwoFactorLoginView(APIView):
             'access': str(refresh.access_token),
             'user': AuthUserSerializer(user).data
         })
-
-
-# class TwoFactorVerifyView(APIView):
-#     """Verify 2FA OTP"""
-#     permission_classes = [permissions.AllowAny]
-#     def post(self, request):
-#         serializer = TwoFactorVerifySerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-        
-#         user = User.objects.get(email=request.data['email'])
-#         if user.is_otp_valid(serializer.validated_data['otp']):
-#             refresh = RefreshToken.for_user(user)
-#             return Response({
-#                 'refresh': str(refresh),
-#                 'access': str(refresh.access_token),
-#                 'user': AuthUserSerializer(user).data
-#             })
-#         return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TwoFactorVerifyView(APIView):
