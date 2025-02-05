@@ -25,5 +25,12 @@ class AuthUserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'display_name', 'avatar',
-            'user_id_42', 'login_42', 'is_42_auth'
+            'user_id_42', 'login_42', 'is_42_auth', 'is_2fa_enabled'
         ]
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+class TwoFactorToggleSerializer(serializers.Serializer):
+    password = serializers.CharField(required=True)
