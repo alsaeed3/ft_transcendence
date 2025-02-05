@@ -13,6 +13,7 @@ services:
     volumes:
       - ./services/frontend:/usr/share/nginx/html
       - static_volume:/usr/share/nginx/static
+      - media_volume:/usr/share/nginx/media
 
   redis:
     image: redis:alpine
@@ -36,6 +37,7 @@ services:
       - main-network
     volumes:
       - static_volume:/app/static
+      - media_volume:/app/media
 
   database:
     image: postgres:16
@@ -55,6 +57,7 @@ volumes:
   redis_data:
   postgres_data:
   static_volume:
+  media_volume:
 
 networks:
   main-network:

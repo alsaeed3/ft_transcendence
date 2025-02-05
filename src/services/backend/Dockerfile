@@ -19,6 +19,8 @@ COPY . .
 # Ensure entrypoint script is executable
 RUN chmod +x /app/tools/entrypoint.sh
 
+RUN mkdir -p /app/media/avatars && chmod 755 /app/media/avatars
+
 EXPOSE 8000
 
 ENTRYPOINT ["/app/tools/entrypoint.sh"]
