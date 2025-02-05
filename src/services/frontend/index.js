@@ -504,47 +504,117 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Game related listeners
-    document.getElementById('play-player-btn').addEventListener('click', () => {
-        // Show modal to select opponent
-        const modal = new bootstrap.Modal(document.getElementById('usersModal'));
-        const modalBody = document.querySelector('#usersModal .modal-body');
-        modalBody.innerHTML = '<div class="list-group">';
-        
-        // Fetch and display available players
-        AuthManager.fetchWithAuth(`${API_BASE}users/available/`)
-            .then(response => response.json())
-            .then(users => {
-                users.forEach(user => {
-                    if (user.id !== AuthManager.currentUser.id) {
-                        modalBody.innerHTML += `
-                            <button class="list-group-item list-group-item-action"
-                                    onclick="MatchManager.initializeGame('pvp', ${user.id})">
-                                ${UserManager.escapeHtml(user.username)}
-                                <span class="badge ${user.online_status ? 'bg-success' : 'bg-secondary'} float-end">
-                                    ${user.online_status ? 'Online' : 'Offline'}
-                                </span>
-                            </button>
-                        `;
+    document.getElementById('play-player-btn').addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+    
+        try {
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show setup page
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+    
+            // Add event listeners after adding to DOM
+            const setupForm = document.getElementById('player2-setup-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+    
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const player2Name = document.getElementById('player2-name').value;
+                localStorage.setItem('player2Name', player2Name);
+    
+                // Load pong game
+                const pongResponse = await fetch('/src/assets/components/pong.html');
+                const pongHtml = await pongResponse.text();
+                
+                // Remove setup page
+                setupDiv.remove();
+                
+                // Create and show game page
+                const gameDiv = document.createElement('div');
+                gameDiv.id = 'game-page';
+                gameDiv.classList.add('page', 'active-page');
+                gameDiv.innerHTML = pongHtml;
+                document.body.appendChild(gameDiv);
+    
+                // Initialize PvP game
+                requestAnimationFrame(() => {
+                    if (typeof initGame === 'function') {
+                        initGame('PVP');
                     }
                 });
-            })
-            .catch(error => {
-                console.error('Error fetching available players:', error);
-                modalBody.innerHTML = '<div class="alert alert-danger">Failed to load players</div>';
             });
-        
-        modal.show();
+    
+            cancelBtn.addEventListener('click', () => {
+                setupDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+    
+        } catch (error) {
+            console.error('Error loading setup page:', error);
+            alert('Failed to load the setup page');
+        }
     });
-
-    document.getElementById('play-ai-btn').addEventListener('click', () => {
-        MatchManager.initializeGame('ai');
+    
+    document.getElementById('play-ai-btn').addEventListener('click', async () => {
+        // Check if user is logged in
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+    
+        try {
+            const response = await fetch('/src/assets/components/pong.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show game page
+            const gameDiv = document.createElement('div');
+            gameDiv.id = 'game-page';
+            gameDiv.classList.add('page', 'active-page');
+            gameDiv.innerHTML = html;
+            document.body.appendChild(gameDiv);
+    
+            // Initialize game immediately after canvas is available
+            requestAnimationFrame(() => {
+                if (typeof initGame === 'function') {
+                    initGame();
+                }
+            }, 100);
+    
+        } catch (error) {
+            console.error('Error loading game:', error);
+            alert('Failed to load the game');
+        }
     });
-
+    
     document.getElementById('create-tournament-btn').addEventListener('click', async () => {
         try {
-            await MatchManager.createTournament();
+            const response = await fetch(`${API_BASE}tournaments/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${AuthManager.accessToken}`
+                },
+                body: JSON.stringify({ name: 'New Tournament', participants: [] })
+            });
+            
+            if (!response.ok) throw new Error('Tournament creation failed');
+            alert('Tournament created successfully!');
         } catch (error) {
-            console.error('Tournament creation failed:', error);
+            alert(error.message);
         }
     });
 });
