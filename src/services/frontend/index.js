@@ -12,10 +12,8 @@ const pages = {
 };
 
 const showPage = (page) => {
-    Object.values(pages).forEach(p => {
-        if (p) p.style.display = 'none';
-    });
-    if (page) page.style.display = 'block';
+    Object.values(pages).forEach(p => p.classList.remove('active-page'));
+    page.classList.add('active-page');
 };
 
 // Auth utilities
