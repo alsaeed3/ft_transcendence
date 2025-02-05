@@ -7,6 +7,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 let reconnectAttempts = 0;
 let reconnectTimeout = null;
 let currentChatPartner = null;
+let statusSocket = null;
 
 
 // DOM Elements
@@ -14,6 +15,41 @@ const pages = {
     landing: document.getElementById('landing-page'),
     main: document.getElementById('main-page'),
     updateProfile: document.getElementById('update-profile-page')
+};
+
+const loadUsersList = async () => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/`);
+        const users = await response.json();
+        
+        const tableBody = document.getElementById('users-table-body');
+        tableBody.innerHTML = '';
+        
+        users.forEach(user => {
+            if (user.id === currentUser?.id) return; // Skip current user
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${escapeHtml(user.username)}</td>
+                <td>
+                    <button class="btn btn-primary btn-sm chat-btn" 
+                            onclick="startChat(${user.id}, '${escapeHtml(user.username)}')">
+                        <i class="bi bi-chat-dots"></i> Chat
+                    </button>
+                </td>
+                <td>
+                    <span class="badge ${user.online_status ? 'bg-success' : 'bg-secondary'}" 
+                          data-user-status="${user.id}">
+                        ${user.online_status ? 'Online' : 'Offline'}
+                    </span>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error loading users list:', error);
+        showToast('Error loading users list', 'danger');
+    }
 };
 
 const showPage = (page) => {
@@ -209,6 +245,32 @@ const handleUpdateProfile = async (e) => {
 let chatSocket = null;
 let currentChatUser = null;
 const blockedUsers = new Set();
+
+const initStatusWebSocket = () => {
+    const apiHost = new URL(API_BASE).host;
+    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsScheme}://${apiHost}/ws/status/?token=${accessToken}`;
+
+    statusSocket = new WebSocket(wsUrl);
+
+    statusSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        updateUserStatus(data.user_id, data.online_status);
+    };
+
+    statusSocket.onclose = () => {
+        // Attempt to reconnect after 5 seconds
+        setTimeout(initStatusWebSocket, 5000);
+    };
+};
+
+const updateUserStatus = (userId, isOnline) => {
+    const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
+    if (statusBadge) {
+        statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+        statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+    }
+};
 
 // Initialize WebSocket connection
 const initWebSocket = (otherUserId) => {
@@ -682,6 +744,10 @@ const loadMainPage = async () => {
             }
         }
 
+        // Add users list loading here
+        await loadUsersList();
+        initStatusWebSocket();
+
         const matches = await fetchMatchHistory();
 
         if (matches && matches.length > 0) {
@@ -770,6 +836,10 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     reconnectAttempts = 0;
     
     // Close WebSocket connection if it exists
+    if (statusSocket) {
+        statusSocket.close();
+        statusSocket = null;
+    }
     if (chatSocket) {
         chatSocket.close();
         chatSocket = null;

@@ -6,6 +6,40 @@ from channels.db import database_sync_to_async
 from django.db.models import Q
 from .models import Message, User
 
+class UserStatusConsumer(AsyncWebsocketConsumer):
+    connected_users = {}
+
+    async def connect(self):
+        # Get user from authentication token
+        self.user = self.scope["user"]
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        # Add user to connected users
+        UserStatusConsumer.connected_users[self.user.id] = self
+        
+        # Accept the connection
+        await self.accept()
+        
+        # Broadcast user's online status
+        await self.broadcast_status(True)
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'user') and self.user.id in UserStatusConsumer.connected_users:
+            del UserStatusConsumer.connected_users[self.user.id]
+            await self.broadcast_status(False)
+
+    @classmethod
+    async def broadcast_status(cls, user_id, is_online):
+        message = {
+            'type': 'status_update',
+            'user_id': user_id,
+            'online_status': is_online
+        }
+        for user in cls.connected_users.values():
+            await user.send(text_data=json.dumps(message))
+
 class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # Get users from the URL parameters
