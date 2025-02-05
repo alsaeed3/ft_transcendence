@@ -51,6 +51,25 @@
                                 <button type="submit" class="btn btn-success w-100">Register</button>
                                 <a href="#" id="login-link" class="text-white d-block text-center mt-2">Back to Login</a>
                             </form>
+
+                            <form id="2fa-form" class="d-none">
+                                <div class="mb-3">
+                                    <h4 class="text-center">Two-Factor Authentication</h4>
+                                    <p class="text-center">Please enter the verification code sent to your email</p>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="otp-input" 
+                                           placeholder="Enter 6-digit code" 
+                                           maxlength="6" 
+                                           pattern="[0-9]*" 
+                                           required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 mb-3">Verify</button>
+                                <button type="button" id="back-to-login" class="btn btn-secondary w-100">Back to Login</button>
+                                <div class="text-center mt-2">
+                                    <small class="text-white">Code expires in <span id="otp-timer">5:00</span></small>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
