@@ -99,12 +99,13 @@ class TwoFactorLoginView(APIView):
             otp = user.generate_otp()
             subject = 'Your Security Code'
             message = f'OTP: {otp}'
+            refresh = RefreshToken.for_user(user)
             try:
                 send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
             except Exception as e:
                 return Response({'error': 'Failed to send OTP'}, status=500)
-            return Response({'2fa_required': True , 'user' : AuthUserSerializer(user).data}, status=202)
-
+            # return Response({'2fa_required': True, 'user': AuthUserSerializer(user).data, 'refresh': str(refresh), 'access': str(refresh.access_token)}, status=202)
+            return Response({'2fa_required': True, 'user': AuthUserSerializer(user).data}, status=202)
         # 6. Return tokens
         refresh = RefreshToken.for_user(user)
         return Response({
