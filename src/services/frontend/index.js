@@ -3,6 +3,7 @@ var username;
 let accessToken = localStorage.getItem('accessToken');
 let refreshToken = localStorage.getItem('refreshToken');
 const RECENT_MATCHES_LIMIT = 5;
+let currentOTPTimer = null; // Add this at the top with other global variables
 
 // DOM Elements
 const pages = {
@@ -134,23 +135,27 @@ const handleRegister = async (userData) => {
 
 // Add these new functions for 2FA handling
 const startOTPTimer = () => {
+    // Clear any existing timer
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+    }
+
     const timerElement = document.getElementById('otp-timer');
     let timeLeft = 300; // 5 minutes in seconds
 
-    const timer = setInterval(() => {
+    currentOTPTimer = setInterval(() => {
         const minutes = Math.floor(timeLeft / 60);
         const seconds = timeLeft % 60;
         timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         
         if (timeLeft <= 0) {
-            clearInterval(timer);
+            clearInterval(currentOTPTimer);
+            currentOTPTimer = null;
             alert('OTP expired. Please try again.');
             showLoginForm();
         }
         timeLeft--;
     }, 1000);
-
-    return timer;
 };
 
 const verify2FA = async (otp) => {
@@ -200,13 +205,18 @@ const processSuccessfulAuth = (data) => {
     loadMainPage();
 };
 
+// Modify the showLoginForm function to handle form visibility properly
 const showLoginForm = () => {
     document.getElementById('2fa-form').classList.add('d-none');
     document.getElementById('login-form').classList.remove('d-none');
+    document.getElementById('register-form').classList.add('d-none');
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+        currentOTPTimer = null;
+    }
     sessionStorage.removeItem('tempUserEmail');
 };
 
-// Data Fetching
 const fetchUserProfile = async () => {
     try {
         const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
@@ -395,9 +405,17 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     await handleRegister(userData);
 });
 
+// Modify the logout event listener
 document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.clear();
+    sessionStorage.clear();
     accessToken = null;
+    refreshToken = null;
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+        currentOTPTimer = null;
+    }
+    showLoginForm();
     showPage(pages.landing);
 });
 
@@ -567,16 +585,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // OTP input validation
+    // OTP input validation (only allow numbers and max 6 digits)
     const otpInput = document.getElementById('otp-input');
     if (otpInput) {
         otpInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-            
-            // Auto-submit when 6 digits are entered
-            if (e.target.value.length === 6) {
-                twoFAForm.requestSubmit();
-            }
         });
     }
 });
