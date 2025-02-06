@@ -1,11 +1,12 @@
 from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
-from rest_framework_simplejwt.tokens import AccessToken
-from django.contrib.auth import get_user_model
 
 class TokenAuthMiddleware(BaseMiddleware):
     async def __call__(self, scope, receive, send):
+        # Import here to avoid apps not loaded error
+        from django.contrib.auth.models import AnonymousUser
+        from rest_framework_simplejwt.tokens import AccessToken
+        
         try:
             token = scope["query_string"].decode().split("=")[1]
             access_token = AccessToken(token)
@@ -17,6 +18,10 @@ class TokenAuthMiddleware(BaseMiddleware):
 
     @database_sync_to_async
     def get_user(self, user_id):
+        # Import here to avoid apps not loaded error
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import AnonymousUser
+        
         User = get_user_model()
         try:
             return User.objects.get(id=user_id)

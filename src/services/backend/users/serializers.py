@@ -18,14 +18,19 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'display_name', 'avatar', 
             'online_status', 'language_preference', 'email',
             'user_id_42', 'login_42', 'is_42_auth', 
-            'password'
+            'password', 'match_wins', 'tourney_wins', 
+            'total_matches', 'total_tourneys'
         ]
         extra_kwargs = {
             'username': {'required': False},
             'email': {'required': False},
             'avatar': {'required': False},
             'display_name': {'required': False},
-            'language_preference': {'required': False}
+            'language_preference': {'required': False},
+            'match_wins': {'required': False},
+            'tourney_wins': {'required': False},
+            'total_matches': {'required': False},
+            'total_tourneys': {'required': False}
         }
 
     def update(self, instance, validated_data):

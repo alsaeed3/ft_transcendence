@@ -11,7 +11,11 @@ class User(AbstractUser):
     is_42_auth = models.BooleanField(default=False)
     is_42_2fa_enabled = models.BooleanField(default=False) 
     online_status = models.BooleanField(default=False)
-    
+    match_wins = models.IntegerField(default=0)
+    tourney_wins = models.IntegerField(default=0)
+    total_matches = models.IntegerField(default=0)
+    total_tourneys = models.IntegerField(default=0)
+
     friends = models.ManyToManyField(
         'self',
         symmetrical=False,

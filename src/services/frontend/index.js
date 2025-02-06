@@ -61,6 +61,7 @@ class AuthManager {
             const data = await response.json();
             this.accessToken = data.access;
             this.refreshToken = data.refresh;
+            this.currentUser = data.user;
             localStorage.setItem('accessToken', this.accessToken);
             localStorage.setItem('refreshToken', this.refreshToken);
             
@@ -87,13 +88,23 @@ class AuthManager {
         }
     }
 
-    static logout() {
-        ChatManager.cleanup();
-        localStorage.clear();
-        this.accessToken = null;
-        this.refreshToken = null;
-        this.currentUser = null;
-        UIManager.showPage(UIManager.pages.landing);
+    static async logout() {
+        try {
+            await fetch(`${API_BASE}auth/logout/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh: this.refreshToken })
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            ChatManager.cleanup();
+            localStorage.clear();
+            this.accessToken = null;
+            this.refreshToken = null;
+            this.currentUser = null;
+            UIManager.showPage(UIManager.pages.landing);
+        }
     }
 }
 
@@ -141,12 +152,11 @@ class UIManager {
                     document.getElementById('profile-avatar').src = profile.avatar;
                 }
 
-                document.getElementById('player-stats').innerHTML = `
-                    <p>Username: ${profile.username}</p>
-                    <p>Email: ${profile.email}</p>
-                    <p>Wins: ${profile.stats?.wins || 0}</p>
-                    <p>Losses: ${profile.stats?.losses || 0}</p>
-                `;
+                document.getElementById('stats-username').textContent = profile.username;
+                document.getElementById('stats-match-wins').textContent = profile.match_wins || 0;
+                document.getElementById('stats-tourney-wins').textContent = profile.tourney_wins || 0;
+                document.getElementById('stats-total-matches').textContent = profile.total_matches || 0;
+                document.getElementById('stats-total-tourneys').textContent = profile.total_tourneys || 0;
 
                 await UserManager.loadUsersList();
                 ChatManager.initStatusWebSocket();
@@ -179,7 +189,9 @@ class ChatManager {
         this.statusSocket = new WebSocket(wsUrl);
         this.statusSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            this.updateUserStatus(data.user_id, data.online_status);
+            if (data.type === 'status_update') {
+                this.updateUserStatus(data.user_id, data.online_status);
+            }
         };
 
         this.statusSocket.onclose = () => {
@@ -218,7 +230,7 @@ class ChatManager {
         
         const apiHost = new URL(API_BASE).host;
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${userId}/?token=${AuthManager.accessToken}`;
+        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
         
         if (this.chatSocket) {
             this.chatSocket.close();
@@ -228,18 +240,40 @@ class ChatManager {
         this.chatSocket.onmessage = this.handleChatMessage.bind(this);
         this.chatSocket.onclose = this.handleChatClose.bind(this);
         
+        this.loadPreviousMessages(userId);
         document.getElementById('chat-messages').innerHTML = '';
         document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
     }
 
+    static async loadPreviousMessages(userId) {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/messages/${userId}/`);
+            if (!response.ok) throw new Error('Failed to load messages');
+            const messages = await response.json();
+            
+            const messagesContainer = document.getElementById('chat-messages');
+            messages.forEach(msg => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `list-group-item ${msg.sender_id === AuthManager.currentUser.id ? 'bg-primary' : 'bg-secondary'}`;
+                messageElement.textContent = msg.content;
+                messagesContainer.appendChild(messageElement);
+            });
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
     static handleChatMessage(event) {
         const data = JSON.parse(event.data);
-        const messagesContainer = document.getElementById('chat-messages');
-        const messageElement = document.createElement('div');
-        messageElement.className = `list-group-item ${data.sender === AuthManager.currentUser.id ? 'bg-primary' : 'bg-secondary'}`;
-        messageElement.textContent = data.message;
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        if (data.type === 'chat_message') {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = `list-group-item ${data.sender_id === AuthManager.currentUser.id ? 'bg-primary' : 'bg-secondary'}`;
+            messageElement.textContent = data.message;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
     }
 
     static handleChatClose() {
@@ -268,7 +302,7 @@ class ChatManager {
 class ProfileManager {
     static async fetchUserProfile() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/me/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             return await response.json();
         } catch (error) {
@@ -284,9 +318,15 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
+            const data = {};
+            formData.forEach((value, key) => {
+                if (value) data[key] = value;
+            });
+
             const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
                 method: 'PUT',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
             });
 
             if (!response.ok) throw new Error('Profile update failed');
@@ -347,11 +387,17 @@ class UserManager {
 class MatchManager {
     static async fetchMatchHistory() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/history/?limit=${RECENT_MATCHES_LIMIT}`);
-            if (!response.ok) throw new Error('Failed to fetch match history');
-            return await response.json();
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const matches = await response.json();
+
+            // Sort matches by date (most recent first)
+            return matches.sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
         } catch (error) {
-            console.error('Error fetching match history:', error);
+            console.error('Error fetching matches:', error);
             return [];
         }
     }
@@ -360,29 +406,44 @@ class MatchManager {
         const container = document.getElementById('match-history');
         container.innerHTML = matches.length ? '' : '<p>No recent matches</p>';
         
-        matches.forEach(match => {
+        matches.slice(0, RECENT_MATCHES_LIMIT).forEach(match => {
             const matchElement = document.createElement('div');
             matchElement.className = 'mb-2 p-2 bg-dark rounded';
+            
+            const winner = match.winner_name;
+            const winnerClass = match.player1_name === winner ? 'text-success' : 'text-danger';
+            
             matchElement.innerHTML = `
                 <div>
-                    <strong>${match.player1_username}</strong> vs 
-                    <strong>${match.player2_username}</strong>
+                    <strong class="${match.player1_name === winner ? winnerClass : ''}">${match.player1_name}</strong> 
+                    vs 
+                    <strong class="${match.player2_name === winner ? winnerClass : ''}">${match.player2_name}</strong>
+                    <div>Score: ${match.player1_score} - ${match.player2_score}</div>
+                    <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
+                    ${winner ? `<div class="mt-1"><small class="text-success">Winner: ${winner}</small></div>` : ''}
                 </div>
-                <div>Score: ${match.score}</div>
-                <small class="text-muted">${new Date(match.timestamp).toLocaleString()}</small>
             `;
+
             container.appendChild(matchElement);
         });
     }
 
     static async initializeGame(mode, opponent = null) {
         try {
+            const currentUser = AuthManager.currentUser;
+            const player2Name = mode === 'PVP' ? 
+                localStorage.getItem('player2Name') || 'Player 2' : 
+                'AI';
+
             const payload = {
-                mode: mode,
-                opponent_id: opponent
+                player1_name: currentUser.username,
+                player2_name: player2Name,
+                player1_score: 0,
+                player2_score: 0,
+                tournament: null
             };
 
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/create/`, {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -422,6 +483,42 @@ class MatchManager {
         } catch (error) {
             console.error('Error creating tournament:', error);
             UIManager.showToast('Failed to create tournament', 'danger');
+            throw error;
+        }
+    }
+
+    static async createMatch(player1Score, player2Score, mode = 'AI') {
+        try {
+            const currentUser = AuthManager.currentUser;
+            const player2Name = mode === 'PVP' ? 
+                localStorage.getItem('player2Name') || 'Player 2' : 
+                'Computer';
+
+            const matchData = {
+                player1_name: currentUser.username,
+                player2_name: player2Name,
+                player1_score: player1Score,
+                player2_score: player2Score,
+                tournament: null,
+                end_time: new Date().toISOString()
+            };
+
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save match');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving match:', error);
+            UIManager.showToast('Failed to save match result', 'danger');
             throw error;
         }
     }

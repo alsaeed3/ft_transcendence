@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nginx:
     build: ./services/nginx
@@ -16,7 +14,8 @@ services:
       - media_volume:/usr/share/nginx/media
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
+    restart: always
     ports:
       - "6379:6379"
     networks:
@@ -40,7 +39,8 @@ services:
       - media_volume:/app/media
 
   database:
-    image: postgres:16
+    image: postgres:15-alpine
+    restart: always
     expose:
       - "5432"  # Internal only
     environment:
@@ -54,8 +54,8 @@ services:
       - main-network
 
 volumes:
-  redis_data:
   postgres_data:
+  redis_data:
   static_volume:
   media_volume:
 

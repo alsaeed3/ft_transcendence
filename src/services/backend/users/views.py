@@ -54,7 +54,6 @@ class UserListView(generics.ListAPIView):
             )
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
-
     def delete(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
