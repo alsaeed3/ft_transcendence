@@ -11,11 +11,47 @@ function initGame(mode = 'AI') {
     let computerScore = 0;
 
     // Game settings as variables
-    let paddleWidth = 20;
-    let paddleHeight = 120;
-    let ballRadius = 10;
-    let PADDLE_SPEED = 5;
-    let BALL_SPEED = 4;
+    let paddleWidth = 15;      // Slightly thinner paddle for better challenge
+    let paddleHeight = 100;    // Shorter paddle for better challenge
+    let ballRadius = 8;        // Slightly smaller ball
+    let PADDLE_SPEED = 10;      // Faster paddle movement for better control
+    let BALL_SPEED = 10;        // Slightly faster ball for more excitement
+
+    // Initialize slider values and ranges
+    const initializeSliders = () => {
+        // Paddle Width slider
+        const paddleWidthSlider = document.getElementById('paddleWidth');
+        paddleWidthSlider.min = paddleWidth;
+        paddleWidthSlider.max = 50;
+        paddleWidthSlider.value = paddleWidth;
+        
+        // Paddle Height slider
+        const paddleHeightSlider = document.getElementById('paddleHeight');
+        paddleHeightSlider.min = paddleHeight;
+        paddleHeightSlider.max = 200;
+        paddleHeightSlider.value = paddleHeight;
+        
+        // Paddle Speed slider
+        const paddleSpeedSlider = document.getElementById('paddleSpeed');
+        paddleSpeedSlider.min = PADDLE_SPEED;
+        paddleSpeedSlider.max = 15;
+        paddleSpeedSlider.value = PADDLE_SPEED;
+        
+        // Ball Speed slider
+        const ballSpeedSlider = document.getElementById('ballSpeed');
+        ballSpeedSlider.min = BALL_SPEED;
+        ballSpeedSlider.max = 15;
+        ballSpeedSlider.value = BALL_SPEED;
+
+        // Update all display values
+        document.getElementById('paddleWidthValue').textContent = paddleWidth;
+        document.getElementById('paddleHeightValue').textContent = paddleHeight;
+        document.getElementById('paddleSpeedValue').textContent = PADDLE_SPEED;
+        document.getElementById('ballSpeedValue').textContent = BALL_SPEED;
+    };
+
+    // Call initialization right after setting game settings
+    initializeSliders();
 
     // Game state
     let paddle1Y = canvas.height / 2 - paddleHeight / 2;
@@ -32,7 +68,7 @@ function initGame(mode = 'AI') {
     let aiMoveDown = false;  // Simulated keyboard down
     let targetY = canvas.height / 2;
 
-    const WINNING_SCORE = 2;
+    const WINNING_SCORE = 11;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -294,13 +330,25 @@ function initGame(mode = 'AI') {
 
     // Make updateGameSettings available globally
     window.updateGameSettings = function(newWidth, newHeight, newPaddleSpeed, newBallSpeed) {
+        // Update settings
         paddleWidth = newWidth;
         paddleHeight = newHeight;
         PADDLE_SPEED = newPaddleSpeed;
-        BALL_SPEED = newBallSpeed;
         
-        ballSpeedX = BALL_SPEED * (ballSpeedX > 0 ? 1 : -1);
-        ballSpeedY = BALL_SPEED * (ballSpeedY > 0 ? 1 : -1);
+        // Only update ball speed if it actually changed
+        if (BALL_SPEED !== newBallSpeed) {
+            BALL_SPEED = newBallSpeed;
+            // Maintain current direction but update speed
+            const currentAngle = Math.atan2(ballSpeedY, ballSpeedX);
+            ballSpeedX = BALL_SPEED * Math.cos(currentAngle);
+            ballSpeedY = BALL_SPEED * Math.sin(currentAngle);
+        }
+        
+        // Update the display values
+        document.getElementById('paddleWidthValue').textContent = newWidth;
+        document.getElementById('paddleHeightValue').textContent = newHeight;
+        document.getElementById('paddleSpeedValue').textContent = newPaddleSpeed;
+        document.getElementById('ballSpeedValue').textContent = newBallSpeed;
     };
 
     // Keyboard controls
@@ -348,11 +396,23 @@ function initGame(mode = 'AI') {
 
     // Start the game loop
     requestAnimationFrame(gameLoop);
+
+    // Add slider event listeners
+    const sliders = ['paddleWidth', 'paddleHeight', 'paddleSpeed', 'ballSpeed'];
+    sliders.forEach(sliderId => {
+        const slider = document.getElementById(sliderId);
+        if (slider) {
+            slider.addEventListener('input', () => {
+                const width = parseInt(document.getElementById('paddleWidth').value);
+                const height = parseInt(document.getElementById('paddleHeight').value);
+                const pSpeed = parseInt(document.getElementById('paddleSpeed').value);
+                const bSpeed = parseInt(document.getElementById('ballSpeed').value);
+                
+                updateGameSettings(width, height, pSpeed, bSpeed);
+            });
+        }
+    });
 }
 
 // Initialize when script loads
-if (document.readyState === 'complete') {
-    initGame();
-} else {
-    window.addEventListener('load', initGame);
-}
+document.addEventListener('DOMContentLoaded', initGame);
