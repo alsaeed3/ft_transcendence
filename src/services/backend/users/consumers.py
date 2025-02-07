@@ -133,9 +133,11 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             receiver=receiver,
             content=message
         )
-        # Serialize the message before returning
+        # Serialize the message and include sender info
         serializer = MessageSerializer(msg)
-        return serializer.data
+        data = serializer.data
+        data['sender_display_name'] = sender.username  # Ensure username is included
+        return data
 
     @database_sync_to_async
     def get_chat_history(self):
@@ -177,6 +179,16 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         # Remove 'type' from event before sending
         message_data = {k: v for k, v in event.items() if k != 'type'}
+        
+        # Ensure sender information is included
+        if not message_data.get('sender_display_name'):
+            try:
+                sender = await database_sync_to_async(User.objects.get)(id=message_data['sender_id'])
+                message_data['sender_display_name'] = sender.username
+                message_data['sender_avatar_url'] = sender.get_avatar_url()
+            except Exception as e:
+                logger.error(f"Error getting sender info: {str(e)}")
+        
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             **message_data

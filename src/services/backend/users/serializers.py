@@ -3,14 +3,15 @@ from rest_framework import serializers
 from .models import Message, User
 
 class MessageSerializer(serializers.ModelSerializer):
-    sender_display_name = serializers.CharField(source='sender.display_name', read_only=True)
+    sender_display_name = serializers.CharField(source='sender.username', read_only=True)
     sender_avatar_url = serializers.SerializerMethodField()
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     
     class Meta:
         model = Message
-        fields = ['id', 'content', 'sender', 'receiver', 'timestamp', 'read', 
+        fields = ['id', 'content', 'sender_id', 'receiver', 'timestamp', 'read', 
                  'sender_display_name', 'sender_avatar_url']
-        read_only_fields = ['sender', 'timestamp', 'read']
+        read_only_fields = ['sender_id', 'timestamp', 'read']
     
     def get_sender_avatar_url(self, obj):
         return obj.sender.get_avatar_url()

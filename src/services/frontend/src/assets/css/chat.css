@@ -3,6 +3,7 @@
 	align-items: flex-start;
 	margin-bottom: 1rem;
 	padding: 0.5rem;
+	width: 100%;
 }
 
 .message-wrapper.sent {
@@ -11,6 +12,26 @@
 
 .message-content {
 	max-width: 70%;
+	display: flex;
+	flex-direction: column;
+}
+
+.message-header {
+	font-size: 0.85rem;
+	margin-bottom: 0.2rem;
+	color: #adb5bd;
+	display: block !important;
+	opacity: 0.9;
+}
+
+.sent .message-header {
+	text-align: right;
+	padding-right: 0.5rem;
+}
+
+.received .message-header {
+	text-align: left;
+	padding-left: 0.5rem;
 }
 
 .message-bubble {
@@ -18,12 +39,14 @@
 	border-radius: 1rem;
 	margin-bottom: 0.25rem;
 	word-break: break-word;
+	position: relative;
 }
 
 .sent .message-bubble {
 	background-color: #0d6efd;
 	color: white;
 	border-bottom-right-radius: 0.2rem;
+	margin-left: auto;
 }
 
 .received .message-bubble {
@@ -35,22 +58,25 @@
 .message-meta {
 	font-size: 0.8rem;
 	color: #adb5bd;
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
 }
 
 .sent .message-meta {
-	text-align: right;
+	justify-content: flex-end;
 }
 
 .avatar {
-	width: 40px;
-	height: 40px;
+	width: 32px;
+	height: 32px;
 	border-radius: 50%;
 	object-fit: cover;
 }
 
 .avatar-placeholder {
-	width: 40px;
-	height: 40px;
+	width: 32px;
+	height: 32px;
 	background-color: #6c757d;
 	color: white;
 	border-radius: 50%;
@@ -58,13 +84,29 @@
 	align-items: center;
 	justify-content: center;
 	font-weight: bold;
-	font-size: 1.2em;
+	font-size: 1em;
 }
 
-.message-wrapper.sent .avatar {
+.message-wrapper.sent .avatar,
+.message-wrapper.sent .avatar-placeholder {
 	margin-left: 10px;
 }
 
-.message-wrapper.received .avatar {
+.message-wrapper.received .avatar,
+.message-wrapper.received .avatar-placeholder {
 	margin-right: 10px;
+}
+
+/* Hover effect for messages */
+.message-bubble:hover {
+	opacity: 0.9;
+}
+
+/* Time tooltip on hover */
+.message-meta .timestamp:hover + .date {
+	display: inline;
+}
+
+.message-meta .date {
+	display: none;
 }

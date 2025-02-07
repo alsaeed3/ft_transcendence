@@ -327,7 +327,7 @@ class ChatManager {
                     ...msg,
                     sender: {
                         id: msg.sender_id,
-                        username: msg.sender_display_name,
+                        username: msg.sender_display_name || msg.username,
                         avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
                     }
                 });
@@ -342,13 +342,14 @@ class ChatManager {
 
     static handleChatMessage(event) {
         const data = JSON.parse(event.data);
+        console.log('WebSocket message data:', data); // Debug log
         if (data.type === 'chat_message') {
             const messagesContainer = document.getElementById('chat-messages');
             const messageElement = createChatMessage({
                 ...data,
                 sender: {
                     id: data.sender_id,
-                    username: data.sender_display_name,
+                    username: data.sender_display_name || data.username,
                     avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
                 },
                 timestamp: new Date().toISOString()
@@ -831,8 +832,10 @@ window.refreshAccessToken = () => AuthManager.refreshAccessToken();
 
 function createChatMessage(message) {
     const messageWrapper = document.createElement('div');
-    messageWrapper.className = `message-wrapper ${message.sender_id === AuthManager.currentUser.id ? 'sent' : 'received'}`;
+    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
     
+    // Format timestamp
     const timestamp = new Date(message.timestamp);
     const timeStr = timestamp.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
@@ -844,15 +847,19 @@ function createChatMessage(message) {
         day: 'numeric' 
     });
     
-    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
-    const senderAvatar = isSentByMe ? 
-        AuthManager.currentUser.avatar_url : 
-        (message.sender?.avatar_url || `/media/avatars/default.svg`);
+    // Get sender info - Fix for sender name
     const senderName = isSentByMe ? 
         AuthManager.currentUser.username : 
-        message.sender_display_name;
+        message.sender_display_name;  // This should now always have the correct username
     
-    // Create avatar image with error handling
+    const senderAvatar = isSentByMe ? 
+        AuthManager.currentUser.avatar : 
+        message.sender_avatar_url;
+    
+    // Create avatar element
+    const avatarContainer = document.createElement('div');
+    avatarContainer.className = 'avatar-container';
+    
     const avatarImg = document.createElement('img');
     avatarImg.className = 'avatar';
     avatarImg.alt = senderName;
@@ -869,30 +876,38 @@ function createChatMessage(message) {
             retryCount++;
             loadAvatar('/media/avatars/default.svg');
         } else {
-            // If all retries fail, show initials placeholder
             avatarImg.style.display = 'none';
             const placeholder = document.createElement('div');
             placeholder.className = 'avatar-placeholder';
             placeholder.textContent = senderName.charAt(0).toUpperCase();
-            avatarImg.parentNode.insertBefore(placeholder, avatarImg);
+            avatarContainer.appendChild(placeholder);
         }
     };
     
-    // Initial load with the user's avatar URL
     loadAvatar(senderAvatar);
+    avatarContainer.appendChild(avatarImg);
     
-    messageWrapper.innerHTML = `
-        <div class="message-content">
-            <div class="message-bubble">${escapeHtml(message.content)}</div>
-            <div class="message-meta">
-                <span class="sender">${escapeHtml(senderName)}</span>
-                <span class="timestamp">${timeStr}</span>
-                <span class="date">${dateStr}</span>
-            </div>
+    // Create message content with sender name
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.innerHTML = `
+        <div class="message-header">${escapeHtml(senderName)}</div>
+        <div class="message-bubble">${escapeHtml(message.content)}</div>
+        <div class="message-meta">
+            <span class="timestamp">${timeStr}</span>
+            <span class="date">${dateStr}</span>
         </div>
     `;
     
-    messageWrapper.insertBefore(avatarImg, messageWrapper.firstChild);
+    // Append elements in correct order based on message type
+    if (isSentByMe) {
+        messageWrapper.appendChild(messageContent);
+        messageWrapper.appendChild(avatarContainer);
+    } else {
+        messageWrapper.appendChild(avatarContainer);
+        messageWrapper.appendChild(messageContent);
+    }
+    
     return messageWrapper;
 }
 
