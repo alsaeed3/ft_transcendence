@@ -3,6 +3,7 @@ var username;
 let accessToken = localStorage.getItem('accessToken');
 let refreshToken = localStorage.getItem('refreshToken');
 const RECENT_MATCHES_LIMIT = 5;
+let currentOTPTimer = null; // Add this at the top with other global variables
 
 // DOM Elements
 const pages = {
@@ -19,13 +20,20 @@ const showPage = (page) => {
 // Auth utilities
 const refreshAccessToken = async () => {
     try {
+        if (!refreshToken) {
+            throw new Error("No refresh token available");
+        }
         const response = await fetch(`${API_BASE}token/refresh/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh: refreshToken })
         });
         
-        if (!response.ok) throw new Error('Token refresh failed');
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Token refresh response error:", errorData);
+            throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
+        }
         const data = await response.json();
         accessToken = data.access;
         localStorage.setItem('accessToken', accessToken);
@@ -38,6 +46,10 @@ const refreshAccessToken = async () => {
 };
 
 const fetchWithAuth = async (url, options = {}) => {
+    if (!accessToken) {
+        throw new Error('No access token available');
+    }
+
     let response = await fetch(url, {
         ...options,
         headers: {
@@ -47,14 +59,25 @@ const fetchWithAuth = async (url, options = {}) => {
     });
 
     if (response.status === 401) {
-        const newToken = await refreshAccessToken();
-        response = await fetch(url, {
-            ...options,
-            headers: {
-                ...options.headers,
-                'Authorization': `Bearer ${newToken}`
-            }
-        });
+        if (!refreshToken) {
+            throw new Error('Session expired. Please login again.');
+        }
+        
+        try {
+            const newToken = await refreshAccessToken();
+            response = await fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${newToken}`
+                }
+            });
+        } catch (error) {
+            // If refresh fails, redirect to login
+            localStorage.clear();
+            showPage(pages.landing);
+            throw new Error('Session expired. Please login again.');
+        }
     }
     return response;
 };
@@ -68,17 +91,29 @@ const handleLogin = async (username, password) => {
             body: JSON.stringify({ username, password })
         });
         
-        if (!response.ok) throw new Error('Login failed');
         const data = await response.json();
-        accessToken = data.access;
-        refreshToken = data.refresh;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        showPage(pages.main);
-        await loadMainPage();
+
+        // Check specifically for 2FA requirement
+        if (response.status === 202 && data['2fa_required']) {
+            // Store email for OTP verification
+            sessionStorage.setItem('tempUserEmail', data.user.email);
+            // Switch to 2FA form
+            document.getElementById('login-form').classList.add('d-none');
+            document.getElementById('register-form').classList.add('d-none');
+            document.getElementById('2fa-form').classList.remove('d-none');
+            startOTPTimer();
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Login failed');
+        }
+
+        // Only store tokens and proceed if no 2FA required
+        processSuccessfulAuth(data);
     } catch (error) {
         console.error('Login error:', error);
-        throw error;
+        alert(error.message);
     }
 };
 
@@ -98,7 +133,90 @@ const handleRegister = async (userData) => {
     }
 };
 
-// Data Fetching
+// Add these new functions for 2FA handling
+const startOTPTimer = () => {
+    // Clear any existing timer
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+    }
+
+    const timerElement = document.getElementById('otp-timer');
+    let timeLeft = 300; // 5 minutes in seconds
+
+    currentOTPTimer = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(currentOTPTimer);
+            currentOTPTimer = null;
+            alert('OTP expired. Please try again.');
+            showLoginForm();
+        }
+        timeLeft--;
+    }, 1000);
+};
+
+const verify2FA = async (otp) => {
+    try {
+        const email = sessionStorage.getItem('tempUserEmail');
+        if (!email) {
+            throw new Error('Session expired. Please login again.');
+        }
+
+        const response = await fetch(`${API_BASE}auth/2fa/verify/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Invalid or expired OTP');
+        }
+
+        // Process successful verification
+        processSuccessfulAuth(data);
+    } catch (error) {
+        console.error('2FA verification error:', error);
+        alert(error.message);
+    }
+};
+
+// Helper function to process successful authentication
+const processSuccessfulAuth = (data) => {
+    if (!data.access || !data.refresh) {
+        throw new Error('Invalid authentication response');
+    }
+    
+    // Store tokens
+    accessToken = data.access;
+    refreshToken = data.refresh;
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    
+    // Clear any 2FA temporary data
+    sessionStorage.removeItem('tempUserEmail');
+    
+    // Navigate to main page
+    showPage(pages.main);
+    loadMainPage();
+};
+
+// Modify the showLoginForm function to handle form visibility properly
+const showLoginForm = () => {
+    document.getElementById('2fa-form').classList.add('d-none');
+    document.getElementById('login-form').classList.remove('d-none');
+    document.getElementById('register-form').classList.add('d-none');
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+        currentOTPTimer = null;
+    }
+    sessionStorage.removeItem('tempUserEmail');
+};
+
 const fetchUserProfile = async () => {
     try {
         const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
@@ -287,9 +405,17 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     await handleRegister(userData);
 });
 
+// Modify the logout event listener
 document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.clear();
+    sessionStorage.clear();
     accessToken = null;
+    refreshToken = null;
+    if (currentOTPTimer) {
+        clearInterval(currentOTPTimer);
+        currentOTPTimer = null;
+    }
+    showLoginForm();
     showPage(pages.landing);
 });
 
@@ -430,6 +556,41 @@ document.getElementById('create-tournament-btn').addEventListener('click', async
         alert('Tournament created successfully!');
     } catch (error) {
         alert(error.message);
+    }
+});
+
+// Add these event listeners at the bottom of your file
+document.addEventListener('DOMContentLoaded', () => {
+    // 2FA form submit handler
+    const twoFAForm = document.getElementById('2fa-form');
+    if (twoFAForm) {
+        twoFAForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const otp = document.getElementById('otp-input').value.trim();
+            if (otp.length !== 6) {
+                alert('Please enter the 6-digit verification code.');
+                return;
+            }
+            await verify2FA(otp);
+        });
+    }
+
+    // Back to login button handler
+    const backToLoginBtn = document.getElementById('back-to-login');
+    if (backToLoginBtn) {
+        backToLoginBtn.addEventListener('click', () => {
+            document.getElementById('2fa-form').classList.add('d-none');
+            document.getElementById('login-form').classList.remove('d-none');
+            sessionStorage.removeItem('tempUserEmail');
+        });
+    }
+
+    // OTP input validation (only allow numbers and max 6 digits)
+    const otpInput = document.getElementById('otp-input');
+    if (otpInput) {
+        otpInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
     }
 });
 
