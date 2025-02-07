@@ -323,39 +323,17 @@ class ChatManager {
             messagesContainer.innerHTML = ''; // Clear existing messages
             
             messages.forEach(msg => {
-                const isSentByMe = msg.sender_id === AuthManager.currentUser.id;
-                const messageWrapper = document.createElement('div');
-                messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-                
-                const timestamp = new Date(msg.timestamp);
-                const timeStr = timestamp.toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: false 
+                const messageElement = createChatMessage({
+                    ...msg,
+                    sender: {
+                        id: msg.sender_id,
+                        username: msg.sender_display_name,
+                        avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
+                    }
                 });
-                const dateStr = timestamp.toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                });
-                
-                const senderAvatar = isSentByMe ? AuthManager.currentUser.avatar : this.currentChatPartner?.avatar;
-                const senderName = isSentByMe ? AuthManager.currentUser.username : this.currentChatPartner?.username;
-                
-                messageWrapper.innerHTML = `
-                    <img class="avatar" src="${senderAvatar || '/assets/images/default-avatar.png'}" 
-                         alt="${senderName}" onerror="this.src='/assets/images/default-avatar.png'">
-                    <div class="message-content">
-                        <div class="message-bubble">${this.escapeHtml(msg.content)}</div>
-                        <div class="message-meta">
-                            <span class="sender">${this.escapeHtml(senderName)}</span>
-                            <span class="timestamp">${timeStr}</span>
-                            <span class="date">${dateStr}</span>
-                        </div>
-                    </div>
-                `;
-                
-                messagesContainer.appendChild(messageWrapper);
+                messagesContainer.appendChild(messageElement);
             });
+            
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } catch (error) {
             console.error('Error loading messages:', error);
@@ -366,40 +344,17 @@ class ChatManager {
         const data = JSON.parse(event.data);
         if (data.type === 'chat_message') {
             const messagesContainer = document.getElementById('chat-messages');
-            const isSentByMe = data.sender_id === AuthManager.currentUser.id;
-            
-            const messageWrapper = document.createElement('div');
-            messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-            
-            // Format timestamp
-            const timestamp = new Date();
-            const timeStr = timestamp.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            const dateStr = timestamp.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
+            const messageElement = createChatMessage({
+                ...data,
+                sender: {
+                    id: data.sender_id,
+                    username: data.sender_display_name,
+                    avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
+                },
+                timestamp: new Date().toISOString()
             });
             
-            const senderAvatar = isSentByMe ? AuthManager.currentUser.avatar : this.currentChatPartner?.avatar;
-            const senderName = isSentByMe ? AuthManager.currentUser.username : this.currentChatPartner?.username;
-            
-            messageWrapper.innerHTML = `
-                <img class="avatar" src="${senderAvatar || '/assets/images/default-avatar.png'}" 
-                     alt="${senderName}" onerror="this.src='/assets/images/default-avatar.png'">
-                <div class="message-content">
-                    <div class="message-bubble">${this.escapeHtml(data.message)}</div>
-                    <div class="message-meta">
-                        <span class="sender">${this.escapeHtml(senderName)}</span>
-                        <span class="timestamp">${timeStr}</span>
-                        <span class="date">${dateStr}</span>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.appendChild(messageWrapper);
+            messagesContainer.appendChild(messageElement);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
     }
@@ -441,7 +396,17 @@ class ProfileManager {
         try {
             const response = await AuthManager.fetchWithAuth(`${API_BASE}users/me/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return await response.json();
+            const profile = await response.json();
+            
+            // Ensure avatar path is correct
+            if (profile.avatar) {
+                profile.avatar = profile.avatar.startsWith('/') ? 
+                    profile.avatar : `/media/${profile.avatar}`;
+            } else {
+                profile.avatar = '/media/avatars/default.svg';
+            }
+            
+            return profile;
         } catch (error) {
             console.error('Error fetching profile:', error);
             if (error.message.includes('401')) {
@@ -863,3 +828,121 @@ if (AuthManager.accessToken) {
 
 // Make refreshAccessToken available globally
 window.refreshAccessToken = () => AuthManager.refreshAccessToken();
+
+function createChatMessage(message) {
+    const messageWrapper = document.createElement('div');
+    messageWrapper.className = `message-wrapper ${message.sender_id === AuthManager.currentUser.id ? 'sent' : 'received'}`;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+    const dateStr = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+    const senderAvatar = isSentByMe ? 
+        AuthManager.currentUser.avatar_url : 
+        (message.sender?.avatar_url || `/media/avatars/default.svg`);
+    const senderName = isSentByMe ? 
+        AuthManager.currentUser.username : 
+        message.sender_display_name;
+    
+    // Create avatar image with error handling
+    const avatarImg = document.createElement('img');
+    avatarImg.className = 'avatar';
+    avatarImg.alt = senderName;
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        avatarImg.src = url;
+    };
+    
+    avatarImg.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            // If all retries fail, show initials placeholder
+            avatarImg.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = senderName.charAt(0).toUpperCase();
+            avatarImg.parentNode.insertBefore(placeholder, avatarImg);
+        }
+    };
+    
+    // Initial load with the user's avatar URL
+    loadAvatar(senderAvatar);
+    
+    messageWrapper.innerHTML = `
+        <div class="message-content">
+            <div class="message-bubble">${escapeHtml(message.content)}</div>
+            <div class="message-meta">
+                <span class="sender">${escapeHtml(senderName)}</span>
+                <span class="timestamp">${timeStr}</span>
+                <span class="date">${dateStr}</span>
+            </div>
+        </div>
+    `;
+    
+    messageWrapper.insertBefore(avatarImg, messageWrapper.firstChild);
+    return messageWrapper;
+}
+
+// Add this helper function if not already present
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Add preloading for default avatar
+function preloadDefaultAvatar() {
+    const img = new Image();
+    img.src = '/media/avatars/default.svg';
+}
+
+// Update the profile display function
+function updateProfileDisplay(profile) {
+    document.getElementById('username-display').textContent = profile.username;
+    const profileAvatar = document.getElementById('profile-avatar');
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        profileAvatar.src = url;
+    };
+    
+    profileAvatar.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            // If all retries fail, show initials
+            profileAvatar.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = profile.username.charAt(0).toUpperCase();
+            profileAvatar.parentNode.insertBefore(placeholder, profileAvatar);
+        }
+    };
+    
+    loadAvatar(profile.avatar_url || '/media/avatars/default.svg');
+}
+
+// Call preloadDefaultAvatar when the chat initializes
+document.addEventListener('DOMContentLoaded', () => {
+    preloadDefaultAvatar();
+    // ... rest of the existing DOMContentLoaded code ...
+});

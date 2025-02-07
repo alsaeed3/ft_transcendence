@@ -1,9 +1,8 @@
-
 from rest_framework.response import Response
 from rest_framework import generics, status, permissions
 from rest_framework.permissions import IsAuthenticated
 from .models import User, BlockedUser
-from .serializers import UserSerializer
+from .serializers import UserSerializer, MessageSerializer
 # from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -13,6 +12,8 @@ from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from .models import Message
 from django.db.models import Q
+import json
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 class BlockUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -89,25 +90,36 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_chat_messages(request, other_user_id):
-    """
-    Get all messages between the current user and another user
-    """
-    other_user = get_object_or_404(User, id=other_user_id)
-    
-    messages = Message.objects.filter(
-        (Q(sender=request.user, receiver_id=other_user_id) |
-         Q(sender_id=other_user_id, receiver=request.user))
-    ).order_by('timestamp')
-    
-    return Response([{
-        'id': msg.id,
-        'content': msg.content,
-        'sender_id': msg.sender.id,
-        'sender_display_name': msg.sender.display_name or msg.sender.username,
-        'timestamp': msg.timestamp,
-        'read': msg.read
-    } for msg in messages])
+def get_chat_messages(request, user_id):
+    try:
+        # Get messages between current user and specified user
+        messages = Message.objects.filter(
+            (Q(sender=request.user, receiver_id=user_id) |
+             Q(sender_id=user_id, receiver=request.user))
+        ).order_by('timestamp')
+        
+        # Use MessageSerializer to serialize the messages
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_message(request):
+    try:
+        # Create new message
+        message = Message.objects.create(
+            sender=request.user,
+            receiver_id=request.data.get('recipient'),
+            content=request.data.get('message')
+        )
+        
+        # Serialize the message for response
+        serializer = MessageSerializer(message)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -122,3 +134,21 @@ def mark_messages_read(request, other_user_id):
     ).update(read=True)
     
     return Response({'status': 'messages marked as read'})
+
+# For WebSocket consumers
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def chat_message(self, event):
+        message = event['message']
+        
+        # If message is from database, serialize it
+        if isinstance(message, Message):
+            serializer = MessageSerializer(message)
+            message_data = serializer.data
+        else:
+            message_data = message
+            
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message',
+            'message': message_data
+        }))

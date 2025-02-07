@@ -1,8 +1,17 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+def user_avatar_path(instance, filename):
+    # Generate path like: avatars/user_<id>/<filename>
+    return f'avatars/user_{instance.id}/{filename}'
+
 class User(AbstractUser):
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    avatar = models.ImageField(
+        upload_to=user_avatar_path,
+        default='avatars/default.svg',  # Changed from .png to .svg
+        null=True,
+        blank=True
+    )
     display_name = models.CharField(max_length=255, unique=True)
     language_preference = models.CharField(max_length=2, default='en')
     two_factor_enabled = models.BooleanField(default=False)
@@ -22,6 +31,11 @@ class User(AbstractUser):
         blank=True,
         related_name='friend_of'
     )
+
+    def get_avatar_url(self):
+        if self.avatar and hasattr(self.avatar, 'url'):
+            return self.avatar.url
+        return '/media/avatars/default.svg'  # Consistent default path
 
 class BlockedUser(models.Model):
     blocker = models.ForeignKey(User, on_delete=models.CASCADE, related_name='blocked_users')

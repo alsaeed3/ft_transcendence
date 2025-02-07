@@ -84,6 +84,39 @@
             right: 20px;
             z-index: 9999;
         }
+
+        .avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .message-wrapper .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        
+        .message-wrapper.sent .avatar {
+            order: 2;
+            margin-right: 0;
+            margin-left: 10px;
+        }
+        
+        .message-wrapper.received .avatar {
+            order: 0;
+            margin-right: 10px;
+            margin-left: 0;
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -139,7 +172,12 @@
                     <!-- User Profile -->
                     <div id="user-profile" class="me-3" style="cursor: pointer;">
                         <div class="d-flex align-items-center">
-                            <img id="profile-avatar" src="avatar.webp" alt="Avatar" class="rounded-circle" style="width: 40px; height: 40px;">
+                            <img id="profile-avatar" 
+                                 src="/media/avatars/default.svg" 
+                                 alt="Avatar" 
+                                 class="rounded-circle" 
+                                 style="width: 40px; height: 40px;"
+                                 onerror="this.src='/media/avatars/default.svg'">
                             <span id="username-display" class="text-white ms-2">Username</span>
                         </div>
                     </div>

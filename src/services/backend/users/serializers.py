@@ -4,14 +4,21 @@ from .models import Message, User
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_display_name = serializers.CharField(source='sender.display_name', read_only=True)
+    sender_avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Message
-        fields = ['id', 'content', 'sender', 'receiver', 'timestamp', 'read', 'sender_display_name']
+        fields = ['id', 'content', 'sender', 'receiver', 'timestamp', 'read', 
+                 'sender_display_name', 'sender_avatar_url']
         read_only_fields = ['sender', 'timestamp', 'read']
+    
+    def get_sender_avatar_url(self, obj):
+        return obj.sender.get_avatar_url()
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    avatar_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = [
@@ -19,7 +26,7 @@ class UserSerializer(serializers.ModelSerializer):
             'online_status', 'language_preference', 'email',
             'user_id_42', 'login_42', 'is_42_auth', 
             'password', 'match_wins', 'tourney_wins', 
-            'total_matches', 'total_tourneys'
+            'total_matches', 'total_tourneys', 'avatar_url'
         ]
         extra_kwargs = {
             'username': {'required': False},
@@ -57,3 +64,6 @@ class UserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"username": "This username is already taken."})
         
         return data
+
+    def get_avatar_url(self, obj):
+        return obj.get_avatar_url()

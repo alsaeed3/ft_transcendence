@@ -10,6 +10,7 @@ services:
       - main-network
     volumes:
       - ./services/frontend:/usr/share/nginx/html
+      - ./services/frontend/src/assets:/usr/share/nginx/html/assets
       - static_volume:/usr/share/nginx/static
       - media_volume:/usr/share/nginx/media
 

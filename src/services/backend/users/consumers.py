@@ -5,6 +5,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db.models import Q
 from .models import Message, User
+from .serializers import MessageSerializer
 from django.core.cache import cache
 from asgiref.sync import sync_to_async
 import logging
@@ -108,7 +109,7 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             )
             await self.accept()
             
-            # Load and send chat history
+            # Load and send chat history with serialized messages
             history = await self.get_chat_history()
             await self.send(text_data=json.dumps({
                 'type': 'chat_history',
@@ -127,11 +128,14 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
     def save_message(self, message, sender_id, receiver_id):
         sender = User.objects.get(id=sender_id)
         receiver = User.objects.get(id=receiver_id)
-        return Message.objects.create(
+        msg = Message.objects.create(
             sender=sender,
             receiver=receiver,
             content=message
         )
+        # Serialize the message before returning
+        serializer = MessageSerializer(msg)
+        return serializer.data
 
     @database_sync_to_async
     def get_chat_history(self):
@@ -140,12 +144,9 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             (Q(sender_id=self.user2_id) & Q(receiver_id=self.user1_id))
         ).order_by('timestamp')
         
-        return [{
-            'message': msg.content,
-            'sender_id': msg.sender.id,
-            'sender_display_name': msg.sender.display_name,
-            'timestamp': msg.timestamp.isoformat()
-        } for msg in messages]
+        # Use MessageSerializer for consistent format
+        serializer = MessageSerializer(messages, many=True)
+        return serializer.data
 
     async def receive(self, text_data):
         try:
@@ -156,18 +157,15 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
                 # Determine receiver ID
                 receiver_id = self.user2_id if str(self.user.id) == self.user1_id else self.user1_id
                 
-                # Save message to database
-                await self.save_message(message, self.user.id, receiver_id)
+                # Save and serialize message
+                message_data = await self.save_message(message, self.user.id, receiver_id)
                 
-                # Send message to room group
+                # Send serialized message to room group
                 await self.channel_layer.group_send(
                     self.room_name,
                     {
                         'type': 'chat_message',
-                        'message': message,
-                        'sender_id': self.user.id,
-                        'sender_display_name': self.user.display_name,
-                        'timestamp': datetime.datetime.now().isoformat()
+                        **message_data  # Spread the serialized message data
                     }
                 )
         except json.JSONDecodeError as e:
@@ -177,10 +175,9 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             }))
 
     async def chat_message(self, event):
+        # Remove 'type' from event before sending
+        message_data = {k: v for k, v in event.items() if k != 'type'}
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
-            'message': event['message'],
-            'sender_id': event['sender_id'],
-            'sender_display_name': event['sender_display_name'],
-            'timestamp': event['timestamp']
+            **message_data
         }))
