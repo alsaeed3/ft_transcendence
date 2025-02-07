@@ -14,8 +14,8 @@ function initGame(mode = 'AI') {
     let paddleWidth = 15;      // Slightly thinner paddle for better challenge
     let paddleHeight = 100;    // Shorter paddle for better challenge
     let ballRadius = 8;        // Slightly smaller ball
-    let PADDLE_SPEED = 10;      // Faster paddle movement for better control
-    let BALL_SPEED = 10;        // Slightly faster ball for more excitement
+    let PADDLE_SPEED = 6;      // Faster paddle movement for better control
+    let BALL_SPEED = 6;        // Slightly faster ball for more excitement
 
     // Initialize slider values and ranges
     const initializeSliders = () => {
@@ -34,13 +34,13 @@ function initGame(mode = 'AI') {
         // Paddle Speed slider
         const paddleSpeedSlider = document.getElementById('paddleSpeed');
         paddleSpeedSlider.min = PADDLE_SPEED;
-        paddleSpeedSlider.max = 15;
+        paddleSpeedSlider.max = 10;
         paddleSpeedSlider.value = PADDLE_SPEED;
         
         // Ball Speed slider
         const ballSpeedSlider = document.getElementById('ballSpeed');
         ballSpeedSlider.min = BALL_SPEED;
-        ballSpeedSlider.max = 15;
+        ballSpeedSlider.max = 10;
         ballSpeedSlider.value = BALL_SPEED;
 
         // Update all display values
@@ -63,10 +63,14 @@ function initGame(mode = 'AI') {
 
     // AI properties
     let lastAIUpdate = Date.now();
-    const AI_UPDATE_INTERVAL = 1000; // Strict 1-second refresh rate
-    let aiMoveUp = false;    // Simulated keyboard up
-    let aiMoveDown = false;  // Simulated keyboard down
+    const AI_UPDATE_INTERVAL = 1000;    // Rule: 1-second refresh rate
+    const AI_DIFFICULTY = 0.75;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
+
+    let aiMoveUp = false;              // Rule: Simulated keyboard
+    let aiMoveDown = false;
     let targetY = canvas.height / 2;
+    let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
+    let calculationMade = false;       // Ensure one calculation per approach
 
     const WINNING_SCORE = 11;
     let gameActive = true;
@@ -99,43 +103,52 @@ function initGame(mode = 'AI') {
     fetchUsername();
 
     function updateAI() {
-        const currentTime = Date.now();
-        
-        // Only update AI decisions once per second (rule: 1-second refresh rate)
-        if (currentTime - lastAIUpdate >= AI_UPDATE_INTERVAL) {
-            // Reset simulated keyboard inputs (rule: simulate human input)
-            aiMoveUp = false;
-            aiMoveDown = false;
-            
-            if (ballSpeedX < 0) { // Ball moving towards AI
-                // Simple bounce prediction (rule: anticipate bounces)
-                let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
-                
-                // Handle bounces off walls
-                while (predictedY < 0 || predictedY > canvas.height) {
-                    if (predictedY < 0) {
-                        predictedY = -predictedY;
-                    } else {
-                        predictedY = canvas.height - (predictedY - canvas.height);
+        // Only recalculate target position every second
+        if (Date.now() - lastAIUpdate >= AI_UPDATE_INTERVAL) {
+            if (ballSpeedX < 0) {  // Ball moving towards AI
+                // Recalculate on direction change, new serve, or no existing calculation
+                if (prevBallSpeedX >= 0 || Math.abs(ballX - canvas.width/2) < 10 || !calculationMade) {
+                    // Calculate ball intersection with paddle plane
+                    let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
+                    
+                    // Bounce prediction
+                    while (predictedY < 0 || predictedY > canvas.height) {
+                        predictedY = predictedY < 0 ? -predictedY : 2 * canvas.height - predictedY;
                     }
+                    
+                    // Add human error (undershoot) based on difficulty
+                    if (Math.random() > AI_DIFFICULTY) {
+                        const paddleCenter = paddle1Y + paddleHeight/2;
+                        predictedY = paddleCenter + ((predictedY - paddleCenter) * (0.3 + Math.random() * 0.4));
+                    }
+                    
+                    targetY = predictedY;
+                    calculationMade = true;
                 }
-                
-                // Add slight randomization to target position
-                targetY = predictedY + (Math.random() * 100 - 50);
             } else {
-                // Return to center when ball moving away
-                targetY = canvas.height / 2 + (Math.random() * 100 - 50);
+                targetY = canvas.height / 2;  // Return to center
+                calculationMade = false;
             }
             
-            lastAIUpdate = currentTime;
+            prevBallSpeedX = ballSpeedX;
+            lastAIUpdate = Date.now();
         }
         
-        // Simulate keyboard controls (rule: simulate human input)
+        // Simulate keyboard input
         const paddleCenter = paddle1Y + paddleHeight/2;
-        if (paddleCenter < targetY - 30) {
-            aiMoveDown = true;
-        } else if (paddleCenter > targetY + 30) {
-            aiMoveUp = true;
+        const distanceToTarget = targetY - paddleCenter;
+        
+        // Reset movement flags
+        aiMoveUp = false;
+        aiMoveDown = false;
+        
+        // Set movement flags based on target position (simulating keyboard)
+        if (Math.abs(distanceToTarget) > 10) {  // Deadzone to prevent jitter
+            if (distanceToTarget < 0) {
+                aiMoveUp = true;
+            } else {
+                aiMoveDown = true;
+            }
         }
         
         // Move paddle based on simulated keyboard input
@@ -326,6 +339,8 @@ function initGame(mode = 'AI') {
         ballY = canvas.height / 2;
         ballSpeedX = BALL_SPEED * (Math.random() < 0.5 ? 1 : -1);
         ballSpeedY = BALL_SPEED * (Math.random() < 0.5 ? 0.5 : -0.5);
+        // Reset AI calculation state when ball is reset
+        calculationMade = false;
     }
 
     // Make updateGameSettings available globally
