@@ -5,36 +5,89 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db.models import Q
 from .models import Message, User
+from django.core.cache import cache
+from asgiref.sync import sync_to_async
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserStatusConsumer(AsyncWebsocketConsumer):
-    connected_users = {}
+    connected_users = {}  # Class variable to track all connected users
 
     async def connect(self):
-        self.user = self.scope["user"]
-        if not self.user.is_authenticated:
-            await self.close()
-            return
+        try:
+            self.user = self.scope["user"]
+            logger.info(f"Connection attempt from user: {getattr(self.user, 'id', 'anonymous')}")
+            
+            if not self.user.is_authenticated:
+                logger.warning("Unauthenticated connection attempt")
+                await self.close()
+                return
 
-        UserStatusConsumer.connected_users[self.user.id] = self
-        await self.accept()
-        
-        # Pass user.id to broadcast_status
-        await self.broadcast_status(self.user.id, True)
+            logger.info(f"User {self.user.id} connecting to status websocket")
+            
+            # Store the connection
+            UserStatusConsumer.connected_users[self.user.id] = self
+            
+            # Accept the connection
+            await self.accept()
+            logger.info(f"Connection accepted for user {self.user.id}")
+            
+            # Get list of currently online users
+            online_users = list(UserStatusConsumer.connected_users.keys())
+            logger.info(f"Current online users: {online_users}")
+            
+            # Send initial status to the newly connected user
+            await self.send(text_data=json.dumps({
+                'type': 'initial_status',
+                'online_users': online_users
+            }))
+            
+            # Broadcast this user's online status to others
+            await self.broadcast_status(self.user.id, True)
+            
+        except Exception as e:
+            logger.error(f"Error in connect: {str(e)}", exc_info=True)
+            await self.close()
 
     async def disconnect(self, close_code):
-        if hasattr(self, 'user') and self.user.id in UserStatusConsumer.connected_users:
-            del UserStatusConsumer.connected_users[self.user.id]
-            await self.broadcast_status(self.user.id, False)
+        try:
+            if hasattr(self, 'user') and self.user.id in UserStatusConsumer.connected_users:
+                logger.info(f"User {self.user.id} disconnecting from status websocket")
+                # Remove from connected users
+                del UserStatusConsumer.connected_users[self.user.id]
+                
+                # Broadcast offline status to others
+                await self.broadcast_status(self.user.id, False)
+        except Exception as e:
+            logger.error(f"Error in disconnect: {str(e)}", exc_info=True)
 
     @classmethod
     async def broadcast_status(cls, user_id, is_online):
-        message = {
-            'type': 'status_update',
-            'user_id': user_id,
-            'online_status': is_online
-        }
-        for user in cls.connected_users.values():
-            await user.send(text_data=json.dumps(message))
+        try:
+            message = {
+                'type': 'status_update',
+                'user_id': user_id,
+                'online_status': is_online
+            }
+            logger.info(f"Broadcasting status: {message}")
+            # Broadcast to all connected users except the sender
+            for uid, connection in cls.connected_users.items():
+                if uid != user_id:  # Don't send to self
+                    try:
+                        await connection.send(text_data=json.dumps(message))
+                        logger.debug(f"Status sent to user {uid}")
+                    except Exception as e:
+                        logger.error(f"Error sending to user {uid}: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error in broadcast_status: {str(e)}", exc_info=True)
+
+    async def receive(self, text_data):
+        try:
+            # Handle any incoming messages if needed
+            pass
+        except Exception as e:
+            logger.error(f"Error in receive: {str(e)}")
 
 class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):

@@ -40,7 +40,7 @@ SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_env_variable('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0', 'nginx']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0', 'nginx', '*']
 
 # Application definition
 
@@ -76,13 +76,18 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
+CORS_ALLOW_ALL_ORIGINS = True  # For development only, configure properly for production
 CORS_ALLOWED_ORIGINS = [
     "http://localhost",
     "http://localhost:80",
     "https://localhost",
     "https://localhost:443",
     "http://127.0.0.1",
-    "http://127.0.0.1:80"
+    "http://127.0.0.1:80",
+    "ws://localhost",
+    "wss://localhost",
+    "ws://127.0.0.1",
+    "wss://127.0.0.1"
 ]
 
 CSRF_COOKIE_SECURE = True
@@ -90,7 +95,11 @@ SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'http://localhost',
-    'http://127.0.0.1'
+    'http://127.0.0.1',
+    'ws://localhost',
+    'wss://localhost',
+    'ws://127.0.0.1',
+    'wss://127.0.0.1'
 ]
 
 
@@ -206,6 +215,68 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             "hosts": [('redis', 6379)],
+            'capacity': 1500,  # Default channel layer capacity
+            'expiry': 60,  # Message expiry in seconds
         },
     },
 }
+
+# WebSocket settings
+WEBSOCKET_ACCEPT_ALL = True  # Accept WebSocket connections from all origins
+WEBSOCKET_URL = '/ws/'  # Base WebSocket URL path
+
+# Add or update the LOGGING configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'channels': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'users': {  # Add this for your app's logging
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
+# Redis settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'RETRY_ON_TIMEOUT': True,
+            'MAX_CONNECTIONS': 1000,
+            'CONNECTION_POOL_KWARGS': {'max_connections': 100},
+        }
+    }
+}
+
+# Use Redis as the session backend
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'

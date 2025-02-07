@@ -182,28 +182,88 @@ class ChatManager {
     static blockedUsers = new Set();
 
     static initStatusWebSocket() {
-        const apiHost = new URL(API_BASE).host;
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${apiHost}/ws/status/?token=${AuthManager.accessToken}`;
-
-        this.statusSocket = new WebSocket(wsUrl);
-        this.statusSocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'status_update') {
-                this.updateUserStatus(data.user_id, data.online_status);
+        try {
+            // Use the same host as the current page
+            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+            
+            console.log('Connecting to WebSocket:', wsUrl); // Debug log
+            
+            if (this.statusSocket) {
+                this.statusSocket.close();
             }
-        };
 
-        this.statusSocket.onclose = () => {
-            setTimeout(() => this.initStatusWebSocket(), 5000);
-        };
+            this.statusSocket = new WebSocket(wsUrl);
+            
+            this.statusSocket.onopen = () => {
+                console.log('Status WebSocket connected');
+                // Reset all users to offline initially
+                document.querySelectorAll('[data-user-status]').forEach(badge => {
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Offline';
+                });
+            };
+            
+            this.statusSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Status WebSocket message:', data);
+                    
+                    if (data.type === 'initial_status') {
+                        // Reset all users to offline first
+                        document.querySelectorAll('[data-user-status]').forEach(badge => {
+                            badge.className = 'badge bg-secondary';
+                            badge.textContent = 'Offline';
+                        });
+                        
+                        // Update all online users
+                        data.online_users.forEach(userId => {
+                            this.updateUserStatus(userId, true);
+                        });
+                    } else if (data.type === 'status_update') {
+                        this.updateUserStatus(data.user_id, data.online_status);
+                    }
+                } catch (error) {
+                    console.error('Error handling WebSocket message:', error);
+                }
+            };
+
+            this.statusSocket.onclose = (event) => {
+                console.log('Status WebSocket disconnected:', event.code, event.reason);
+                // Attempt to reconnect after a delay
+                setTimeout(() => {
+                    if (AuthManager.accessToken) {
+                        this.initStatusWebSocket();
+                    }
+                }, 5000);
+            };
+
+            this.statusSocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        } catch (error) {
+            console.error('Error initializing WebSocket:', error);
+        }
     }
 
     static updateUserStatus(userId, isOnline) {
+        console.log('Updating status:', userId, isOnline); // Debug log
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
         if (statusBadge) {
             statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
             statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+            
+            // Update chat header if this is the current chat partner
+            if (this.currentChatPartner && this.currentChatPartner.id === userId) {
+                const chatHeader = document.getElementById('chat-header');
+                const username = statusBadge.getAttribute('data-user-name');
+                chatHeader.innerHTML = `
+                    Chat with ${username} 
+                    <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                        ${isOnline ? 'Online' : 'Offline'}
+                    </span>
+                `;
+            }
         }
     }
 
@@ -225,7 +285,15 @@ class ChatManager {
         this.currentChatPartner = { id: userId, username };
         const chatContainer = document.getElementById('chat-container');
         const chatHeader = document.getElementById('chat-header');
-        chatHeader.textContent = `Chat with ${username}`;
+        const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
+        const isOnline = statusBadge?.classList.contains('bg-success');
+        
+        chatHeader.innerHTML = `
+            Chat with ${username}
+            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                ${isOnline ? 'Online' : 'Offline'}
+            </span>
+        `;
         chatContainer.style.display = 'block';
         
         const apiHost = new URL(API_BASE).host;
@@ -252,11 +320,41 @@ class ChatManager {
             const messages = await response.json();
             
             const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.innerHTML = ''; // Clear existing messages
+            
             messages.forEach(msg => {
-                const messageElement = document.createElement('div');
-                messageElement.className = `list-group-item ${msg.sender_id === AuthManager.currentUser.id ? 'bg-primary' : 'bg-secondary'}`;
-                messageElement.textContent = msg.content;
-                messagesContainer.appendChild(messageElement);
+                const isSentByMe = msg.sender_id === AuthManager.currentUser.id;
+                const messageWrapper = document.createElement('div');
+                messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+                
+                const timestamp = new Date(msg.timestamp);
+                const timeStr = timestamp.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false 
+                });
+                const dateStr = timestamp.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+                
+                const senderAvatar = isSentByMe ? AuthManager.currentUser.avatar : this.currentChatPartner?.avatar;
+                const senderName = isSentByMe ? AuthManager.currentUser.username : this.currentChatPartner?.username;
+                
+                messageWrapper.innerHTML = `
+                    <img class="avatar" src="${senderAvatar || '/assets/images/default-avatar.png'}" 
+                         alt="${senderName}" onerror="this.src='/assets/images/default-avatar.png'">
+                    <div class="message-content">
+                        <div class="message-bubble">${this.escapeHtml(msg.content)}</div>
+                        <div class="message-meta">
+                            <span class="sender">${this.escapeHtml(senderName)}</span>
+                            <span class="timestamp">${timeStr}</span>
+                            <span class="date">${dateStr}</span>
+                        </div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageWrapper);
             });
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } catch (error) {
@@ -268,10 +366,40 @@ class ChatManager {
         const data = JSON.parse(event.data);
         if (data.type === 'chat_message') {
             const messagesContainer = document.getElementById('chat-messages');
-            const messageElement = document.createElement('div');
-            messageElement.className = `list-group-item ${data.sender_id === AuthManager.currentUser.id ? 'bg-primary' : 'bg-secondary'}`;
-            messageElement.textContent = data.message;
-            messagesContainer.appendChild(messageElement);
+            const isSentByMe = data.sender_id === AuthManager.currentUser.id;
+            
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+            
+            // Format timestamp
+            const timestamp = new Date();
+            const timeStr = timestamp.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            const dateStr = timestamp.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            
+            const senderAvatar = isSentByMe ? AuthManager.currentUser.avatar : this.currentChatPartner?.avatar;
+            const senderName = isSentByMe ? AuthManager.currentUser.username : this.currentChatPartner?.username;
+            
+            messageWrapper.innerHTML = `
+                <img class="avatar" src="${senderAvatar || '/assets/images/default-avatar.png'}" 
+                     alt="${senderName}" onerror="this.src='/assets/images/default-avatar.png'">
+                <div class="message-content">
+                    <div class="message-bubble">${this.escapeHtml(data.message)}</div>
+                    <div class="message-meta">
+                        <span class="sender">${this.escapeHtml(senderName)}</span>
+                        <span class="timestamp">${timeStr}</span>
+                        <span class="date">${dateStr}</span>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageWrapper);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
     }
@@ -296,6 +424,15 @@ class ChatManager {
             }));
             input.value = '';
         }
+    }
+
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 }
 
@@ -360,9 +497,10 @@ class UserManager {
                         </button>
                     </td>
                     <td>
-                        <span class="badge ${user.online_status ? 'bg-success' : 'bg-secondary'}" 
-                              data-user-status="${user.id}">
-                            ${user.online_status ? 'Online' : 'Offline'}
+                        <span class="badge bg-secondary" 
+                              data-user-status="${user.id}"
+                              data-user-name="${this.escapeHtml(user.username)}">
+                            Offline
                         </span>
                     </td>
                 `;

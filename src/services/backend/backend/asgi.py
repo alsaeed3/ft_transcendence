@@ -18,15 +18,21 @@ django.setup()
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
+from channels.auth import AuthMiddlewareStack
 from users.middleware import TokenAuthMiddleware
 from .routing import websocket_urlpatterns
 
+# Initialize Django ASGI application early to ensure proper initialization
 django_asgi_app = get_asgi_application()
+
+# Create a custom middleware stack
+def create_middleware_stack(inner):
+    return TokenAuthMiddleware(AuthMiddlewareStack(inner))
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AllowedHostsOriginValidator(
-        TokenAuthMiddleware(
+        create_middleware_stack(
             URLRouter(websocket_urlpatterns)
         )
     ),
