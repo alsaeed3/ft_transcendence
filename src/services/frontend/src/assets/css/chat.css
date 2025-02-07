@@ -7,6 +7,10 @@
 }
 
 .message-wrapper.sent {
+	flex-direction: row;
+}
+
+.message-wrapper.received {
 	flex-direction: row-reverse;
 }
 
@@ -25,13 +29,13 @@
 }
 
 .sent .message-header {
-	text-align: right;
-	padding-right: 0.5rem;
+	text-align: left;
+	padding-left: 0.5rem;
 }
 
 .received .message-header {
-	text-align: left;
-	padding-left: 0.5rem;
+	text-align: right;
+	padding-right: 0.5rem;
 }
 
 .message-bubble {
@@ -45,14 +49,17 @@
 .sent .message-bubble {
 	background-color: #0d6efd;
 	color: white;
-	border-bottom-right-radius: 0.2rem;
-	margin-left: auto;
+	border-bottom-left-radius: 0.2rem;
+	margin-right: auto;
+	margin-left: 0;
 }
 
 .received .message-bubble {
 	background-color: #6c757d;
 	color: white;
-	border-bottom-left-radius: 0.2rem;
+	border-bottom-right-radius: 0.2rem;
+	margin-left: auto;
+	margin-right: 0;
 }
 
 .message-meta {
@@ -64,6 +71,10 @@
 }
 
 .sent .message-meta {
+	justify-content: flex-start;
+}
+
+.received .message-meta {
 	justify-content: flex-end;
 }
 
@@ -89,12 +100,14 @@
 
 .message-wrapper.sent .avatar,
 .message-wrapper.sent .avatar-placeholder {
-	margin-left: 10px;
+	margin-right: 10px;
+	margin-left: 0;
 }
 
 .message-wrapper.received .avatar,
 .message-wrapper.received .avatar-placeholder {
-	margin-right: 10px;
+	margin-left: 10px;
+	margin-right: 0;
 }
 
 /* Hover effect for messages */
