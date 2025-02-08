@@ -103,8 +103,10 @@ function initGame(mode = 'AI') {
         }
     }
 
-    // Call it immediately
-    fetchUsername();
+    // Add this check before fetching:
+    if (mode !== 'TOURNAMENT') {
+        fetchUsername();
+    }
 
     function updateAI() {
         // Only recalculate target position every second
@@ -517,10 +519,8 @@ function initGame(mode = 'AI') {
         // Create initial tournament bracket
         tournamentBracket = [tournamentPlayers];  // First round with all players
         
-        // Update display for first match
+        // Don't fetch username for tournament mode, use nicknames directly
         updateGameInfo();
-        
-        // Reset scores and ball
         resetMatch();
     }
 
@@ -583,8 +583,10 @@ function initGame(mode = 'AI') {
 
     // Initialize based on mode
     if (mode === 'TOURNAMENT') {
+        // For tournament mode, skip username fetch entirely
         initTournament();
     } else {
+        // Only fetch username for non-tournament modes
         fetchUsername().then(() => {
             updateGameInfo();
         });
