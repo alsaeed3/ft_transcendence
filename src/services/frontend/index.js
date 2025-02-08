@@ -4,26 +4,31 @@ let currentOTPTimer = null; // Add this at the top with other global variables
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 class AuthManager {
+    static API_BASE = API_BASE;
+    static RECENT_MATCHES_LIMIT = RECENT_MATCHES_LIMIT;
+    static currentOTPTimer = currentOTPTimer;
+    static MAX_RECONNECT_ATTEMPTS = MAX_RECONNECT_ATTEMPTS;
+    
     static accessToken = localStorage.getItem('accessToken');
     static refreshToken = localStorage.getItem('refreshToken');
     static currentUser = null;
 
     static async refreshAccessToken() {
         try {
-        if (!refreshToken) {
-            throw new Error("No refresh token available");
-        }
-            const response = await fetch(`${API_BASE}token/refresh/`, {
+            if (!this.refreshToken) {
+                throw new Error("No refresh token available");
+            }
+            const response = await fetch(`${this.API_BASE}token/refresh/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: this.refreshToken })
             });
             
             if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Token refresh response error:", errorData);
-            throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
-        }
+                const errorData = await response.json();
+                console.error("Token refresh response error:", errorData);
+                throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
+            }
             const data = await response.json();
             this.accessToken = data.access;
             localStorage.setItem('accessToken', this.accessToken);
@@ -36,9 +41,9 @@ class AuthManager {
     }
 
     static async fetchWithAuth(url, options = {}) {
-    if (!accessToken) {
-        throw new Error('No access token available');
-    }
+        if (!this.accessToken) {
+            throw new Error('No access token available');
+        }
 
         let response = await fetch(url, {
             ...options,
@@ -49,11 +54,11 @@ class AuthManager {
         });
 
         if (response.status === 401) {
-        if (!refreshToken) {
-            throw new Error('Session expired. Please login again.');
-        }
-        
-        try {
+            if (!this.refreshToken) {
+                throw new Error('Session expired. Please login again.');
+            }
+            
+            try {
                 const newToken = await this.refreshAccessToken();
                 response = await fetch(url, {
                     ...options,
@@ -62,50 +67,49 @@ class AuthManager {
                         'Authorization': `Bearer ${newToken}`
                     }
                 });
-        } catch (error) {
-            // If refresh fails, redirect to login
-            localStorage.clear();
-            showPage(pages.landing);
-            throw new Error('Session expired. Please login again.');
-        }
+            } catch (error) {
+                localStorage.clear();
+                UIManager.showPage(UIManager.pages.landing);
+                throw new Error('Session expired. Please login again.');
+            }
         }
         return response;
     }
 
-// Auth Functions
-const handleLogin = async (username, password) => {
-    try {
-        const response = await fetch(`${API_BASE}auth/login/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        
-        const data = await response.json();
+    static async handleLogin(username, password) {
+        try {
+            const response = await fetch(`${this.API_BASE}auth/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            
+            const data = await response.json();
 
-        // Check specifically for 2FA requirement
-        if (response.status === 202 && data['2fa_required']) {
-            // Store email for OTP verification
-            sessionStorage.setItem('tempUserEmail', data.user.email);
-            // Switch to 2FA form
-            document.getElementById('login-form').classList.add('d-none');
-            document.getElementById('register-form').classList.add('d-none');
-            document.getElementById('2fa-form').classList.remove('d-none');
-            startOTPTimer();
-            return;
+            if (response.status === 202 && data['2fa_required']) {
+                sessionStorage.setItem('tempUserEmail', data.user.email);
+                UIManager.show2FAForm();
+                this.startOTPTimer();
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+
+            // Set tokens before loading main page
+            this.accessToken = data.access;
+            this.refreshToken = data.refresh;
+            localStorage.setItem('accessToken', this.accessToken);
+            localStorage.setItem('refreshToken', this.refreshToken);
+            
+            await this.processSuccessfulAuth(data);
+        } catch (error) {
+            console.error('Login error:', error);
+            UIManager.showToast(error.message, 'danger');
         }
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Login failed');
-        }
-
-        // Only store tokens and proceed if no 2FA required
-        processSuccessfulAuth(data);
-    } catch (error) {
-        console.error('Login error:', error);
-        alert(error.message);
     }
-};
+
     static async login(username, password) {
         try {
             const response = await fetch(`${API_BASE}auth/login/`, {
@@ -131,179 +135,82 @@ const handleLogin = async (username, password) => {
 
     static async register(userData) {
         try {
-            const response = await fetch(`${API_BASE}auth/register/`, {
+            const response = await fetch(`${this.API_BASE}auth/register/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
             });
 
-        if (!response.ok) throw new Error('Registration failed');
-        alert('Registration successful! Please login.');
-        toggleForms();
-    } catch (error) {
-        alert(error.message);
-    }
-};
-
-// Add these new functions for 2FA handling
-const startOTPTimer = () => {
-    // Clear any existing timer
-    if (currentOTPTimer) {
-        clearInterval(currentOTPTimer);
-    }
-
-    const timerElement = document.getElementById('otp-timer');
-    let timeLeft = 300; // 5 minutes in seconds
-
-    currentOTPTimer = setInterval(() => {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        
-        if (timeLeft <= 0) {
-            clearInterval(currentOTPTimer);
-            currentOTPTimer = null;
-            alert('OTP expired. Please try again.');
-            showLoginForm();
-        }
-        timeLeft--;
-    }, 1000);
-};
-
-const verify2FA = async (otp) => {
-    try {
-        const email = sessionStorage.getItem('tempUserEmail');
-        if (!email) {
-            throw new Error('Session expired. Please login again.');
-        }
-
-        const response = await fetch(`${API_BASE}auth/2fa/verify/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, otp })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Invalid or expired OTP');
-        }
-
-        // Process successful verification
-        processSuccessfulAuth(data);
-    } catch (error) {
-        console.error('2FA verification error:', error);
-        alert(error.message);
-    }
-};
-
-// Helper function to process successful authentication
-const processSuccessfulAuth = (data) => {
-    if (!data.access || !data.refresh) {
-        throw new Error('Invalid authentication response');
-    }
-    
-    // Store tokens
-    accessToken = data.access;
-    refreshToken = data.refresh;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    
-    // Clear any 2FA temporary data
-    sessionStorage.removeItem('tempUserEmail');
-    
-    // Navigate to main page
-    showPage(pages.main);
-    loadMainPage();
-};
-
-// Modify the showLoginForm function to handle form visibility properly
-const showLoginForm = () => {
-    document.getElementById('2fa-form').classList.add('d-none');
-    document.getElementById('login-form').classList.remove('d-none');
-    document.getElementById('register-form').classList.add('d-none');
-    if (currentOTPTimer) {
-        clearInterval(currentOTPTimer);
-        currentOTPTimer = null;
-    }
-    sessionStorage.removeItem('tempUserEmail');
-};
-
-const fetchUserProfile = async () => {
-    try {
-        const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
-            headers: { 
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching profile:', error);
-        if (error.message.includes('401')) {
-            localStorage.clear();
-            accessToken = null;
-            showPage(pages.landing);
-        }
-        throw error;
-    }
-};
-
-const fetchMatchHistory = async () => {
-    try {
-        const profile = await fetchUserProfile();
-        if (!profile) throw new Error('Could not get user profile');
-
-        const response = await fetchWithAuth(`${API_BASE}matches/`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-
-        // Ensure we're getting an array
-        const matches = Array.isArray(data) ? data : (data.matches || []);
-
-        // Filter user's matches and sort by date (most recent first)
-        const userMatches = matches
-            .filter(match => {
-                return match.player1 === profile.id || match.player2 === profile.id;
-            })
-            .sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
-
-        return userMatches;
-    } catch (error) {
-        console.error('Error fetching matches:', error);
-        return [];
-    }
-};
-
-// Profile Management
-const loadUpdateProfilePage = async () => {
-    showPage(pages.updateProfile);
-    try {
-        const profile = await fetchUserProfile();
-        document.getElementById('update-username').value = profile.username;
-        document.getElementById('update-email').value = profile.email;
-        
-        if (profile.avatar) {
-            // Show current avatar preview if exists
-            const avatarPreview = document.createElement('img');
-            avatarPreview.src = profile.avatar;
-            avatarPreview.className = 'mb-3 rounded-circle';
-            avatarPreview.style = 'width: 100px; height: 100px;';
-            document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
-        }
-    } catch (error) {
-        console.error('Error loading profile:', error);
-        alert('Failed to load profile data');
             if (!response.ok) throw new Error('Registration failed');
-            alert('Registration successful! Please login.');
+            UIManager.showToast('Registration successful! Please login.', 'success');
             UIManager.toggleForms();
         } catch (error) {
-            alert(error.message);
+            UIManager.showToast(error.message, 'danger');
         }
+    }
+
+    static startOTPTimer() {
+        if (this.currentOTPTimer) {
+            clearInterval(this.currentOTPTimer);
+        }
+
+        const timerElement = document.getElementById('otp-timer');
+        let timeLeft = 300;
+
+        this.currentOTPTimer = setInterval(() => {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(this.currentOTPTimer);
+                this.currentOTPTimer = null;
+                UIManager.showToast('OTP expired. Please try again.', 'warning');
+                UIManager.showLoginForm();
+            }
+            timeLeft--;
+        }, 1000);
+    }
+
+    static async verify2FA(otp) {
+        try {
+            const email = sessionStorage.getItem('tempUserEmail');
+            if (!email) {
+                throw new Error('Session expired. Please login again.');
+            }
+
+            const response = await fetch(`${API_BASE}auth/2fa/verify/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Invalid or expired OTP');
+            }
+
+            await this.processSuccessfulAuth(data);
+        } catch (error) {
+            console.error('2FA verification error:', error);
+            UIManager.showToast(error.message, 'danger');
+        }
+    }
+
+    static async processSuccessfulAuth(data) {
+        if (!data.access || !data.refresh) {
+            throw new Error('Invalid authentication response');
+        }
+        
+        this.accessToken = data.access;
+        this.refreshToken = data.refresh;
+        localStorage.setItem('accessToken', this.accessToken);
+        localStorage.setItem('refreshToken', this.refreshToken);
+        
+        sessionStorage.removeItem('tempUserEmail');
+        
+        await UIManager.loadMainPage();
     }
 
     static async logout() {
@@ -332,6 +239,23 @@ class UIManager {
         main: document.getElementById('main-page'),
         updateProfile: document.getElementById('update-profile-page')
     };
+
+    static show2FAForm() {
+        document.getElementById('login-form').classList.add('d-none');
+        document.getElementById('register-form').classList.add('d-none');
+        document.getElementById('2fa-form').classList.remove('d-none');
+    }
+
+    static showLoginForm() {
+        document.getElementById('2fa-form').classList.add('d-none');
+        document.getElementById('login-form').classList.remove('d-none');
+        document.getElementById('register-form').classList.add('d-none');
+        if (AuthManager.currentOTPTimer) {
+            clearInterval(AuthManager.currentOTPTimer);
+            AuthManager.currentOTPTimer = null;
+        }
+        sessionStorage.removeItem('tempUserEmail');
+    }
 
     static showPage(page) {
         Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
@@ -365,20 +289,11 @@ class UIManager {
             const profile = await ProfileManager.fetchUserProfile();
             if (profile) {
                 AuthManager.currentUser = profile;
-                document.getElementById('username-display').textContent = profile.username;
-                if (profile.avatar) {
-                    document.getElementById('profile-avatar').src = profile.avatar;
-                }
-
-                document.getElementById('stats-username').textContent = profile.username;
-                document.getElementById('stats-match-wins').textContent = profile.match_wins || 0;
-                document.getElementById('stats-tourney-wins').textContent = profile.tourney_wins || 0;
-                document.getElementById('stats-total-matches').textContent = profile.total_matches || 0;
-                document.getElementById('stats-total-tourneys').textContent = profile.total_tourneys || 0;
-
+                this.updateProfileDisplay(profile);
+                await this.loadUserStats(profile);
                 await UserManager.loadUsersList();
                 ChatManager.initStatusWebSocket();
-
+                
                 const matches = await MatchManager.fetchMatchHistory();
                 MatchManager.displayMatchHistory(matches);
             }
@@ -387,6 +302,61 @@ class UIManager {
             if (error.message.includes('401')) {
                 window.location.href = '/';
             }
+        }
+    }
+
+    static updateProfileDisplay(profile) {
+        document.getElementById('username-display').textContent = profile.username;
+        const profileAvatar = document.getElementById('profile-avatar');
+        
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        const loadAvatar = (url) => {
+            profileAvatar.src = url;
+        };
+        
+        profileAvatar.onerror = () => {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                loadAvatar('/media/avatars/default.svg');
+            } else {
+                profileAvatar.style.display = 'none';
+                const placeholder = document.createElement('div');
+                placeholder.className = 'avatar-placeholder';
+                placeholder.textContent = profile.username.charAt(0).toUpperCase();
+                profileAvatar.parentNode.insertBefore(placeholder, profileAvatar);
+            }
+        };
+        
+        loadAvatar(profile.avatar_url || '/media/avatars/default.svg');
+    }
+
+    static loadUserStats(profile) {
+        document.getElementById('stats-username').textContent = profile.username;
+        document.getElementById('stats-match-wins').textContent = profile.match_wins || 0;
+        document.getElementById('stats-tourney-wins').textContent = profile.tourney_wins || 0;
+        document.getElementById('stats-total-matches').textContent = profile.total_matches || 0;
+        document.getElementById('stats-total-tourneys').textContent = profile.total_tourneys || 0;
+    }
+
+    static async loadUpdateProfilePage() {
+        this.showPage(this.pages.updateProfile);
+        try {
+            const profile = await ProfileManager.fetchUserProfile();
+            document.getElementById('update-username').value = profile.username;
+            document.getElementById('update-email').value = profile.email;
+            
+            if (profile.avatar) {
+                const avatarPreview = document.createElement('img');
+                avatarPreview.src = profile.avatar;
+                avatarPreview.className = 'mb-3 rounded-circle';
+                avatarPreview.style = 'width: 100px; height: 100px;';
+                document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
+            }
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            this.showToast('Failed to load profile data', 'danger');
         }
     }
 }
@@ -398,91 +368,434 @@ class ChatManager {
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
     static blockedUsers = new Set();
+    static isIntentionallyClosed = false;
 
     static initStatusWebSocket() {
         try {
-            // Use the same host as the current page
             const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
             const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
-            
-            console.log('Connecting to WebSocket:', wsUrl); // Debug log
             
             if (this.statusSocket) {
                 this.statusSocket.close();
             }
 
             this.statusSocket = new WebSocket(wsUrl);
-            
-            this.statusSocket.onopen = () => {
-                console.log('Status WebSocket connected');
-                // Reset all users to offline initially
-                document.querySelectorAll('[data-user-status]').forEach(badge => {
-                    badge.className = 'badge bg-secondary';
-                    badge.textContent = 'Offline';
-                });
-            };
-            
-            this.statusSocket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Status WebSocket message:', data);
-                    
-                    if (data.type === 'initial_status') {
-                        // Reset all users to offline first
-                        document.querySelectorAll('[data-user-status]').forEach(badge => {
-                            badge.className = 'badge bg-secondary';
-                            badge.textContent = 'Offline';
-                        });
-                        
-                        // Update all online users
-                        data.online_users.forEach(userId => {
-                            this.updateUserStatus(userId, true);
-                        });
-                    } else if (data.type === 'status_update') {
-                        this.updateUserStatus(data.user_id, data.online_status);
-                    }
-                } catch (error) {
-                    console.error('Error handling WebSocket message:', error);
-                }
-            };
-
-            this.statusSocket.onclose = (event) => {
-                console.log('Status WebSocket disconnected:', event.code, event.reason);
-                // Attempt to reconnect after a delay
-                setTimeout(() => {
-                    if (AuthManager.accessToken) {
-                        this.initStatusWebSocket();
-                    }
-                }, 5000);
-            };
-
-            this.statusSocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
+            this.setupStatusSocketHandlers();
         } catch (error) {
             console.error('Error initializing WebSocket:', error);
+            UIManager.showToast('Failed to connect to chat server', 'warning');
         }
     }
 
+    static setupStatusSocketHandlers() {
+        this.statusSocket.onopen = () => {
+            console.log('Status WebSocket connected');
+            this.resetUserStatuses();
+        };
+        
+        this.statusSocket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                this.handleStatusMessage(data);
+            } catch (error) {
+                console.error('Error handling WebSocket message:', error);
+            }
+        };
+
+        this.statusSocket.onclose = (event) => {
+            console.log('Status WebSocket disconnected:', event.code, event.reason);
+            this.handleStatusSocketClose();
+        };
+
+        this.statusSocket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            UIManager.showToast('Chat connection error', 'danger');
+        };
+    }
+
+    static handleStatusMessage(data) {
+        if (data.type === 'initial_status') {
+            this.resetUserStatuses();
+            data.online_users.forEach(userId => {
+                this.updateUserStatus(userId, true);
+            });
+        } else if (data.type === 'status_update') {
+            this.updateUserStatus(data.user_id, data.online_status);
+        }
+    }
+
+    static resetUserStatuses() {
+        document.querySelectorAll('[data-user-status]').forEach(badge => {
+            badge.className = 'badge bg-secondary';
+            badge.textContent = 'Offline';
+        });
+    }
+
     static updateUserStatus(userId, isOnline) {
-        console.log('Updating status:', userId, isOnline); // Debug log
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
         if (statusBadge) {
             statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
             statusBadge.textContent = isOnline ? 'Online' : 'Offline';
             
-            // Update chat header if this is the current chat partner
-            if (this.currentChatPartner && this.currentChatPartner.id === userId) {
-                const chatHeader = document.getElementById('chat-header');
-                const username = statusBadge.getAttribute('data-user-name');
-                chatHeader.innerHTML = `
-                    Chat with ${username} 
+            this.updateChatHeader(userId, isOnline, statusBadge);
+        }
+    }
+
+    static updateChatHeader(userId, isOnline, statusBadge) {
+        if (this.currentChatPartner && this.currentChatPartner.id === userId) {
+            const chatHeader = document.getElementById('chat-header');
+            const username = statusBadge.getAttribute('data-user-name');
+            const chatBody = document.querySelector('#chat-container .card-body');
+            const isCollapsed = chatBody && chatBody.style.display === 'none';
+            
+            chatHeader.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center w-100">
+                    <div>
+                        Chat with ${username}
+                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                            ${isOnline ? 'Online' : 'Offline'}
+                        </span>
+                    </div>
+                    <div>
+                        <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-${isCollapsed ? 'plus' : 'dash'}-lg"></i>
+                        </button>
+                        <button id="close-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Reattach event listeners
+            document.getElementById('toggle-chat')?.addEventListener('click', () => {
+                this.toggleChat();
+            });
+
+            document.getElementById('close-chat')?.addEventListener('click', () => {
+                this.closeChat();
+            });
+        }
+    }
+
+    static handleStatusSocketClose() {
+        if (AuthManager.accessToken) {
+            setTimeout(() => this.initStatusWebSocket(), 5000);
+        }
+    }
+
+    static startChat(userId, username) {
+        this.isIntentionallyClosed = false;
+        
+        const chatContainer = document.getElementById('chat-container');
+        chatContainer.style.display = 'block';
+        
+        this.currentChatPartner = { id: userId, username };
+        
+        this.setupChatUI();
+        
+        this.initChatSocket();
+        
+        this.loadPreviousMessages(userId);
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('usersModal'));
+        modal?.hide();
+    }
+
+    static setupChatUI() {
+        const chatContainer = document.getElementById('chat-container');
+        const chatHeader = document.getElementById('chat-header');
+        const statusBadge = document.querySelector(`[data-user-status="${this.currentChatPartner.id}"]`);
+        const isOnline = statusBadge?.classList.contains('bg-success');
+        
+        chatHeader.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center w-100">
+                <div>
+                    Chat with ${this.currentChatPartner.username}
                     <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
                         ${isOnline ? 'Online' : 'Offline'}
                     </span>
-                `;
+                </div>
+                <div>
+                    <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <button id="close-chat" class="btn btn-sm btn-outline-light">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        chatContainer.style.display = 'block';
+
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+
+        // Add toggle chat listener
+        document.getElementById('toggle-chat')?.addEventListener('click', () => {
+            this.toggleChat();
+        });
+
+        // Add close chat listener
+        document.getElementById('close-chat')?.addEventListener('click', () => {
+            this.closeChat();
+        });
+
+        sendButton?.addEventListener('click', () => this.sendMessage());
+
+        messageInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
             }
+        });
+    }
+
+    static initChatSocket() {
+        try {
+            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const apiHost = new URL(AuthManager.API_BASE).host;
+            const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${this.currentChatPartner.id}/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+            
+            if (this.chatSocket) {
+                this.chatSocket.close();
+                this.chatSocket = null;
+            }
+            
+            console.log('Connecting to WebSocket:', wsUrl);
+            this.chatSocket = new WebSocket(wsUrl);
+            this.setupChatSocketHandlers();
+        } catch (error) {
+            console.error('Error initializing chat WebSocket:', error);
+            UIManager.showToast('Failed to connect to chat server', 'danger');
         }
+    }
+
+    static setupChatSocketHandlers() {
+        if (!this.chatSocket) return;
+
+        this.chatSocket.onopen = () => {
+            console.log('Chat WebSocket connected');
+            this.reconnectAttempts = 0;
+            this.isIntentionallyClosed = false;
+        };
+
+        this.chatSocket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Received message:', data);
+                
+                if (data.type === 'chat_history') {
+                    this.displayMessages(data.messages);
+                } else if (data.type === 'chat_message') {
+                    const messagesContainer = document.getElementById('chat-messages');
+                    const messageElement = this.createChatMessage({
+                        content: data.content || data.message,
+                        sender_id: data.sender_id,
+                        sender_display_name: data.sender_display_name || data.sender_username,
+                        timestamp: data.timestamp || new Date().toISOString(),
+                        sender: {
+                            id: data.sender_id,
+                            username: data.sender_display_name || data.sender_username,
+                            avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
+                        }
+                    });
+                    
+                    if (messageElement) {
+                        messagesContainer.appendChild(messageElement);
+                        this.scrollToBottom(messagesContainer);
+                    }
+                }
+            } catch (error) {
+                console.error('Error handling chat message:', error);
+            }
+        };
+
+        this.chatSocket.onclose = (event) => {
+            console.log('Chat WebSocket closed:', event.code, event.reason);
+            
+            if (!this.isIntentionallyClosed && this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
+                const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+                this.reconnectTimeout = setTimeout(() => {
+                    this.reconnectAttempts++;
+                    console.log(`Reconnect attempt ${this.reconnectAttempts}`);
+                    this.initChatSocket();
+                }, delay);
+            }
+        };
+
+        this.chatSocket.onerror = (error) => {
+            console.error('Chat WebSocket error:', error);
+            UIManager.showToast('Chat connection error', 'danger');
+        };
+    }
+
+    static async loadPreviousMessages(userId) {
+        try {
+            const response = await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/messages/${userId}/`
+            );
+            
+            if (!response.ok) throw new Error('Failed to load messages');
+            
+            const messages = await response.json();
+            this.displayMessages(messages);
+            
+            await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/messages/${userId}/read/`,
+                { method: 'POST' }
+            );
+        } catch (error) {
+            console.error('Error loading messages:', error);
+            UIManager.showToast('Failed to load chat history', 'danger');
+        }
+    }
+
+    static displayMessages(messages) {
+        const messagesContainer = document.getElementById('chat-messages');
+        messagesContainer.innerHTML = '';
+        
+        messages.forEach(msg => {
+            const messageElement = this.createChatMessage({
+                ...msg,
+                sender: {
+                    id: msg.sender_id,
+                    username: msg.sender_display_name || msg.username,
+                    avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
+                }
+            });
+            messagesContainer.appendChild(messageElement);
+        });
+        
+        this.scrollToBottom(messagesContainer);
+    }
+
+    static sendMessage() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+        
+        if (!message) return;
+        
+        if (this.chatSocket?.readyState === WebSocket.OPEN) {
+            const messageData = {
+                type: 'chat_message',
+                message: message,
+                recipient_id: this.currentChatPartner.id,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                this.chatSocket.send(JSON.stringify(messageData));
+                input.value = '';
+                input.focus();
+            } catch (error) {
+                console.error('Error sending message:', error);
+                UIManager.showToast('Failed to send message', 'danger');
+            }
+        } else {
+            console.log('WebSocket not connected. Current state:', this.chatSocket?.readyState);
+            UIManager.showToast('Chat disconnected. Reconnecting...', 'warning');
+            this.initChatSocket();
+        }
+    }
+
+    static createChatMessage(message) {
+        try {
+            const messageWrapper = document.createElement('div');
+            const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+            messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+            
+            const timestamp = new Date(message.timestamp);
+            const timeStr = timestamp.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            const dateStr = timestamp.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            
+            const senderName = isSentByMe ? 
+                AuthManager.currentUser.username : 
+                (message.sender_display_name || message.sender.username);
+            
+            const senderAvatar = isSentByMe ? 
+                AuthManager.currentUser.avatar : 
+                message.sender.avatar_url;
+            
+            const avatarContainer = document.createElement('div');
+            avatarContainer.className = 'avatar-container';
+            
+            const avatarImg = document.createElement('img');
+            avatarImg.className = 'avatar';
+            avatarImg.alt = this.escapeHtml(String(senderName || ''));
+            
+            let retryCount = 0;
+            const maxRetries = 2;
+            
+            const loadAvatar = (url) => {
+                avatarImg.src = url;
+            };
+            
+            avatarImg.onerror = () => {
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    loadAvatar('/media/avatars/default.svg');
+                } else {
+                    avatarImg.style.display = 'none';
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'avatar-placeholder';
+                    placeholder.textContent = (senderName || '').charAt(0).toUpperCase();
+                    avatarContainer.appendChild(placeholder);
+                }
+            };
+            
+            loadAvatar(senderAvatar || '/media/avatars/default.svg');
+            avatarContainer.appendChild(avatarImg);
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.innerHTML = `
+                <div class="message-header">${this.escapeHtml(String(senderName || ''))}</div>
+                <div class="message-bubble">${this.escapeHtml(String(message.content || ''))}</div>
+                <div class="message-meta">
+                    <span class="timestamp">${timeStr}</span>
+                    <span class="date">${dateStr}</span>
+                </div>
+            `;
+            
+            if (isSentByMe) {
+                messageWrapper.appendChild(messageContent);
+                messageWrapper.appendChild(avatarContainer);
+            } else {
+                messageWrapper.appendChild(avatarContainer);
+                messageWrapper.appendChild(messageContent);
+            }
+            
+            return messageWrapper;
+        } catch (error) {
+            console.error('Error creating chat message:', error);
+            return null;
+        }
+    }
+
+    static escapeHtml(unsafe) {
+        if (typeof unsafe !== 'string') return '';
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    static scrollToBottom(container) {
+        container.scrollTop = container.scrollHeight;
+    }
+
+    static closeUsersModal() {
+        document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
     }
 
     static cleanup() {
@@ -499,125 +812,68 @@ class ChatManager {
         }
     }
 
-    static startChat(userId, username) {
-        this.currentChatPartner = { id: userId, username };
-        const chatContainer = document.getElementById('chat-container');
-        const chatHeader = document.getElementById('chat-header');
-        const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
-        const isOnline = statusBadge?.classList.contains('bg-success');
+    static toggleChat() {
+        const chatBody = document.querySelector('#chat-container .card-body');
+        const toggleBtn = document.querySelector('#toggle-chat i');
         
-        chatHeader.innerHTML = `
-            Chat with ${username}
-            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
-                ${isOnline ? 'Online' : 'Offline'}
-            </span>
-        `;
-        chatContainer.style.display = 'block';
+        if (!chatBody || !toggleBtn) return;
         
-        const apiHost = new URL(API_BASE).host;
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
-        
+        if (chatBody.style.display === 'none') {
+            // Expand chat
+            chatBody.style.display = 'block';
+            toggleBtn.className = 'bi bi-dash-lg';
+        } else {
+            // Collapse chat
+            chatBody.style.display = 'none';
+            toggleBtn.className = 'bi bi-plus-lg';
+        }
+    }
+
+    static showUsersList() {
+        const modal = new bootstrap.Modal(document.getElementById('usersModal'));
+        modal.show();
+    }
+
+    static closeChat() {
+        this.isIntentionallyClosed = true;
+
         if (this.chatSocket) {
             this.chatSocket.close();
+            this.chatSocket = null;
         }
-        
-        this.chatSocket = new WebSocket(wsUrl);
-        this.chatSocket.onmessage = this.handleChatMessage.bind(this);
-        this.chatSocket.onclose = this.handleChatClose.bind(this);
-        
-        this.loadPreviousMessages(userId);
-        document.getElementById('chat-messages').innerHTML = '';
-        document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
-    }
 
-    static async loadPreviousMessages(userId) {
-        try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/messages/${userId}/`);
-            if (!response.ok) throw new Error('Failed to load messages');
-            const messages = await response.json();
-            
-            const messagesContainer = document.getElementById('chat-messages');
-            messagesContainer.innerHTML = ''; // Clear existing messages
-            
-            messages.forEach(msg => {
-                const messageElement = createChatMessage({
-                    ...msg,
-                    sender: {
-                        id: msg.sender_id,
-                        username: msg.sender_display_name || msg.username,
-                        avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
-                    }
-                });
-                messagesContainer.appendChild(messageElement);
-            });
-            
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        } catch (error) {
-            console.error('Error loading messages:', error);
+        const messagesContainer = document.getElementById('chat-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = '';
         }
-    }
 
-    static handleChatMessage(event) {
-        const data = JSON.parse(event.data);
-        console.log('WebSocket message data:', data); // Debug log
-        if (data.type === 'chat_message') {
-            const messagesContainer = document.getElementById('chat-messages');
-            const messageElement = createChatMessage({
-                ...data,
-                sender: {
-                    id: data.sender_id,
-                    username: data.sender_display_name || data.username,
-                    avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
-                },
-                timestamp: new Date().toISOString()
-            });
-            
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        this.currentChatPartner = null;
+
+        const chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+            chatContainer.style.display = 'none';
         }
-    }
 
-    static handleChatClose() {
-        if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            this.reconnectTimeout = setTimeout(() => {
-                this.reconnectAttempts++;
-                this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
-            }, 5000);
+        const messageInput = document.getElementById('message-input');
+        if (messageInput) {
+            messageInput.value = '';
         }
-    }
 
-    static sendMessage() {
-        const input = document.getElementById('message-input');
-        const message = input.value.trim();
-        
-        if (message && this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
-            this.chatSocket.send(JSON.stringify({
-                message: message,
-                recipient: this.currentChatPartner.id
-            }));
-            input.value = '';
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
         }
-    }
-
-    static escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+        this.reconnectAttempts = 0;
     }
 }
 
 class ProfileManager {
     static async fetchUserProfile() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/me/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const profile = await response.json();
             
-            // Ensure avatar path is correct
             if (profile.avatar) {
                 profile.avatar = profile.avatar.startsWith('/') ? 
                     profile.avatar : `/media/${profile.avatar}`;
@@ -644,7 +900,7 @@ class ProfileManager {
                 if (value) data[key] = value;
             });
 
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -662,7 +918,7 @@ class ProfileManager {
 class UserManager {
     static async loadUsersList() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
             const users = await response.json();
             
             const tableBody = document.getElementById('users-table-body');
@@ -709,14 +965,13 @@ class UserManager {
 class MatchManager {
     static async fetchMatchHistory() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const matches = await response.json();
 
-            // Sort matches by date (most recent first)
             return matches.sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
         } catch (error) {
             console.error('Error fetching matches:', error);
@@ -728,7 +983,7 @@ class MatchManager {
         const container = document.getElementById('match-history');
         container.innerHTML = matches.length ? '' : '<p>No recent matches</p>';
         
-        matches.slice(0, RECENT_MATCHES_LIMIT).forEach(match => {
+        matches.slice(0, AuthManager.RECENT_MATCHES_LIMIT).forEach(match => {
             const matchElement = document.createElement('div');
             matchElement.className = 'mb-2 p-2 bg-dark rounded';
             
@@ -752,36 +1007,35 @@ class MatchManager {
 
     static async initializeGame(mode, opponent = null) {
         try {
-            const currentUser = AuthManager.currentUser;
-            const player2Name = mode === 'PVP' ? 
-                localStorage.getItem('player2Name') || 'Player 2' : 
-                'AI';
+            if (mode === 'PVP') {
+                const setupResponse = await fetch('/src/assets/components/player2-setup.html');
+                const setupHtml = await setupResponse.text();
+                
+                document.getElementById('main-page').classList.remove('active-page');
+                
+                let setupDiv = document.getElementById('setup-page');
+                if (!setupDiv) {
+                    setupDiv = document.createElement('div');
+                    setupDiv.id = 'setup-page';
+                    document.body.appendChild(setupDiv);
+                }
+                setupDiv.className = 'page active-page';
+                setupDiv.innerHTML = setupHtml;
 
-            const payload = {
-                player1_name: currentUser.username,
-                player2_name: player2Name,
-                player1_score: 0,
-                player2_score: 0,
-                tournament: null
-            };
+                document.getElementById('player2-setup-form')?.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const player2Name = document.getElementById('player2-name').value;
+                    localStorage.setItem('player2Name', player2Name);
+                    setupDiv.remove();
+                    await this.startGame(mode, player2Name);
+                });
 
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error('Failed to initialize game');
-            const matchData = await response.json();
-
-            // Initialize the game canvas and start the game
-            const gameCanvas = document.getElementById('game-canvas');
-            if (gameCanvas) {
-                // Initialize game with matchData
-                window.initializeGame(matchData);
-                UIManager.showToast(`${mode.toUpperCase()} match started!`, 'success');
+                document.getElementById('cancel-btn')?.addEventListener('click', () => {
+                    setupDiv.remove();
+                    document.getElementById('main-page').classList.add('active-page');
+                });
+            } else {
+                await this.startGame(mode);
             }
         } catch (error) {
             console.error('Error initializing game:', error);
@@ -789,9 +1043,61 @@ class MatchManager {
         }
     }
 
+    static async startGame(mode, player2Name = null) {
+        try {
+            const response = await fetch('/src/assets/components/pong.html');
+            const html = await response.text();
+            
+            let gameDiv = document.getElementById('game-page');
+            if (!gameDiv) {
+                gameDiv = document.createElement('div');
+                gameDiv.id = 'game-page';
+                document.body.appendChild(gameDiv);
+            }
+            gameDiv.className = 'page active-page';
+            gameDiv.innerHTML = html;
+
+            const currentUser = AuthManager.currentUser;
+            const matchData = {
+                player1_name: currentUser.username,
+                player2_name: mode === 'PVP' ? 
+                    player2Name || 'Player 2' : 
+                    'AI',
+                player1_score: 0,
+                player2_score: 0,
+                tournament: null
+            };
+
+            const matchResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!matchResponse.ok) throw new Error('Failed to initialize game');
+            const match = await matchResponse.json();
+
+            requestAnimationFrame(() => {
+                if (typeof window.initGame === 'function') {
+                    window.initGame(mode, match);
+                } else {
+                    console.error('Game initialization function not found');
+                    UIManager.showToast('Failed to start game', 'danger');
+                }
+            });
+
+            UIManager.showToast(`${mode.toUpperCase()} match started!`, 'success');
+        } catch (error) {
+            console.error('Error starting game:', error);
+            UIManager.showToast('Failed to start game', 'danger');
+        }
+    }
+
     static async createTournament() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}tournaments/create/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}tournaments/create/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -825,7 +1131,7 @@ class MatchManager {
                 end_time: new Date().toISOString()
             };
 
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -833,10 +1139,7 @@ class MatchManager {
                 body: JSON.stringify(matchData)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to save match');
-            }
-
+            if (!response.ok) throw new Error('Failed to save match');
             return await response.json();
         } catch (error) {
             console.error('Error saving match:', error);
@@ -846,20 +1149,14 @@ class MatchManager {
     }
 }
 
-// Initialize event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    // Auth related listeners
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
+    document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const [username, password] = e.target.querySelectorAll('input');
-        try {
-            await AuthManager.login(username.value, password.value);
-        } catch (error) {
-            UIManager.showToast('Login failed', 'danger');
-        }
+        await AuthManager.handleLogin(username.value, password.value);
     });
 
-    document.getElementById('register-form').addEventListener('submit', async (e) => {
+    document.getElementById('register-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const inputs = e.target.querySelectorAll('input');
         const userData = {
@@ -871,334 +1168,79 @@ document.addEventListener('DOMContentLoaded', () => {
         await AuthManager.register(userData);
     });
 
-// Modify the logout event listener
-document.getElementById('logout-btn').addEventListener('click', () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    accessToken = null;
-    refreshToken = null;
-    if (currentOTPTimer) {
-        clearInterval(currentOTPTimer);
-        currentOTPTimer = null;
-    }
-    showLoginForm();
-    showPage(pages.landing);
-});
+    document.getElementById('logout-btn')?.addEventListener('click', () => {
+        AuthManager.logout();
+    });
 
-// Profile Event Listeners
-const userProfileElement = document.getElementById('user-profile');
-userProfileElement.removeEventListener('click', loadUpdateProfilePage);
-userProfileElement.addEventListener('click', loadUpdateProfilePage);
-document.getElementById('back-to-main').addEventListener('click', async (e) => {
-    e.preventDefault();
-    await loadMainPage(); // Use loadMainPage instead of showPage
-});
-document.getElementById('update-profile-form').addEventListener('submit', handleUpdateProfile);
+    document.getElementById('2fa-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const otp = document.getElementById('otp-input').value.trim();
+        if (otp.length !== 6) {
+            UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
+            return;
+        }
+        await AuthManager.verify2FA(otp);
+    });
 
-// Form Toggle
-const toggleForms = () => {
-    document.getElementById('login-form').classList.toggle('d-none');
-    document.getElementById('register-form').classList.toggle('d-none');
-};
+    document.getElementById('register-link')?.addEventListener('click', UIManager.toggleForms);
+    document.getElementById('login-link')?.addEventListener('click', UIManager.toggleForms);
 
-document.getElementById('register-link').addEventListener('click', toggleForms);
-document.getElementById('login-link').addEventListener('click', toggleForms);
+    document.getElementById('play-player-btn')?.addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            UIManager.showToast('Please login to play', 'warning');
+            return;
+        }
+        await MatchManager.initializeGame('PVP');
+    });
 
-// OAuth Login
-document.getElementById('oauth-login-link').addEventListener('click', (e) => {
-    e.preventDefault(); // Prevent the default anchor behavior
-    window.location.href = `${API_BASE}auth/oauth/login/`; // Redirect to the OAuth login endpoint
-});
+    document.getElementById('play-ai-btn')?.addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            UIManager.showToast('Please login to play', 'warning');
+            return;
+        }
+        await MatchManager.initializeGame('AI');
+    });
 
-// Game Controls
-document.getElementById('play-player-btn').addEventListener('click', async () => {
-    if (!accessToken) {
-        window.location.href = '/';
-        return;
+    document.getElementById('create-tournament-btn')?.addEventListener('click', MatchManager.createTournament);
+
+    if (AuthManager.accessToken) {
+        UIManager.loadMainPage();
+    } else {
+        UIManager.showPage(UIManager.pages.landing);
     }
 
-    try {
-        const response = await fetch('/src/assets/components/player2-setup.html');
-        const html = await response.text();
-        
-        // Hide main page
-        document.getElementById('main-page').classList.remove('active-page');
-        
-        // Create and show setup page
-        const setupDiv = document.createElement('div');
-        setupDiv.id = 'setup-page';
-        setupDiv.classList.add('page', 'active-page');
-        setupDiv.innerHTML = html;
-        document.body.appendChild(setupDiv);
-
-        // Add event listeners after adding to DOM
-        const setupForm = document.getElementById('player2-setup-form');
-        const cancelBtn = document.getElementById('cancel-btn');
-
-        setupForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const player2Name = document.getElementById('player2-name').value;
-            localStorage.setItem('player2Name', player2Name);
-
-            // Load pong game
-            const pongResponse = await fetch('/src/assets/components/pong.html');
-            const pongHtml = await pongResponse.text();
-            
-            // Remove setup page
-            setupDiv.remove();
-            
-            // Create and show game page
-            const gameDiv = document.createElement('div');
-            gameDiv.id = 'game-page';
-            gameDiv.classList.add('page', 'active-page');
-            gameDiv.innerHTML = pongHtml;
-            document.body.appendChild(gameDiv);
-
-            // Initialize PvP game
-            requestAnimationFrame(() => {
-                if (typeof initGame === 'function') {
-                    initGame('PVP');
-                }
-            });
-        });
-
-        cancelBtn.addEventListener('click', () => {
-            setupDiv.remove();
-            document.getElementById('main-page').classList.add('active-page');
-        });
-
-    } catch (error) {
-        console.error('Error loading setup page:', error);
-        alert('Failed to load the setup page');
-    }
-});
-
-document.getElementById('play-ai-btn').addEventListener('click', async () => {
-    // Check if user is logged in
-    if (!accessToken) {
-        window.location.href = '/';
-        return;
-    }
-
-    try {
-        const response = await fetch('/src/assets/components/pong.html');
-        const html = await response.text();
-        
-        // Hide main page
-        document.getElementById('main-page').classList.remove('active-page');
-        
-        // Create and show game page
-        const gameDiv = document.createElement('div');
-        gameDiv.id = 'game-page';
-        gameDiv.classList.add('page', 'active-page');
-        gameDiv.innerHTML = html;
-        document.body.appendChild(gameDiv);
-
-        // Initialize game immediately after canvas is available
-        requestAnimationFrame(() => {
-            if (typeof initGame === 'function') {
-                initGame();
-            }
-        }, 100);
-
-    } catch (error) {
-        console.error('Error loading game:', error);
-        alert('Failed to load the game');
-    }
-});
-
-document.getElementById('create-tournament-btn').addEventListener('click', async () => {
-    try {
-        const response = await fetch(`${API_BASE}tournaments/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({ name: 'New Tournament', participants: [] })
-        });
-        
-        if (!response.ok) throw new Error('Tournament creation failed');
-        alert('Tournament created successfully!');
-    } catch (error) {
-        alert(error.message);
-    }
-});
-
-// Add these event listeners at the bottom of your file
-document.addEventListener('DOMContentLoaded', () => {
-    // 2FA form submit handler
-    const twoFAForm = document.getElementById('2fa-form');
-    if (twoFAForm) {
-        twoFAForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const otp = document.getElementById('otp-input').value.trim();
-            if (otp.length !== 6) {
-                alert('Please enter the 6-digit verification code.');
-                return;
-            }
-            await verify2FA(otp);
-        });
-    }
-
-    // Back to login button handler
-    const backToLoginBtn = document.getElementById('back-to-login');
-    if (backToLoginBtn) {
-        backToLoginBtn.addEventListener('click', () => {
-            document.getElementById('2fa-form').classList.add('d-none');
-            document.getElementById('login-form').classList.remove('d-none');
-            sessionStorage.removeItem('tempUserEmail');
-        });
-    }
-
-    // OTP input validation (only allow numbers and max 6 digits)
     const otpInput = document.getElementById('otp-input');
     if (otpInput) {
         otpInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
         });
     }
+
+    const defaultAvatar = new Image();
+    defaultAvatar.src = '/media/avatars/default.svg';
+
+    document.getElementById('toggle-chat')?.addEventListener('click', () => {
+        ChatManager.toggleChat();
+    });
+
+    document.getElementById('send-button')?.addEventListener('click', () => {
+        ChatManager.sendMessage();
+    });
+
+    const messageInput = document.getElementById('message-input');
+    messageInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            ChatManager.sendMessage();
+        }
+    });
 });
 
-// Initial page load
-if (AuthManager.accessToken) {
-    UIManager.loadMainPage();
-} else {
-    UIManager.showPage(UIManager.pages.landing);
-}
+window.AuthManager = AuthManager;
+window.UIManager = UIManager;
+window.ChatManager = ChatManager;
+window.ProfileManager = ProfileManager;
+window.UserManager = UserManager;
+window.MatchManager = MatchManager;
 
-
-// Make refreshAccessToken available globally
 window.refreshAccessToken = () => AuthManager.refreshAccessToken();
-
-function createChatMessage(message) {
-    const messageWrapper = document.createElement('div');
-    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
-    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-    
-    // Format timestamp
-    const timestamp = new Date(message.timestamp);
-    const timeStr = timestamp.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-    });
-    const dateStr = timestamp.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-    });
-    
-    // Get sender info - Fix for sender name
-    const senderName = isSentByMe ? 
-        AuthManager.currentUser.username : 
-        message.sender_display_name;  // This should now always have the correct username
-    
-    const senderAvatar = isSentByMe ? 
-        AuthManager.currentUser.avatar : 
-        message.sender_avatar_url;
-    
-    // Create avatar element
-    const avatarContainer = document.createElement('div');
-    avatarContainer.className = 'avatar-container';
-    
-    const avatarImg = document.createElement('img');
-    avatarImg.className = 'avatar';
-    avatarImg.alt = senderName;
-    
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    const loadAvatar = (url) => {
-        avatarImg.src = url;
-    };
-    
-    avatarImg.onerror = () => {
-        if (retryCount < maxRetries) {
-            retryCount++;
-            loadAvatar('/media/avatars/default.svg');
-        } else {
-            avatarImg.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'avatar-placeholder';
-            placeholder.textContent = senderName.charAt(0).toUpperCase();
-            avatarContainer.appendChild(placeholder);
-        }
-    };
-    
-    loadAvatar(senderAvatar);
-    avatarContainer.appendChild(avatarImg);
-    
-    // Create message content with sender name
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    messageContent.innerHTML = `
-        <div class="message-header">${escapeHtml(senderName)}</div>
-        <div class="message-bubble">${escapeHtml(message.content)}</div>
-        <div class="message-meta">
-            <span class="timestamp">${timeStr}</span>
-            <span class="date">${dateStr}</span>
-        </div>
-    `;
-    
-    // Append elements in correct order based on message type
-    if (isSentByMe) {
-        messageWrapper.appendChild(messageContent);
-        messageWrapper.appendChild(avatarContainer);
-    } else {
-        messageWrapper.appendChild(avatarContainer);
-        messageWrapper.appendChild(messageContent);
-    }
-    
-    return messageWrapper;
-}
-
-// Add this helper function if not already present
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// Add preloading for default avatar
-function preloadDefaultAvatar() {
-    const img = new Image();
-    img.src = '/media/avatars/default.svg';
-}
-
-// Update the profile display function
-function updateProfileDisplay(profile) {
-    document.getElementById('username-display').textContent = profile.username;
-    const profileAvatar = document.getElementById('profile-avatar');
-    
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    const loadAvatar = (url) => {
-        profileAvatar.src = url;
-    };
-    
-    profileAvatar.onerror = () => {
-        if (retryCount < maxRetries) {
-            retryCount++;
-            loadAvatar('/media/avatars/default.svg');
-        } else {
-            // If all retries fail, show initials
-            profileAvatar.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'avatar-placeholder';
-            placeholder.textContent = profile.username.charAt(0).toUpperCase();
-            profileAvatar.parentNode.insertBefore(placeholder, profileAvatar);
-        }
-    };
-    
-    loadAvatar(profile.avatar_url || '/media/avatars/default.svg');
-}
-
-// Call preloadDefaultAvatar when the chat initializes
-document.addEventListener('DOMContentLoaded', () => {
-    preloadDefaultAvatar();
-    // ... rest of the existing DOMContentLoaded code ...
-});
