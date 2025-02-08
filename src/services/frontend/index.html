@@ -37,16 +37,16 @@
 
                             <form id="register-form" class="d-none">
                                 <div class="mb-3">
-                                    <input type="text" class="form-control" placeholder="Username" required>
+                                    <input type="text" class="form-control" id="register-username" name="username" placeholder="Username" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="email" class="form-control" placeholder="Email" required>
+                                    <input type="email" class="form-control" id="register-email" name="email" placeholder="Email" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="password" class="form-control" placeholder="Password" required>
+                                    <input type="password" class="form-control" id="register-password" name="password" placeholder="Password" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="password" class="form-control" placeholder="Repeat Password" required>
+                                    <input type="password" class="form-control" id="register-repeat-password" name="repeat_password" placeholder="Repeat Password" required>
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">Register</button>
                                 <a href="#" id="login-link" class="text-white d-block text-center mt-2">Back to Login</a>
@@ -142,6 +142,34 @@
                         <div class="card-body">
                             <h5 class="card-title">Recent Matches</h5>
                             <div id="match-history"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Friend List -->
+                <div class="col-md-3 mb-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex justify-content-between align-items-center">
+                                Friend List
+                                <button id="add-friend-btn" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-person-plus"></i>
+                                </button>
+                            </h5>
+                            <div id="friend-list">
+                                <table class="table table-dark table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="friend-list-body">
+                                        <!-- Friend rows will be dynamically inserted here -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
