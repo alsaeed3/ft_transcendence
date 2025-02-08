@@ -479,14 +479,31 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
+        // Existing game mode display
         document.getElementById('gameMode').textContent = mode === 'TOURNAMENT' ? 
             `Tournament Match ${matchNumber}` : 
             (mode === 'AI' ? 'Player vs AI' : 'Player vs Player');
         
-        if (mode === 'TOURNAMENT' && tournamentBracket[currentRound]?.length > currentMatchIndex + 1) {
+        if (mode === 'TOURNAMENT') {
+            // Update current players
             document.getElementById('rightPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex];
             document.getElementById('leftPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex + 1];
+            
+            // Update tournament order display
+            const orderDisplay = document.getElementById('tournamentOrder');
+            if (orderDisplay) {
+                const remainingPlayers = tournamentBracket[currentRound].filter(player => player !== null);
+                const waitingPlayers = remainingPlayers.slice(currentMatchIndex + 2);
+                if (waitingPlayers.length > 0) {
+                    orderDisplay.textContent = `Next up: ${waitingPlayers.join(' → ')}`;
+                } else if (currentRound < tournamentBracket.length - 1) {
+                    orderDisplay.textContent = 'End of current round';
+                } else {
+                    orderDisplay.textContent = 'Final match';
+                }
+            }
         } else {
+            // Regular game display
             document.getElementById('rightPlayerName').textContent = username || 'Loading...';
             document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
         }
