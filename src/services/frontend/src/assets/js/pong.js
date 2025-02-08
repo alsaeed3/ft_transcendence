@@ -191,6 +191,8 @@ function initGame(mode = 'AI') {
                 tournamentBracket[currentRound][currentMatchIndex] = winner;
                 tournamentBracket[currentRound][currentMatchIndex + 1] = null;
                 
+                handleMatchEnd(winner);
+                
                 const messageElement = gameOverMessage.querySelector('h2');
                 messageElement.className = 'text-white text-center display-8 font-monospace';
                 messageElement.textContent = `${winner} wins the match!`;
@@ -203,8 +205,8 @@ function initGame(mode = 'AI') {
             } else {
                 // Regular PVP/AI win condition
                 const winner = playerScore > computerScore ? 
-                    `${username} WINS` : 
-                    (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
+                    `${username} WINS!` : 
+                    (mode === 'PVP' ? `${player2Name} WINS!` : 'COMPUTER WINS!');
                 const messageElement = gameOverMessage.querySelector('h2');
                 messageElement.className = 'text-white text-center display-8 font-monospace';
                 messageElement.textContent = winner;
@@ -479,7 +481,6 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
-        // Existing game mode display
         document.getElementById('gameMode').textContent = mode === 'TOURNAMENT' ? 
             `Tournament Match ${matchNumber}` : 
             (mode === 'AI' ? 'Player vs AI' : 'Player vs Player');
@@ -488,20 +489,6 @@ function initGame(mode = 'AI') {
             // Update current players
             document.getElementById('rightPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex];
             document.getElementById('leftPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex + 1];
-            
-            // Update tournament order display
-            const orderDisplay = document.getElementById('tournamentOrder');
-            if (orderDisplay) {
-                const remainingPlayers = tournamentBracket[currentRound].filter(player => player !== null);
-                const waitingPlayers = remainingPlayers.slice(currentMatchIndex + 2);
-                if (waitingPlayers.length > 0) {
-                    orderDisplay.textContent = `Next up: ${waitingPlayers.join(' → ')}`;
-                } else if (currentRound < tournamentBracket.length - 1) {
-                    orderDisplay.textContent = 'End of current round';
-                } else {
-                    orderDisplay.textContent = 'Final match';
-                }
-            }
         } else {
             // Regular game display
             document.getElementById('rightPlayerName').textContent = username || 'Loading...';
@@ -515,6 +502,27 @@ function initGame(mode = 'AI') {
     let currentRound = 0;
     let tournamentBracket = [];
     let matchNumber = 1;  // Add this to track match numbers
+
+    let bracketWinners = {
+        '1-2': null,
+        '3-4': null,
+        '5-6': null,
+        '7-8': null,
+        'semi1': null,
+        'semi2': null
+    };
+
+    function handleMatchEnd(winner) {
+        if (currentRound === 0) {
+            if (currentMatchIndex === 0) bracketWinners['1-2'] = winner;
+            else if (currentMatchIndex === 2) bracketWinners['3-4'] = winner;
+            else if (currentMatchIndex === 4) bracketWinners['5-6'] = winner;
+            else if (currentMatchIndex === 6) bracketWinners['7-8'] = winner;
+        } else if (currentRound === 1) {
+            if (currentMatchIndex === 0) bracketWinners['semi1'] = winner;
+            else bracketWinners['semi2'] = winner;
+        }
+    }
 
     function initTournament() {
         tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
@@ -531,6 +539,8 @@ function initGame(mode = 'AI') {
         setTimeout(() => {
             announceMatch();
         }, 100);
+        
+        updateTournamentDisplay();
     }
 
     function announceMatch() {
@@ -579,6 +589,8 @@ function initGame(mode = 'AI') {
             matchNumber++;
             announceMatch();  // Announce next match
         }
+        
+        updateTournamentDisplay();
     }
 
     function resetMatch() {
@@ -609,6 +621,61 @@ function initGame(mode = 'AI') {
         fetchUsername().then(() => {
             updateGameInfo();
         });
+    }
+
+    function updateTournamentDisplay() {
+        const bracketDiv = document.getElementById('tournamentBracket');
+        const currentMatchDiv = document.getElementById('currentMatch');
+        const upcomingDiv = document.getElementById('upcomingMatches');
+        
+        if (mode !== 'TOURNAMENT') {
+            bracketDiv.classList.add('d-none');
+            return;
+        }
+
+        bracketDiv.classList.remove('d-none');
+        
+        // Championship match check
+        if ((tournamentBracket[0].length === 4 && currentRound === 1) || 
+            (tournamentBracket[0].length === 8 && currentRound === 2)) {
+            currentMatchDiv.innerHTML = 'Championship Match';
+            upcomingDiv.textContent = '';
+            return;
+        }
+
+        // Regular matches announcements
+        let nextMatchText = '';
+        
+        if (tournamentBracket[0].length === 8) {
+            if (currentRound === 0) {
+                if (currentMatchIndex === 6) {
+                    // Last first round match (7-8)
+                    nextMatchText = `Next: ${bracketWinners['1-2']} VS ${bracketWinners['3-4']}`;
+                } else {
+                    // Show remaining first round matches
+                    const remaining = tournamentBracket[0].slice(currentMatchIndex + 2);
+                    if (remaining.length > 0) {
+                        const pairs = remaining.reduce((acc, player, i) => {
+                            if (i % 2 === 0) acc.push(`${player} vs ${remaining[i + 1]}`);
+                            return acc;
+                        }, []);
+                        nextMatchText = `Next: ${pairs.join(' → ')}`;
+                    }
+                }
+            } else if (currentRound === 1) {
+                // Semifinals
+                nextMatchText = currentMatchIndex === 0 ?
+                    `Next: ${bracketWinners['5-6']} VS ${bracketWinners['7-8']}` :
+                    `Winner advances to play against ${bracketWinners['semi1']}`;
+            }
+        } else {
+            // 4 player tournament
+            nextMatchText = currentRound === 0 ?
+                (currentMatchIndex === 0 ? 'Next: 3 vs 4' : 
+                 `Winner advances to play against ${bracketWinners['1-2']}`) : '';
+        }
+        
+        upcomingDiv.textContent = nextMatchText;
     }
 }
 
