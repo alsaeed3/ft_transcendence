@@ -1,5 +1,5 @@
 const API_BASE = 'https://localhost/api/';
-const RECENT_MATCHES_LIMIT = 5;
+const RECENT_MATCHES_LIMIT = 3;
 let currentOTPTimer = null; // Add this at the top with other global variables
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -1233,6 +1233,11 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             ChatManager.sendMessage();
         }
+    });
+
+    // Add user profile click handler
+    document.getElementById('user-profile')?.addEventListener('click', () => {
+        UIManager.loadUpdateProfilePage();
     });
 });
 
