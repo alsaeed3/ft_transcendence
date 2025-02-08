@@ -191,7 +191,9 @@ function initGame(mode = 'AI') {
                 tournamentBracket[currentRound][currentMatchIndex] = winner;
                 tournamentBracket[currentRound][currentMatchIndex + 1] = null;
                 
-                gameOverMessage.querySelector('h2').textContent = `${winner} wins the match!`;
+                const messageElement = gameOverMessage.querySelector('h2');
+                messageElement.className = 'text-white text-center display-8 font-monospace';
+                messageElement.textContent = `${winner} wins the match!`;
                 gameOverMessage.classList.remove('d-none');
                 
                 setTimeout(() => {
@@ -203,7 +205,9 @@ function initGame(mode = 'AI') {
                 const winner = playerScore > computerScore ? 
                     `${username} WINS` : 
                     (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
-                gameOverMessage.querySelector('h2').textContent = winner;
+                const messageElement = gameOverMessage.querySelector('h2');
+                messageElement.className = 'text-white text-center display-8 font-monospace';
+                messageElement.textContent = winner;
                 gameOverMessage.classList.remove('d-none');
                 
                 // Only save match result for non-tournament games
@@ -408,22 +412,22 @@ function initGame(mode = 'AI') {
     document.addEventListener('keydown', (event) => {
         switch(event.key.toLowerCase()) {
             case 'p':  // Right player controls
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
                     paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
                 }
                 break;
             case 'l':
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
                     paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
                 }
                 break;
-            case 'w':  // Left player controls
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+            case 'w':  // Left player controls (AI or second player)
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
                     paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
                 }
                 break;
             case 's':
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
                     paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
                 }
                 break;
@@ -500,10 +504,43 @@ function initGame(mode = 'AI') {
         tournamentBracket = [tournamentPlayers];
         currentMatchIndex = 0;
         currentRound = 0;
-        matchNumber = 1;  // Start with first match
+        matchNumber = 1;
         
+        // Initialize game state first
         updateGameInfo();
         resetMatch();
+        
+        // Wait a short moment for textures to load, then show announcement
+        setTimeout(() => {
+            announceMatch();
+        }, 100);
+    }
+
+    function announceMatch() {
+        // Pause the game
+        gameActive = false;
+        
+        const player1 = tournamentBracket[currentRound][currentMatchIndex];
+        const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
+        const messageElement = gameOverMessage.querySelector('h2');
+        messageElement.className = 'text-white text-center display-8 font-monospace';
+        messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
+        gameOverMessage.classList.remove('d-none');
+        
+        // Countdown sequence
+        let count = 2;
+        const countdownInterval = setInterval(() => {
+            if (count > 0) {
+                messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in ${count}</span>`;
+                count--;
+            } else {
+                clearInterval(countdownInterval);
+                gameOverMessage.classList.add('d-none');
+                updateGameInfo();
+                resetMatch();
+                gameActive = true;
+            }
+        }, 1000);
     }
 
     function startNextTournamentMatch() {
@@ -516,16 +553,14 @@ function initGame(mode = 'AI') {
                 currentRound++;
                 currentMatchIndex = 0;
                 tournamentBracket[currentRound] = winners;
-                matchNumber++;  // Increment match number
-                updateGameInfo();
-                resetMatch();
+                matchNumber++;
+                announceMatch();  // Announce next match
             } else {
                 endTournament(winners[0] || 'No winner');
             }
         } else {
-            matchNumber++;  // Increment match number
-            updateGameInfo();
-            resetMatch();
+            matchNumber++;
+            announceMatch();  // Announce next match
         }
     }
 
@@ -539,7 +574,9 @@ function initGame(mode = 'AI') {
     }
 
     function endTournament(winner) {
-        gameOverMessage.querySelector('h2').textContent = `Tournament Winner: ${winner}!`;
+        const messageElement = gameOverMessage.querySelector('h2');
+        messageElement.className = 'text-white text-center display-8 font-monospace';
+        messageElement.textContent = `Tournament Winner: ${winner}!`;
         gameOverMessage.classList.remove('d-none');
         setTimeout(() => {
             window.location.href = '/';
