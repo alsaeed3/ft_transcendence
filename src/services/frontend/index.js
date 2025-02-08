@@ -409,20 +409,135 @@ document.getElementById('play-ai-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('create-tournament-btn').addEventListener('click', async () => {
+    if (!accessToken) {
+        window.location.href = '/';
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE}tournaments/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({ name: 'New Tournament', participants: [] })
-        });
+        // Load and show tournament setup page
+        const response = await fetch('/src/assets/components/tournament-setup.html');
+        const html = await response.text();
         
-        if (!response.ok) throw new Error('Tournament creation failed');
-        alert('Tournament created successfully!');
+        const setupDiv = document.createElement('div');
+        setupDiv.id = 'tournament-setup-page';
+        setupDiv.classList.add('page', 'active-page');
+        setupDiv.innerHTML = html;
+        
+        document.getElementById('main-page').classList.remove('active-page');
+        document.body.appendChild(setupDiv);
+
+        // Setup player selection
+        function selectPlayers(count) {
+            const inputsContainer = document.getElementById('playerInputs');
+            const buttons = document.querySelectorAll('.player-count-btn');
+            
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
+            });
+            
+            inputsContainer.innerHTML = '';  // Clear existing fields
+            
+            // Add player input fields
+            for (let i = 2; i <= count; i++) {
+                const div = document.createElement('div');
+                div.className = 'mb-3';
+                div.innerHTML = `
+                    <label for="player${i}" class="form-label">Player ${i} Nickname</label>
+                    <input type="text" class="form-control" id="player${i}" name="player${i}" required>
+                `;
+                inputsContainer.appendChild(div);
+            }
+        }
+
+        // Initialize with 4 players and setup event listeners
+        selectPlayers(4);
+        document.querySelectorAll('.player-count-btn').forEach(button => {
+            button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
+        });
+
+        // Setup form validation and submission
+        const setupForm = document.getElementById('tournamentForm');
+        setupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const inputs = [
+                document.getElementById('currentPlayer'),
+                ...document.querySelectorAll('#playerInputs input')
+            ];
+            const players = [];
+            let hasError = false;
+            const errorMessages = new Set();
+
+            // Validate all inputs
+            inputs.forEach(input => {
+                const nickname = input.value.trim();
+                
+                if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
+                    hasError = true;
+                    input.classList.add('is-invalid');
+                    if (!nickname) errorMessages.add('All player nicknames are required');
+                    if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
+                    if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
+                    if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
+                    return;
+                }
+                
+                input.classList.remove('is-invalid');
+                players.push(nickname);
+            });
+
+            if (hasError) {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger mt-3';
+                alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+                const existingAlert = document.querySelector('.alert');
+                if (existingAlert) existingAlert.remove();
+                setupForm.insertBefore(alert, setupForm.firstChild);
+                return;
+            }
+
+            // Update username and start tournament
+            try {
+                // Store player nicknames
+                localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+                
+                // Load and show tournament game
+                const pongResponse = await fetch('/src/assets/components/pong.html');
+                setupDiv.remove();
+                
+                const gameDiv = document.createElement('div');
+                gameDiv.id = 'game-page';
+                gameDiv.classList.add('page', 'active-page');
+                gameDiv.innerHTML = await pongResponse.text();
+                document.body.appendChild(gameDiv);
+
+                requestAnimationFrame(() => {
+                    if (typeof initGame === 'function') initGame('TOURNAMENT');
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to start tournament');
+            }
+        });
+
+        // Setup cancel and input handlers
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            setupDiv.remove();
+            document.getElementById('main-page').classList.add('active-page');
+        });
+
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('#playerInputs input, #currentPlayer')) {
+                e.target.classList.remove('is-invalid');
+                const alert = document.querySelector('.alert');
+                if (alert) alert.remove();
+            }
+        });
+
     } catch (error) {
-        alert(error.message);
+        console.error('Error loading tournament setup:', error);
+        alert('Failed to load the tournament setup');
     }
 });
 
