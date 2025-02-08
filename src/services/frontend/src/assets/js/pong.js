@@ -38,7 +38,7 @@ function initGame(mode = 'AI') {
 
     // Add username variables
     let username = '';
-    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'Computer';
+    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'AI';
 
     // Fetch username at start
     async function fetchUsername() {
@@ -115,12 +115,23 @@ function initGame(mode = 'AI') {
             gameActive = false;
             const winner = playerScore > computerScore ? 
                 `${username} WINS` : 
-                (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
+                (mode === 'PVP' ? `${player2Name} WINS` : 'AI WINS');
             gameOverMessage.querySelector('h2').textContent = winner;
             gameOverMessage.classList.remove('d-none');
             
             // Save match result
-            saveMatchResult(playerScore, computerScore);
+            const matchData = {
+                tournament: null,
+                player1_name: username,
+                player2_name: mode === 'PVP' ? player2Name : 'AI',
+                player1_score: playerScore,
+                player2_score: computerScore,
+                start_time: new Date().toISOString(),
+                end_time: new Date().toISOString(),
+                winner_name: playerScore > computerScore ? username : player2Name,
+                match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
+            };
+            saveMatchResult(matchData);
             
             // Return to main menu after delay
             setTimeout(() => {
@@ -129,7 +140,7 @@ function initGame(mode = 'AI') {
         }
     }
 
-    async function saveMatchResult(playerScore, computerScore) {
+    async function saveMatchResult(matchData) {
         try {
             let currentToken = localStorage.getItem('accessToken');
             if (!currentToken) {
@@ -165,20 +176,6 @@ function initGame(mode = 'AI') {
                 throw new Error('Failed to get user profile');
             }
 
-            const userData = await response.json();
-
-            // Save match with valid token
-            const matchData = {
-                tournament: null,
-                player1: userData.id,
-                player2: userData.id,
-                player1_score: playerScore,
-                player2_score: computerScore,
-                start_time: new Date().toISOString(),
-                end_time: new Date().toISOString(),
-                winner: playerScore > computerScore ? userData.id : userData.id,
-                match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
-            };
 
             const matchResponse = await fetch(`${API_BASE}matches/`, {
                 method: 'POST',
@@ -193,6 +190,31 @@ function initGame(mode = 'AI') {
                 const errorData = await matchResponse.json();
                 console.error('Match save error details:', errorData);
                 throw new Error('Failed to save match result');
+            }
+
+            const userResponse = await fetch(`${API_BASE}users/profile/`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+    
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                const updateData = {
+                    match_wins: userData.match_wins + (playerScore > computerScore ? 1 : 0),
+                    total_matches: userData.total_matches + 1
+                };
+    
+                await fetch(`${API_BASE}users/profile/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
             }
 
             // Store player2 name with match ID

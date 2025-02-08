@@ -20,6 +20,7 @@ COPY . .
 RUN chmod +x /app/tools/entrypoint.sh
 
 RUN mkdir -p /app/media/avatars && chmod 755 /app/media/avatars
+COPY media/avatars/default.svg /app/media/avatars/default.svg
 
 EXPOSE 8000
 
