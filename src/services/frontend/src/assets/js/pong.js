@@ -178,19 +178,44 @@ function initGame(mode = 'AI') {
     function checkWinCondition() {
         if (playerScore >= WINNING_SCORE || computerScore >= WINNING_SCORE) {
             gameActive = false;
-            const winner = playerScore > computerScore ? 
-                `${username} WINS` : 
-                (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
-            gameOverMessage.querySelector('h2').textContent = winner;
-            gameOverMessage.classList.remove('d-none');
             
-            // Save match result
-            saveMatchResult(playerScore, computerScore);
-            
-            // Return to main menu after delay
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 3000);
+            if (mode === 'TOURNAMENT') {
+                const currentPlayers = tournamentBracket[currentRound];
+                const player1 = currentPlayers[currentMatchIndex];
+                const player2 = currentPlayers[currentMatchIndex + 1];
+                
+                // Determine winner and update bracket
+                const winner = playerScore > computerScore ? player1 : player2;
+                tournamentBracket[currentRound][currentMatchIndex] = winner;
+                tournamentBracket[currentRound][currentMatchIndex + 1] = null;
+                
+                if (winner) {
+                    gameOverMessage.querySelector('h2').textContent = `${winner} wins the match!`;
+                } else {
+                    console.error('No winner determined');
+                    gameOverMessage.querySelector('h2').textContent = 'Error: No winner determined';
+                }
+                
+                gameOverMessage.classList.remove('d-none');
+                setTimeout(() => {
+                    gameOverMessage.classList.add('d-none');
+                    startNextTournamentMatch();
+                }, 2000);
+            } else {
+                // Regular PVP/AI win condition
+                const winner = playerScore > computerScore ? 
+                    `${username} WINS` : 
+                    (mode === 'PVP' ? `${player2Name} WINS` : 'COMPUTER WINS');
+                gameOverMessage.querySelector('h2').textContent = winner;
+                gameOverMessage.classList.remove('d-none');
+                
+                // Only save match result for non-tournament games
+                saveMatchResult(playerScore, computerScore);
+                
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+            }
         }
     }
 
@@ -385,19 +410,23 @@ function initGame(mode = 'AI') {
     // Keyboard controls
     document.addEventListener('keydown', (event) => {
         switch(event.key.toLowerCase()) {
-            case 'p':  // Player 1 (right) controls
-                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
+            case 'p':  // Right player controls
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+                    paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
+                }
                 break;
             case 'l':
-                paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {
+                    paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+                }
                 break;
-            case 'w':  // Player 2 (left) controls
-                if (mode === 'PVP') {
+            case 'w':  // Left player controls
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {
                     paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
                 }
                 break;
             case 's':
-                if (mode === 'PVP') {
+                if (mode === 'PVP' || mode === 'TOURNAMENT') {
                     paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
                 }
                 break;
@@ -449,18 +478,117 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
-        const gameModeText = mode === 'AI' ? 'Player vs AI' : 'Player vs Player';
+        let gameModeText;
+        if (mode === 'TOURNAMENT') {
+            gameModeText = 'Tournament Round';
+        } else if (mode === 'AI') {
+            gameModeText = 'Player vs AI';
+        } else {
+            gameModeText = 'Player vs Player';
+        }
         document.getElementById('gameMode').textContent = gameModeText;
         
-        // Set player names - right side is always the main player
-        document.getElementById('rightPlayerName').textContent = username || 'Loading...';
-        document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
+        if (mode === 'TOURNAMENT') {
+            // Tournament mode - players from tournament list
+            const currentPlayers = tournamentBracket[currentRound];
+            if (currentPlayers && currentPlayers.length > currentMatchIndex + 1) {
+                document.getElementById('rightPlayerName').textContent = currentPlayers[currentMatchIndex];
+                document.getElementById('leftPlayerName').textContent = currentPlayers[currentMatchIndex + 1];
+            }
+        } else {
+            // Regular modes - normal player names
+            document.getElementById('rightPlayerName').textContent = username || 'Loading...';
+            document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
+        }
     }
 
-    // Call fetchUsername first, then update game info
-    fetchUsername().then(() => {
+    // Add at the top with other game variables
+    let tournamentPlayers = [];
+    let currentMatchIndex = 0;
+    let currentRound = 0;
+    let tournamentBracket = [];
+
+    function initTournament() {
+        // Get tournament players from localStorage
+        tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
+        currentMatchIndex = 0;
+        currentRound = 0;
+        
+        // Create initial tournament bracket
+        tournamentBracket = [tournamentPlayers];  // First round with all players
+        
+        // Update display for first match
         updateGameInfo();
-    });
+        
+        // Reset scores and ball
+        resetMatch();
+    }
+
+    function startNextTournamentMatch() {
+        currentMatchIndex += 2;
+        
+        // Check if current round is complete
+        if (currentMatchIndex >= tournamentBracket[currentRound].length) {
+            // Prepare next round
+            const currentRoundPlayers = tournamentBracket[currentRound];
+            const winners = [];
+            
+            // Collect winners from current round (only non-null winners)
+            for (let i = 0; i < currentRoundPlayers.length; i += 2) {
+                if (currentRoundPlayers[i] !== null) {
+                    winners.push(currentRoundPlayers[i]);
+                } else if (currentRoundPlayers[i + 1] !== null) {
+                    winners.push(currentRoundPlayers[i + 1]);
+                }
+            }
+            
+            // If we have more than one winner, start next round
+            if (winners.length > 1) {
+                currentRound++;
+                currentMatchIndex = 0;
+                tournamentBracket[currentRound] = winners;
+                updateGameInfo();
+                resetMatch();
+            } else if (winners.length === 1) {
+                // Tournament is complete with one winner
+                endTournament(winners[0]);
+            } else {
+                // Error case - no winners
+                console.error('No winners found in round');
+                endTournament('Error: No winner');
+            }
+        } else {
+            // Continue with next match in current round
+            updateGameInfo();
+            resetMatch();
+        }
+    }
+
+    function resetMatch() {
+        playerScore = 0;
+        computerScore = 0;
+        document.getElementById('rightPlayerScore').textContent = '0';
+        document.getElementById('leftPlayerScore').textContent = '0';
+        resetBall();
+        gameActive = true;
+    }
+
+    function endTournament(winner) {
+        gameOverMessage.querySelector('h2').textContent = `Tournament Winner: ${winner}!`;
+        gameOverMessage.classList.remove('d-none');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 3000);
+    }
+
+    // Initialize based on mode
+    if (mode === 'TOURNAMENT') {
+        initTournament();
+    } else {
+        fetchUsername().then(() => {
+            updateGameInfo();
+        });
+    }
 }
 
 // Initialize when script loads
