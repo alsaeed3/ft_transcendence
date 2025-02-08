@@ -66,7 +66,7 @@ function initGame(mode = 'AI') {
     // AI properties
     let lastAIUpdate = Date.now();
     const AI_UPDATE_INTERVAL = 1000;    // Rule: 1-second refresh rate
-    const AI_DIFFICULTY = 0.5;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
+    const AI_DIFFICULTY = 0.85;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
 
     let aiMoveUp = false;              // Rule: Simulated keyboard
     let aiMoveDown = false;
