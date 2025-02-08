@@ -501,15 +501,14 @@ function initGame(mode = 'AI') {
     let currentMatchIndex = 0;
     let currentRound = 0;
     let tournamentBracket = [];
-    let matchNumber = 1;  // Add this to track match numbers
+    let matchNumber = 1;  // Only used for display
 
     let bracketWinners = {
         '1-2': null,
         '3-4': null,
         '5-6': null,
         '7-8': null,
-        'semi1': null,
-        'semi2': null
+        'semi1': null
     };
 
     function handleMatchEnd(winner) {
@@ -520,7 +519,6 @@ function initGame(mode = 'AI') {
             else if (currentMatchIndex === 6) bracketWinners['7-8'] = winner;
         } else if (currentRound === 1) {
             if (currentMatchIndex === 0) bracketWinners['semi1'] = winner;
-            else bracketWinners['semi2'] = winner;
         }
     }
 
