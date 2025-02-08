@@ -440,17 +440,25 @@ function initGame(mode = 'AI') {
     const targetFPS = 60;
     const frameInterval = 1000 / targetFPS;
 
+    // At the top with other game variables
+    let gameStarted = false;  // Add this to control initial game state
+
+    // Modify game loop to prevent any ball movement before announcement
     function gameLoop(currentTime) {
         if (!lastTime) lastTime = currentTime;
         
         const deltaTime = currentTime - lastTime;
         
-        if (deltaTime >= frameInterval && gameActive) {
-            if (mode === 'AI') {
-                updateAI();  // Only run AI in AI mode
+        if (deltaTime >= frameInterval) {
+            draw();  // Always draw the game state
+            
+            if (gameActive && gameStarted) {  // Only move ball if game has started
+                if (mode === 'AI') {
+                    updateAI();
+                }
+                moveBall();
             }
-            moveBall();
-            draw();
+            
             lastTime = currentTime - (deltaTime % frameInterval);
         }
         
@@ -541,9 +549,10 @@ function initGame(mode = 'AI') {
         updateTournamentDisplay();
     }
 
+    // Modify announceMatch to control game start
     function announceMatch() {
-        // Pause the game
         gameActive = false;
+        gameStarted = false;  // Ensure ball doesn't move
         
         const player1 = tournamentBracket[currentRound][currentMatchIndex];
         const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
@@ -552,7 +561,6 @@ function initGame(mode = 'AI') {
         messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
         gameOverMessage.classList.remove('d-none');
         
-        // Countdown sequence
         let count = 2;
         const countdownInterval = setInterval(() => {
             if (count > 0) {
@@ -563,6 +571,7 @@ function initGame(mode = 'AI') {
                 gameOverMessage.classList.add('d-none');
                 updateGameInfo();
                 resetMatch();
+                gameStarted = true;  // Now allow ball movement
                 gameActive = true;
             }
         }, 1000);
@@ -610,15 +619,44 @@ function initGame(mode = 'AI') {
         }, 3000);
     }
 
-    // Initialize based on mode
+    // Modify initialization
     if (mode === 'TOURNAMENT') {
-        // For tournament mode, skip username fetch entirely
         initTournament();
     } else {
-        // Only fetch username for non-tournament modes
         fetchUsername().then(() => {
             updateGameInfo();
+            setTimeout(() => {
+                announceNormalMatch();
+            }, 100);
         });
+    }
+
+    // Add announceNormalMatch for PVP/AI modes
+    function announceNormalMatch() {
+        gameActive = false;
+        gameStarted = false;  // Ensure ball doesn't move
+        
+        const player1 = mode === 'PVP' ? player2Name : 'Computer';
+        const player2 = username || 'Player';
+        
+        const messageElement = gameOverMessage.querySelector('h2');
+        messageElement.className = 'text-white text-center display-8 font-monospace';
+        messageElement.innerHTML = `${player2} vs ${player1}<br><span class="countdown">Match starting in 3</span>`;
+        gameOverMessage.classList.remove('d-none');
+        
+        let count = 2;
+        const countdownInterval = setInterval(() => {
+            if (count > 0) {
+                messageElement.innerHTML = `${player2} vs ${player1}<br><span class="countdown">Match starting in ${count}</span>`;
+                count--;
+            } else {
+                clearInterval(countdownInterval);
+                gameOverMessage.classList.add('d-none');
+                resetMatch();
+                gameStarted = true;  // Now allow ball movement
+                gameActive = true;
+            }
+        }, 1000);
     }
 
     function updateTournamentDisplay() {
