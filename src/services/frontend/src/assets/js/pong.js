@@ -14,7 +14,7 @@ function initGame(mode = 'AI') {
     let paddleWidth = 15;      // Slightly thinner paddle for better challenge
     let paddleHeight = 100;    // Shorter paddle for better challenge
     let ballRadius = 8;        // Slightly smaller ball
-    let PADDLE_SPEED = 6;      // Faster paddle movement for better control
+    let PADDLE_SPEED = 8;      // Faster paddle movement for better control
     let BALL_SPEED = 6;        // Slightly faster ball for more excitement
 
     // Initialize slider values and ranges
@@ -37,17 +37,19 @@ function initGame(mode = 'AI') {
         paddleSpeedSlider.max = 10;
         paddleSpeedSlider.value = PADDLE_SPEED;
         
-        // Ball Speed slider
+        // Ball Speed slider - disabled for authentic 1972 experience
+        /*
         const ballSpeedSlider = document.getElementById('ballSpeed');
         ballSpeedSlider.min = BALL_SPEED;
         ballSpeedSlider.max = 10;
         ballSpeedSlider.value = BALL_SPEED;
+        */
 
         // Update all display values
         document.getElementById('paddleWidthValue').textContent = paddleWidth;
         document.getElementById('paddleHeightValue').textContent = paddleHeight;
         document.getElementById('paddleSpeedValue').textContent = PADDLE_SPEED;
-        document.getElementById('ballSpeedValue').textContent = BALL_SPEED;
+        // document.getElementById('ballSpeedValue').textContent = BALL_SPEED;
     };
 
     // Call initialization right after setting game settings
@@ -64,7 +66,7 @@ function initGame(mode = 'AI') {
     // AI properties
     let lastAIUpdate = Date.now();
     const AI_UPDATE_INTERVAL = 1000;    // Rule: 1-second refresh rate
-    const AI_DIFFICULTY = 0.75;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
+    const AI_DIFFICULTY = 0.5;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
 
     let aiMoveUp = false;              // Rule: Simulated keyboard
     let aiMoveDown = false;
@@ -118,8 +120,20 @@ function initGame(mode = 'AI') {
                     
                     // Add human error (undershoot) based on difficulty
                     if (Math.random() > AI_DIFFICULTY) {
+                        console.log('AI Decision: MISS');
                         const paddleCenter = paddle1Y + paddleHeight/2;
-                        predictedY = paddleCenter + ((predictedY - paddleCenter) * (0.3 + Math.random() * 0.4));
+                        
+                        // Calculate miss distance based on paddle height
+                        // Miss by moving just enough to make the ball miss the paddle
+                        const missDistance = (paddleHeight/2) + ballRadius + 5; // Just enough to miss
+                        
+                        // If ball is above paddle, miss by staying too low
+                        // If ball is below paddle, miss by staying too high
+                        if (predictedY > paddleCenter) {
+                            predictedY = predictedY - missDistance;  // Miss by not moving up enough
+                        } else {
+                            predictedY = predictedY + missDistance;  // Miss by not moving down enough
+                        }
                     }
                     
                     targetY = predictedY;
@@ -285,6 +299,10 @@ function initGame(mode = 'AI') {
         // Paddle collisions
         if (ballX <= paddleWidth) {
             if (ballY >= paddle1Y && ballY <= paddle1Y + paddleHeight) {
+                // Increase speed on hit (1972-style)
+                const speedIncrease = 1.1;  // 10% faster each hit
+                BALL_SPEED = Math.min(BALL_SPEED * speedIncrease, 15);
+                
                 ballSpeedX = Math.abs(BALL_SPEED);
                 ballSpeedY = ((ballY - (paddle1Y + paddleHeight/2)) / (paddleHeight/2)) * BALL_SPEED;
             } else if (ballX < 0) {
@@ -297,6 +315,10 @@ function initGame(mode = 'AI') {
         
         if (ballX >= canvas.width - paddleWidth) {
             if (ballY >= paddle2Y && ballY <= paddle2Y + paddleHeight) {
+                // Add same speed increase for right paddle
+                const speedIncrease = 1.1;
+                BALL_SPEED = Math.min(BALL_SPEED * speedIncrease, 15);
+                
                 ballSpeedX = -Math.abs(BALL_SPEED);
                 ballSpeedY = ((ballY - (paddle2Y + paddleHeight/2)) / (paddleHeight/2)) * BALL_SPEED;
             } else if (ballX > canvas.width) {
@@ -335,35 +357,27 @@ function initGame(mode = 'AI') {
     }
 
     function resetBall() {
+        // Reset ball speed to initial value when point ends
+        BALL_SPEED = 6;  // Reset to initial speed
+        
         ballX = canvas.width / 2;
         ballY = canvas.height / 2;
         ballSpeedX = BALL_SPEED * (Math.random() < 0.5 ? 1 : -1);
         ballSpeedY = BALL_SPEED * (Math.random() < 0.5 ? 0.5 : -0.5);
-        // Reset AI calculation state when ball is reset
         calculationMade = false;
     }
 
     // Make updateGameSettings available globally
-    window.updateGameSettings = function(newWidth, newHeight, newPaddleSpeed, newBallSpeed) {
+    window.updateGameSettings = function(newWidth, newHeight, newPaddleSpeed) {
         // Update settings
         paddleWidth = newWidth;
         paddleHeight = newHeight;
         PADDLE_SPEED = newPaddleSpeed;
         
-        // Only update ball speed if it actually changed
-        if (BALL_SPEED !== newBallSpeed) {
-            BALL_SPEED = newBallSpeed;
-            // Maintain current direction but update speed
-            const currentAngle = Math.atan2(ballSpeedY, ballSpeedX);
-            ballSpeedX = BALL_SPEED * Math.cos(currentAngle);
-            ballSpeedY = BALL_SPEED * Math.sin(currentAngle);
-        }
-        
         // Update the display values
         document.getElementById('paddleWidthValue').textContent = newWidth;
         document.getElementById('paddleHeightValue').textContent = newHeight;
         document.getElementById('paddleSpeedValue').textContent = newPaddleSpeed;
-        document.getElementById('ballSpeedValue').textContent = newBallSpeed;
     };
 
     // Keyboard controls
@@ -413,7 +427,11 @@ function initGame(mode = 'AI') {
     requestAnimationFrame(gameLoop);
 
     // Add slider event listeners
-    const sliders = ['paddleWidth', 'paddleHeight', 'paddleSpeed', 'ballSpeed'];
+    const sliders = [
+        'paddleWidth', 
+        'paddleHeight', 
+        'paddleSpeed'
+    ];
     sliders.forEach(sliderId => {
         const slider = document.getElementById(sliderId);
         if (slider) {
@@ -421,9 +439,8 @@ function initGame(mode = 'AI') {
                 const width = parseInt(document.getElementById('paddleWidth').value);
                 const height = parseInt(document.getElementById('paddleHeight').value);
                 const pSpeed = parseInt(document.getElementById('paddleSpeed').value);
-                const bSpeed = parseInt(document.getElementById('ballSpeed').value);
                 
-                updateGameSettings(width, height, pSpeed, bSpeed);
+                updateGameSettings(width, height, pSpeed);
             });
         }
     });
