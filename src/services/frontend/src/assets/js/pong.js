@@ -183,22 +183,17 @@ function initGame(mode = 'AI') {
             
             if (mode === 'TOURNAMENT') {
                 const currentPlayers = tournamentBracket[currentRound];
-                const player1 = currentPlayers[currentMatchIndex];
-                const player2 = currentPlayers[currentMatchIndex + 1];
+                const winner = playerScore > computerScore ? 
+                    currentPlayers[currentMatchIndex] : 
+                    currentPlayers[currentMatchIndex + 1];
                 
-                // Determine winner and update bracket
-                const winner = playerScore > computerScore ? player1 : player2;
+                // Update bracket and show result
                 tournamentBracket[currentRound][currentMatchIndex] = winner;
                 tournamentBracket[currentRound][currentMatchIndex + 1] = null;
                 
-                if (winner) {
-                    gameOverMessage.querySelector('h2').textContent = `${winner} wins the match!`;
-                } else {
-                    console.error('No winner determined');
-                    gameOverMessage.querySelector('h2').textContent = 'Error: No winner determined';
-                }
-                
+                gameOverMessage.querySelector('h2').textContent = `${winner} wins the match!`;
                 gameOverMessage.classList.remove('d-none');
+                
                 setTimeout(() => {
                     gameOverMessage.classList.add('d-none');
                     startNextTournamentMatch();
@@ -480,25 +475,14 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
-        let gameModeText;
-        if (mode === 'TOURNAMENT') {
-            gameModeText = 'Tournament Round';
-        } else if (mode === 'AI') {
-            gameModeText = 'Player vs AI';
-        } else {
-            gameModeText = 'Player vs Player';
-        }
-        document.getElementById('gameMode').textContent = gameModeText;
+        document.getElementById('gameMode').textContent = mode === 'TOURNAMENT' ? 
+            `Tournament Match ${matchNumber}` : 
+            (mode === 'AI' ? 'Player vs AI' : 'Player vs Player');
         
-        if (mode === 'TOURNAMENT') {
-            // Tournament mode - players from tournament list
-            const currentPlayers = tournamentBracket[currentRound];
-            if (currentPlayers && currentPlayers.length > currentMatchIndex + 1) {
-                document.getElementById('rightPlayerName').textContent = currentPlayers[currentMatchIndex];
-                document.getElementById('leftPlayerName').textContent = currentPlayers[currentMatchIndex + 1];
-            }
+        if (mode === 'TOURNAMENT' && tournamentBracket[currentRound]?.length > currentMatchIndex + 1) {
+            document.getElementById('rightPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex];
+            document.getElementById('leftPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex + 1];
         } else {
-            // Regular modes - normal player names
             document.getElementById('rightPlayerName').textContent = username || 'Loading...';
             document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
         }
@@ -509,17 +493,15 @@ function initGame(mode = 'AI') {
     let currentMatchIndex = 0;
     let currentRound = 0;
     let tournamentBracket = [];
+    let matchNumber = 1;  // Add this to track match numbers
 
     function initTournament() {
-        // Get tournament players from localStorage
         tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
+        tournamentBracket = [tournamentPlayers];
         currentMatchIndex = 0;
         currentRound = 0;
+        matchNumber = 1;  // Start with first match
         
-        // Create initial tournament bracket
-        tournamentBracket = [tournamentPlayers];  // First round with all players
-        
-        // Don't fetch username for tournament mode, use nicknames directly
         updateGameInfo();
         resetMatch();
     }
@@ -527,38 +509,21 @@ function initGame(mode = 'AI') {
     function startNextTournamentMatch() {
         currentMatchIndex += 2;
         
-        // Check if current round is complete
         if (currentMatchIndex >= tournamentBracket[currentRound].length) {
-            // Prepare next round
-            const currentRoundPlayers = tournamentBracket[currentRound];
-            const winners = [];
+            const winners = tournamentBracket[currentRound].filter(player => player !== null);
             
-            // Collect winners from current round (only non-null winners)
-            for (let i = 0; i < currentRoundPlayers.length; i += 2) {
-                if (currentRoundPlayers[i] !== null) {
-                    winners.push(currentRoundPlayers[i]);
-                } else if (currentRoundPlayers[i + 1] !== null) {
-                    winners.push(currentRoundPlayers[i + 1]);
-                }
-            }
-            
-            // If we have more than one winner, start next round
             if (winners.length > 1) {
                 currentRound++;
                 currentMatchIndex = 0;
                 tournamentBracket[currentRound] = winners;
+                matchNumber++;  // Increment match number
                 updateGameInfo();
                 resetMatch();
-            } else if (winners.length === 1) {
-                // Tournament is complete with one winner
-                endTournament(winners[0]);
             } else {
-                // Error case - no winners
-                console.error('No winners found in round');
-                endTournament('Error: No winner');
+                endTournament(winners[0] || 'No winner');
             }
         } else {
-            // Continue with next match in current round
+            matchNumber++;  // Increment match number
             updateGameInfo();
             resetMatch();
         }
