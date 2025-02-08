@@ -125,11 +125,39 @@ const handleRegister = async (userData) => {
             body: JSON.stringify(userData)
         });
 
-        if (!response.ok) throw new Error('Registration failed');
+        const data = await response.json();
+
+        if (!response.ok) {
+            let errorMessage = '';
+            
+            // Handle each possible error field
+            const errorFields = ['username', 'email', 'password', 'repeat_password'];
+            errorFields.forEach(field => {
+                if (data[field]) {
+                    errorMessage += `${field.charAt(0).toUpperCase() + field.slice(1)}: ${data[field].join('\n')}\n`;
+                }
+            });
+
+            // Handle generic error message
+            if (data.detail) {
+                errorMessage += data.detail;
+            }
+
+            // If no specific error message was found, use a generic one
+            if (!errorMessage) {
+                errorMessage = 'Registration failed. Please try again.';
+            }
+
+            throw new Error(errorMessage.trim());
+        }
+
         alert('Registration successful! Please login.');
         toggleForms();
     } catch (error) {
-        alert(error.message);
+        // Create formatted alert message
+        const errorLines = error.message.split('\n');
+        const formattedError = errorLines.join('\n');
+        alert(formattedError);
     }
 };
 
@@ -267,6 +295,102 @@ const fetchMatchHistory = async () => {
     }
 };
 
+// Add these friend-related functions
+const fetchFriendList = async () => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/friends/`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching friend list:', error);
+        return [];
+    }
+};
+
+const addFriend = async (username) => {
+    try {
+        // First, search for the user by username
+        const searchResponse = await fetchWithAuth(`${API_BASE}users/?username=${username}`);
+        if (!searchResponse.ok) {
+            throw new Error('Failed to find user');
+        }
+        
+        const users = await searchResponse.json();
+        if (!Array.isArray(users) || users.length === 0) {
+            throw new Error('User not found');
+        }
+
+        const user = users[0]; // Get the first matching user
+
+        // Now send the friend request using the found user's ID
+        const response = await fetchWithAuth(`${API_BASE}users/${user.id}/friend-request/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to add friend');
+        }
+
+        await updateFriendListUI();
+        alert('Friend added successfully!');
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
+const removeFriend = async (userId) => {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}users/${userId}/unfriend/`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to remove friend');
+        }
+        await updateFriendListUI();
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
+const updateFriendListUI = async () => {
+    const friends = await fetchFriendList();
+    const friendListBody = document.getElementById('friend-list-body');
+    friendListBody.innerHTML = '';
+
+    friends.forEach(friend => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${friend.display_name || friend.username}</td>
+            <td>
+                <span class="badge ${friend.online_status ? 'bg-success' : 'bg-secondary'}">
+                    ${friend.online_status ? 'Online' : 'Offline'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-danger remove-friend" data-friend-id="${friend.id}">
+                    <i class="bi bi-person-x"></i>
+                </button>
+            </td>
+        `;
+        friendListBody.appendChild(row);
+    });
+
+    // Add event listeners for friend removal
+    document.querySelectorAll('.remove-friend').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            const friendId = e.currentTarget.dataset.friendId;
+            if (confirm('Are you sure you want to remove this friend?')) {
+                await removeFriend(friendId);
+            }
+        });
+    });
+};
+
 // Profile Management
 const loadUpdateProfilePage = async () => {
     showPage(pages.updateProfile);
@@ -378,6 +502,9 @@ const loadMainPage = async () => {
         } else {
             document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
         }
+
+        // Add this at the end of the try block
+        await updateFriendListUI();
     } catch (error) {
         console.error('Error loading main page data:', error);
         if (error.message.includes('401')) {
@@ -395,12 +522,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const inputs = e.target.querySelectorAll('input');
     const userData = {
-        username: inputs[0].value,
-        email: inputs[1].value,
-        password: inputs[2].value,
-        repeat_password: inputs[3].value
+        username: document.getElementById('register-username').value,
+        email: document.getElementById('register-email').value,
+        password: document.getElementById('register-password').value,
+        repeat_password: document.getElementById('register-repeat-password').value
     };
     await handleRegister(userData);
 });
@@ -429,7 +555,7 @@ document.getElementById('back-to-main').addEventListener('click', async (e) => {
 });
 document.getElementById('update-profile-form').addEventListener('submit', handleUpdateProfile);
 
-// Form Toggle
+// Form Togglenessary
 const toggleForms = () => {
     document.getElementById('login-form').classList.toggle('d-none');
     document.getElementById('register-form').classList.toggle('d-none');
@@ -590,6 +716,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (otpInput) {
         otpInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
+    }
+
+    // Add friend button handler
+    const addFriendBtn = document.getElementById('add-friend-btn');
+    if (addFriendBtn) {
+        addFriendBtn.addEventListener('click', async () => {
+            const username = prompt('Enter username to add as friend:');
+            if (username) {
+                await addFriend(username);
+            }
         });
     }
 });
