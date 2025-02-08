@@ -5,8 +5,8 @@ function initGame(mode = 'AI') {
     const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for non-transparent canvas
 
     // Score elements
-    const playerScoreElement = document.getElementById('playerScore');
-    const computerScoreElement = document.getElementById('computerScore');
+    const playerScoreElement = document.getElementById('rightPlayerScore');
+    const computerScoreElement = document.getElementById('leftPlayerScore');
     let playerScore = 0;
     let computerScore = 0;
 
@@ -95,6 +95,8 @@ function initGame(mode = 'AI') {
             if (response.ok) {
                 const userData = await response.json();
                 username = userData.username;
+                // Update the display name immediately after fetching
+                document.getElementById('rightPlayerName').textContent = username;
             }
         } catch (error) {
             console.error('Error fetching username:', error);
@@ -443,6 +445,21 @@ function initGame(mode = 'AI') {
                 updateGameSettings(width, height, pSpeed);
             });
         }
+    });
+
+    // Update game info display
+    function updateGameInfo() {
+        const gameModeText = mode === 'AI' ? 'Player vs AI' : 'Player vs Player';
+        document.getElementById('gameMode').textContent = gameModeText;
+        
+        // Set player names - right side is always the main player
+        document.getElementById('rightPlayerName').textContent = username || 'Loading...';
+        document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
+    }
+
+    // Call fetchUsername first, then update game info
+    fetchUsername().then(() => {
+        updateGameInfo();
     });
 }
 

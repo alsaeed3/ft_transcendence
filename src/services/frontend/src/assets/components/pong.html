@@ -1,33 +1,60 @@
 <div class="container-fluid py-4">
 	<!-- Game Settings Panel -->
-	<div class="row mb-4">
-		<div class="col-md-6 mx-auto">
-			<div class="card">
-				<div class="card-header">
-					<h5 class="mb-0">Game Settings</h5>
+	<div class="row mb-3">
+		<div class="col-md-8 mx-auto">
+			<div class="card bg-dark border border-light">
+				<div class="card-header py-2 bg-primary">
+					<h6 class="mb-0 text-white">Game Settings</h6>
 				</div>
-				<div class="card-body">
+				<div class="card-body p-3">
 					<div class="row g-3">
-						<div class="col-md-6">
-							<label for="paddleWidth" class="form-label">Paddle Width</label>
-							<input type="range" class="form-range" id="paddleWidth">
-							<div class="text-center"><span id="paddleWidthValue"></span></div>
+						<div class="col-md-4">
+							<label for="paddleWidth" class="form-label small text-white mb-1">Paddle Width</label>
+							<input type="range" class="form-range bg-secondary bg-opacity-25 rounded" id="paddleWidth">
+							<div class="text-center small text-light"><span id="paddleWidthValue"></span></div>
 						</div>
-						<div class="col-md-6">
-							<label for="paddleHeight" class="form-label">Paddle Height</label>
-							<input type="range" class="form-range" id="paddleHeight">
-							<div class="text-center"><span id="paddleHeightValue"></span></div>
+						<div class="col-md-4">
+							<label for="paddleHeight" class="form-label small text-white mb-1">Paddle Height</label>
+							<input type="range" class="form-range bg-secondary bg-opacity-25 rounded" id="paddleHeight">
+							<div class="text-center small text-light"><span id="paddleHeightValue"></span></div>
 						</div>
-						<div class="col-md-6">
-							<label for="paddleSpeed" class="form-label">Paddle Speed</label>
-							<input type="range" class="form-range" id="paddleSpeed">
-							<div class="text-center"><span id="paddleSpeedValue"></span></div>
+						<div class="col-md-4">
+							<label for="paddleSpeed" class="form-label small text-white mb-1">Paddle Speed</label>
+							<input type="range" class="form-range bg-secondary bg-opacity-25 rounded" id="paddleSpeed">
+							<div class="text-center small text-light"><span id="paddleSpeedValue"></span></div>
 						</div>
-						<!-- <div class="col-md-6">
-							<label for="ballSpeed" class="form-label">Ball Speed</label>
-							<input type="range" class="form-range" id="ballSpeed">
-							<div class="text-center"><span id="ballSpeedValue"></span></div>
-						</div> -->
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Player Info Card -->
+	<div class="row mb-3">
+		<div class="col-md-6 mx-auto">
+			<div class="card bg-dark border border-primary">
+				<div class="card-body py-2 px-3">
+					<div class="d-flex align-items-center justify-content-between">
+						<!-- Left Player -->
+						<div class="text-center flex-grow-1">
+							<div id="leftPlayerName" class="text-white small mb-1 text-truncate"></div>
+							<div class="bg-primary bg-opacity-10 rounded py-1">
+								<span id="leftPlayerScore" class="h4 mb-0 text-primary fw-bold">0</span>
+							</div>
+						</div>
+						
+						<!-- Game Mode -->
+						<div class="px-3 mx-2 border-start border-end border-secondary">
+							<span id="gameMode" class="badge bg-primary"></span>
+						</div>
+						
+						<!-- Right Player -->
+						<div class="text-center flex-grow-1">
+							<div id="rightPlayerName" class="text-white small mb-1 text-truncate"></div>
+							<div class="bg-primary bg-opacity-10 rounded py-1">
+								<span id="rightPlayerScore" class="h4 mb-0 text-primary fw-bold">0</span>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -37,14 +64,6 @@
 	<!-- Score and Game Canvas -->
 	<div class="row justify-content-center">
 		<div class="col-auto position-relative">
-			<!-- Classic 1972 Pong Scoreboard -->
-			<div class="position-absolute w-100" style="top: 40px;">
-				<div class="d-flex justify-content-between px-5" style="width: 60%; margin: 0 auto;">
-					<span id="computerScore" class="display-3 font-monospace text-white">0</span>
-					<span id="playerScore" class="display-3 font-monospace text-white">0</span>
-				</div>
-			</div>
-			
 			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border-0 bg-black"></canvas>
 			
 			<!-- Game Over Message -->
