@@ -185,7 +185,8 @@
                     <div class="card bg-secondary text-white">
                         <div class="card-body">
                             <h2 class="card-title text-center mb-4">Update Profile</h2>
-                            <form id="update-profile-form">
+                            <!-- Profile Update Form -->
+                            <form id="update-profile-form" class="mb-4">
                                 <div class="mb-3">
                                     <input type="text" class="form-control" id="update-username" placeholder="Username">
                                 </div>
@@ -200,8 +201,23 @@
                                     <input type="file" class="form-control" id="update-avatar" accept="image/*">
                                 </div>
                                 <button type="submit" class="btn btn-primary w-100">Update Profile</button>
-                                <button id="back-to-main" class="btn btn-secondary w-100 mt-2">Back</button>
                             </form>
+
+                            <!-- Add this new 2FA Section -->
+                            <div class="border-top pt-4 mb-4">
+                                <h4 class="text-center mb-3">Two-Factor Authentication</h4>
+                                <div id="2fa-status" class="text-center mb-3">
+                                    <!-- 2FA status will be inserted here by JavaScript -->
+                                </div>
+                                <form id="2fa-toggle-form">
+                                    <div class="mb-3">
+                                        <input type="password" id="2fa-password" class="form-control" placeholder="Confirm Password" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning w-100">Enable/Disable 2FA</button>
+                                </form>
+                            </div>
+
+                            <button id="back-to-main" class="btn btn-secondary w-100">Back to Main</button>
                         </div>
                     </div>
                 </div>

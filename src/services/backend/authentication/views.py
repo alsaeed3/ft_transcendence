@@ -37,25 +37,6 @@ class UserRegistrationView(APIView):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class UserLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(username=username, password=password)
-        
-        if user:
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user': AuthUserSerializer(user).data
-            })
-        return Response(
-            {'error': 'Invalid Credentials'}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
 
 class UserLogoutView(APIView):
     def post(self, request):
@@ -104,7 +85,6 @@ class TwoFactorLoginView(APIView):
                 send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
             except Exception as e:
                 return Response({'error': 'Failed to send OTP'}, status=500)
-            # return Response({'2fa_required': True, 'user': AuthUserSerializer(user).data, 'refresh': str(refresh), 'access': str(refresh.access_token)}, status=202)
             return Response({'2fa_required': True, 'user': AuthUserSerializer(user).data}, status=202)
         # 6. Return tokens
         refresh = RefreshToken.for_user(user)

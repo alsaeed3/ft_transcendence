@@ -12,7 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'display_name', 'avatar', 
             'online_status', 'language_preference', 'email',
             'user_id_42', 'login_42', 'is_42_auth', 
-            'password', 'is_friend', 'friends_count'
+            'password', 'is_friend', 'friends_count', 'is_2fa_enabled'  # Add this field
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False, 'allow_blank': True},
