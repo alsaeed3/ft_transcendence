@@ -613,7 +613,7 @@ class ChatManager {
             
             if (!response.ok) throw new Error('Failed to block user');
             
-            // Update UI
+            // Update UI without reloading the list
             this.updateBlockedStatus(userId, true);
             UIManager.showToast('User blocked successfully', 'success');
             
@@ -621,12 +621,12 @@ class ChatManager {
             if (this.currentChatPartner?.id === userId) {
                 document.getElementById('close-chat').click();
             }
-            
-            // Refresh users list
-            await UserManager.loadUsersList();
+
+            return true;  // Return success
         } catch (error) {
             console.error('Error blocking user:', error);
             UIManager.showToast('Failed to block user', 'danger');
+            return false;
         }
     }
 
@@ -638,15 +638,15 @@ class ChatManager {
             
             if (!response.ok) throw new Error('Failed to unblock user');
             
-            // Update UI
+            // Update UI without reloading the list
             this.updateBlockedStatus(userId, false);
             UIManager.showToast('User unblocked successfully', 'success');
-            
-            // Refresh users list
-            await UserManager.loadUsersList();
+
+            return true;  // Return success
         } catch (error) {
             console.error('Error unblocking user:', error);
             UIManager.showToast('Failed to unblock user', 'danger');
+            return false;
         }
     }
 
@@ -655,6 +655,8 @@ class ChatManager {
         if (userRow) {
             const chatBtn = userRow.querySelector('.chat-btn');
             const blockBtn = userRow.querySelector('.block-btn');
+            const statusBadge = userRow.querySelector(`[data-user-status="${userId}"]`);
+            const wasOnline = statusBadge?.classList.contains('bg-success');
             
             if (isBlocked) {
                 userRow.classList.add('blocked-user');
@@ -666,6 +668,23 @@ class ChatManager {
                 chatBtn.disabled = false;
                 blockBtn.textContent = 'Block';
                 blockBtn.classList.replace('btn-secondary', 'btn-danger');
+            }
+
+            // Preserve online status
+            if (statusBadge) {
+                statusBadge.className = `badge ${wasOnline ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.textContent = wasOnline ? 'Online' : 'Offline';
+            }
+
+            // Update chat header if this is the current chat partner
+            if (this.currentChatPartner?.id === userId) {
+                const chatHeader = document.getElementById('chat-header');
+                if (chatHeader) {
+                    const blockButton = chatHeader.querySelector('#block-user');
+                    if (blockButton) {
+                        blockButton.className = `btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} me-2`;
+                    }
+                }
             }
         }
     }
@@ -742,12 +761,10 @@ class UserManager {
                     <td>${this.escapeHtml(user.username)}</td>
                     <td>
                         <button class="btn btn-primary btn-sm chat-btn me-2" 
-                                onclick="ChatManager.startChat(${user.id}, '${this.escapeHtml(user.username)}')"
                                 ${user.is_blocked ? 'disabled' : ''}>
                             <i class="bi bi-chat-dots"></i> Chat
                         </button>
-                        <button class="btn btn-sm ${user.is_blocked ? 'btn-secondary' : 'btn-danger'} block-btn"
-                                onclick="${user.is_blocked ? 'ChatManager.unblockUser' : 'ChatManager.blockUser'}(${user.id})">
+                        <button class="btn btn-sm ${user.is_blocked ? 'btn-secondary' : 'btn-danger'} block-btn">
                             ${user.is_blocked ? 'Unblock' : 'Block'}
                         </button>
                     </td>
@@ -759,6 +776,28 @@ class UserManager {
                         </span>
                     </td>
                 `;
+
+                // Add event listeners after creating the elements
+                const chatBtn = row.querySelector('.chat-btn');
+                const blockBtn = row.querySelector('.block-btn');
+
+                chatBtn.addEventListener('click', () => {
+                    ChatManager.startChat(user.id, user.username);
+                });
+
+                blockBtn.addEventListener('click', () => {
+                    const isCurrentlyBlocked = user.is_blocked;
+                    if (isCurrentlyBlocked) {
+                        ChatManager.unblockUser(user.id).then(() => {
+                            user.is_blocked = false;  // Update the user state
+                        });
+                    } else {
+                        ChatManager.blockUser(user.id).then(() => {
+                            user.is_blocked = true;  // Update the user state
+                        });
+                    }
+                });
+
                 tableBody.appendChild(row);
             });
         } catch (error) {
