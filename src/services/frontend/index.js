@@ -1,29 +1,23 @@
+const API_BASE = 'https://localhost/api/';
+const RECENT_MATCHES_LIMIT = 3;
+const currentOTPTimer = null;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 class AuthManager {
-    static API_BASE = 'https://localhost/api/';
-    static RECENT_MATCHES_LIMIT = 3;
-    static currentOTPTimer = null;
-    static MAX_RECONNECT_ATTEMPTS = 5;
-    
+
     static accessToken = localStorage.getItem('accessToken');
     static refreshToken = localStorage.getItem('refreshToken');
     static currentUser = null;
 
     static async refreshAccessToken() {
         try {
-            if (!this.refreshToken) {
-                throw new Error("No refresh token available");
-            }
-            const response = await fetch(`${this.API_BASE}token/refresh/`, {
+            const response = await fetch(`${API_BASE}token/refresh/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: this.refreshToken })
             });
             
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("Token refresh response error:", errorData);
-                throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
-            }
+            if (!response.ok) throw new Error('Token refresh failed');
             const data = await response.json();
             this.accessToken = data.access;
             localStorage.setItem('accessToken', this.accessToken);
@@ -36,10 +30,6 @@ class AuthManager {
     }
 
     static async fetchWithAuth(url, options = {}) {
-        if (!this.accessToken) {
-            throw new Error('No access token available');
-        }
-
         let response = await fetch(url, {
             ...options,
             headers: {
@@ -49,75 +39,54 @@ class AuthManager {
         });
 
         if (response.status === 401) {
-            if (!this.refreshToken) {
-                throw new Error('Session expired. Please login again.');
-            }
-            
-            try {
-                const newToken = await this.refreshAccessToken();
-                response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        ...options.headers,
-                        'Authorization': `Bearer ${newToken}`
-                    }
-                });
-            } catch (error) {
-                localStorage.clear();
-                UIManager.showPage(UIManager.pages.landing);
-                throw new Error('Session expired. Please login again.');
-            }
+            const newToken = await this.refreshAccessToken();
+            response = await fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${newToken}`
+                }
+            });
         }
         return response;
     }
 
-    static async handleLogin(username, password) {
+    static async login(username, password) {
         try {
-            const response = await fetch(`${this.API_BASE}auth/login/`, {
+            const response = await fetch(`${API_BASE}auth/login/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
             
+            if (!response.ok) throw new Error('Login failed');
             const data = await response.json();
-
-            if (response.status === 202 && data['2fa_required']) {
-                sessionStorage.setItem('tempUserEmail', data.user.email);
-                UIManager.show2FAForm();
-                this.startOTPTimer();
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
-            }
-
-            // Set tokens before loading main page
             this.accessToken = data.access;
             this.refreshToken = data.refresh;
+            this.currentUser = data.user;
             localStorage.setItem('accessToken', this.accessToken);
             localStorage.setItem('refreshToken', this.refreshToken);
             
-            await this.processSuccessfulAuth(data);
+            await UIManager.loadMainPage();
         } catch (error) {
             console.error('Login error:', error);
-            UIManager.showToast(error.message, 'danger');
+            throw error;
         }
     }
 
     static async register(userData) {
         try {
-            const response = await fetch(`${this.API_BASE}auth/register/`, {
+            const response = await fetch(`${API_BASE}auth/register/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
             });
 
             if (!response.ok) throw new Error('Registration failed');
-            UIManager.showToast('Registration successful! Please login.', 'success');
+            alert('Registration successful! Please login.');
             UIManager.toggleForms();
         } catch (error) {
-            UIManager.showToast(error.message, 'danger');
+            alert(error.message);
         }
     }
 
@@ -187,7 +156,7 @@ class AuthManager {
 
     static async logout() {
         try {
-            await fetch(`${this.API_BASE}auth/logout/`, {
+            await fetch(`${API_BASE}auth/logout/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: this.refreshToken })
@@ -218,6 +187,16 @@ class UIManager {
         document.getElementById('2fa-form').classList.remove('d-none');
     }
 
+    static showPage(page) {
+        Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
+        page.classList.add('active-page');
+    }
+
+    static toggleForms() {
+        document.getElementById('login-form').classList.toggle('d-none');
+        document.getElementById('register-form').classList.toggle('d-none');
+    }
+
     static showLoginForm() {
         document.getElementById('2fa-form').classList.add('d-none');
         document.getElementById('login-form').classList.remove('d-none');
@@ -227,16 +206,6 @@ class UIManager {
             AuthManager.currentOTPTimer = null;
         }
         sessionStorage.removeItem('tempUserEmail');
-    }
-
-    static showPage(page) {
-        Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
-        page.classList.add('active-page');
-    }
-
-    static toggleForms() {
-        document.getElementById('login-form').classList.toggle('d-none');
-        document.getElementById('register-form').classList.toggle('d-none');
     }
 
     static showToast(message, type = 'info') {
@@ -262,7 +231,7 @@ class UIManager {
                     }
                 }
                 // Load user stats
-                await this.loadUserStats(profile);
+                this.loadUserStats(profile);
 
                 // Load users list FIRST
                 await UserManager.loadUsersList();
@@ -349,140 +318,87 @@ class UIManager {
     }
 }
 
-class WebSocketManager {
-    static initSocket(url, handlers) {
-        const socket = new WebSocket(url);
-        socket.onopen = handlers.onOpen;
-        socket.onmessage = handlers.onMessage;
-        socket.onclose = handlers.onClose;
-        socket.onerror = handlers.onError;
-        return socket;
-    }
-}
-
 class ChatManager {
     static chatSocket = null;
     static statusSocket = null;
     static currentChatPartner = null;
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
-    static disconnectTimeout = null;
     static blockedUsers = new Set();
-    static RECONNECT_DELAY = 1000;
-    static DISCONNECT_DELAY = 1000;
-
-    static getWebSocketUrl() {
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        return `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
-    }
 
     static initStatusWebSocket() {
-        if (this.disconnectTimeout) {
-            clearTimeout(this.disconnectTimeout);
-            this.disconnectTimeout = null;
-        }
+        try {
+            // Use the same host as the current page
+            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+            
+            console.log('Connecting to WebSocket:', wsUrl); // Debug log
+            
+            if (this.statusSocket) {
+                this.statusSocket.close();
+            }
 
-        if (this.statusSocket?.readyState === WebSocket.OPEN) {
-            console.log('[WebSocket] Already connected');
-            return;
-        }
-
-        const userBadges = document.querySelectorAll('[data-user-status]');
-        if (userBadges.length === 0) {
-            console.warn('[WebSocket] User list not loaded yet, delaying WebSocket connection');
-            setTimeout(() => this.initStatusWebSocket(), 500);
-            return;
-        }
-
-        const wsUrl = this.getWebSocketUrl();
-        console.log('[WebSocket] Connecting to:', wsUrl);
-
-        this.statusSocket = WebSocketManager.initSocket(wsUrl, {
-            onOpen: () => {
-                console.log('[WebSocket] Connected successfully');
-                this.reconnectAttempts = 0;
-                
-                if (this.statusSocket.readyState === WebSocket.OPEN) {
-                    console.log('[WebSocket] Requesting initial status');
-                    this.statusSocket.send(JSON.stringify({
-                        type: 'request_initial_status'
-                    }));
-                }
-            },
-            onMessage: (event) => {
+            this.statusSocket = new WebSocket(wsUrl);
+            
+            this.statusSocket.onopen = () => {
+                console.log('Status WebSocket connected');
+                // Reset all users to offline initially
+                document.querySelectorAll('[data-user-status]').forEach(badge => {
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Offline';
+                });
+            };
+            
+            this.statusSocket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('[WebSocket] Received message:', data);
+                    console.log('Status WebSocket message:', data);
                     
                     if (data.type === 'initial_status') {
-                        console.log('[WebSocket] Processing initial status. Online users:', data.online_users);
-                        
-                        const badges = document.querySelectorAll('[data-user-status]');
-                        console.log('[WebSocket] Resetting status for', badges.length, 'users');
-                        
-                        badges.forEach(badge => {
-                            const userId = badge.getAttribute('data-user-status');
-                            console.log('[WebSocket] Resetting user', userId, 'to offline');
+                        // Reset all users to offline first
+                        document.querySelectorAll('[data-user-status]').forEach(badge => {
                             badge.className = 'badge bg-secondary';
                             badge.textContent = 'Offline';
                         });
                         
-                        if (Array.isArray(data.online_users)) {
-                            data.online_users.forEach(userId => {
-                                console.log('[WebSocket] Setting user', userId, 'to online');
-                                this.updateUserStatus(userId, true);
-                            });
-                        }
+                        // Update all online users
+                        data.online_users.forEach(userId => {
+                            this.updateUserStatus(userId, true);
+                        });
                     } else if (data.type === 'status_update') {
-                        console.log('[WebSocket] Status update for user:', data.user_id, 'online:', data.online_status);
                         this.updateUserStatus(data.user_id, data.online_status);
                     }
                 } catch (error) {
-                    console.error('[WebSocket] Error handling message:', error);
+                    console.error('Error handling WebSocket message:', error);
                 }
-            },
-            onClose: (event) => {
-                console.log('[WebSocket] Connection closed:', event.code, event.reason);
-                if (this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
-                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-                    console.log(`[WebSocket] Attempting reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${AuthManager.MAX_RECONNECT_ATTEMPTS})`);
-                    this.reconnectTimeout = setTimeout(() => {
-                        if (AuthManager.accessToken) {
-                            this.reconnectAttempts++;
-                            this.initStatusWebSocket();
-                        }
-                    }, delay);
-                }
-            },
-            onError: (error) => {
-                console.error('[WebSocket] Error:', error);
-            }
-        });
+            };
 
-        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
-    }
+            this.statusSocket.onclose = (event) => {
+                console.log('Status WebSocket disconnected:', event.code, event.reason);
+                // Attempt to reconnect after a delay
+                setTimeout(() => {
+                    if (AuthManager.accessToken) {
+                        this.initStatusWebSocket();
+                    }
+                }, 5000);
+            };
 
-    static handleBeforeUnload(event) {
-        if (this.disconnectTimeout) {
-            clearTimeout(this.disconnectTimeout);
-        }
-
-        if (this.statusSocket?.readyState === WebSocket.OPEN) {
-            this.statusSocket.close(1000, 'Page closed');
+            this.statusSocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        } catch (error) {
+            console.error('Error initializing WebSocket:', error);
         }
     }
 
     static updateUserStatus(userId, isOnline) {
-        console.log('[Status] Updating status for user:', userId, 'isOnline:', isOnline);
-        
+        console.log('Updating status:', userId, isOnline); // Debug log
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
         if (statusBadge) {
-            console.log('[Status] Found badge for user:', userId);
-            const oldStatus = statusBadge.textContent;
             statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
             statusBadge.textContent = isOnline ? 'Online' : 'Offline';
-            console.log('[Status] Updated user', userId, 'from', oldStatus, 'to', statusBadge.textContent);
             
+            // Update chat header if this is the current chat partner
             if (this.currentChatPartner && this.currentChatPartner.id === userId) {
                 const chatHeader = document.getElementById('chat-header');
                 const username = statusBadge.getAttribute('data-user-name');
@@ -493,21 +409,11 @@ class ChatManager {
                     </span>
                 `;
             }
-        } else {
-            console.warn('[Status] Badge not found for user:', userId);
-            const allBadges = document.querySelectorAll('[data-user-status]');
-            console.log('[Status] Available badges:', Array.from(allBadges).map(b => ({
-                userId: b.getAttribute('data-user-status'),
-                status: b.textContent
-            })));
         }
     }
 
     static cleanup() {
-        window.removeEventListener('beforeunload', this.handleBeforeUnload.bind(this));
-
         clearTimeout(this.reconnectTimeout);
-        clearTimeout(this.disconnectTimeout);
         this.reconnectAttempts = 0;
         
         if (this.statusSocket) {
@@ -518,19 +424,6 @@ class ChatManager {
             this.chatSocket.close();
             this.chatSocket = null;
         }
-    }
-
-    static async handleReconnection() {
-        if (this.disconnectTimeout) {
-            clearTimeout(this.disconnectTimeout);
-            this.disconnectTimeout = null;
-        }
-        if (this.reconnectTimeout) {
-            clearTimeout(this.reconnectTimeout);
-            this.reconnectTimeout = null;
-        }
-
-        await this.reconnectAndSync();
     }
 
     static startChat(userId, username) {
@@ -548,7 +441,7 @@ class ChatManager {
         `;
         chatContainer.style.display = 'block';
         
-        const apiHost = new URL(AuthManager.API_BASE).host;
+        const apiHost = new URL(API_BASE).host;
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
         
@@ -567,12 +460,12 @@ class ChatManager {
 
     static async loadPreviousMessages(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/messages/${userId}/`);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/messages/${userId}/`);
             if (!response.ok) throw new Error('Failed to load messages');
             const messages = await response.json();
             
             const messagesContainer = document.getElementById('chat-messages');
-            messagesContainer.innerHTML = '';
+            messagesContainer.innerHTML = ''; // Clear existing messages
             
             messages.forEach(msg => {
                 const messageElement = createChatMessage({
@@ -594,7 +487,7 @@ class ChatManager {
 
     static handleChatMessage(event) {
         const data = JSON.parse(event.data);
-        console.log('WebSocket message data:', data);
+        console.log('WebSocket message data:', data); // Debug log
         if (data.type === 'chat_message') {
             const messagesContainer = document.getElementById('chat-messages');
             const messageElement = createChatMessage({
@@ -613,7 +506,7 @@ class ChatManager {
     }
 
     static handleChatClose() {
-        if (this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
+        if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             this.reconnectTimeout = setTimeout(() => {
                 this.reconnectAttempts++;
                 this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
@@ -634,32 +527,24 @@ class ChatManager {
         }
     }
 
-    static async reconnectAndSync() {
-        try {
-            if (this.statusSocket) {
-                this.statusSocket.close();
-                this.statusSocket = null;
-            }
-
-            const userBadges = document.querySelectorAll('[data-user-status]');
-            if (userBadges.length === 0) {
-                await UserManager.loadUsersList();
-            }
-
-            this.initStatusWebSocket();
-        } catch (error) {
-            console.error('[WebSocket] Error during reconnection:', error);
-        }
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 }
 
 class ProfileManager {
     static async fetchUserProfile() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/me/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const profile = await response.json();
             
+            // Ensure avatar path is correct
             if (profile.avatar) {
                 profile.avatar = profile.avatar.startsWith('/') ? 
                     profile.avatar : `/media/${profile.avatar}`;
@@ -681,38 +566,22 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
-            const data = {
-                username: formData.get('username'),
-                email: formData.get('email'),
-                display_name: formData.get('username'),
-                password: formData.get('password')
-            };
-
-            Object.keys(data).forEach(key => {
-                if (!data[key]) {
-                    delete data[key];
-                }
+            const data = {};
+            formData.forEach((value, key) => {
+                if (value) data[key] = value;
             });
 
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${AuthManager.accessToken}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.username?.[0] || errorData.email?.[0] || errorData.detail || 'Profile update failed');
-            }
-
-            UIManager.showToast('Profile updated successfully!', 'success');
+            if (!response.ok) throw new Error('Profile update failed');
+            alert('Profile updated successfully!');
             UIManager.loadMainPage();
         } catch (error) {
-            console.error('Error updating profile:', error);
-            UIManager.showToast(error.message, 'danger');
+            alert(error.message);
         }
     }
 }
@@ -720,7 +589,7 @@ class ProfileManager {
 class UserManager {
     static async loadUsersList() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/`);
             const users = await response.json();
             
             const tableBody = document.getElementById('users-table-body');
@@ -731,17 +600,17 @@ class UserManager {
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${Utils.escapeHtml(user.username)}</td>
+                    <td>${this.escapeHtml(user.username)}</td>
                     <td>
                         <button class="btn btn-primary btn-sm chat-btn" 
-                                onclick="ChatManager.startChat(${user.id}, '${Utils.escapeHtml(user.username)}')">
+                                onclick="ChatManager.startChat(${user.id}, '${this.escapeHtml(user.username)}')">
                             <i class="bi bi-chat-dots"></i> Chat
                         </button>
                     </td>
                     <td>
                         <span class="badge bg-secondary" 
                               data-user-status="${user.id}"
-                              data-user-name="${Utils.escapeHtml(user.username)}">
+                              data-user-name="${this.escapeHtml(user.username)}">
                             Offline
                         </span>
                     </td>
@@ -753,18 +622,28 @@ class UserManager {
             UIManager.showToast('Error loading users list', 'danger');
         }
     }
+
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 }
 
 class MatchManager {
     static async fetchMatchHistory() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const matches = await response.json();
 
+            // Sort matches by date (most recent first)
             return matches.sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
         } catch (error) {
             console.error('Error fetching matches:', error);
@@ -776,7 +655,7 @@ class MatchManager {
         const container = document.getElementById('match-history');
         container.innerHTML = matches.length ? '' : '<p>No recent matches</p>';
         
-        matches.slice(0, AuthManager.RECENT_MATCHES_LIMIT).forEach(match => {
+        matches.slice(0, RECENT_MATCHES_LIMIT).forEach(match => {
             const matchElement = document.createElement('div');
             matchElement.className = 'mb-2 p-2 bg-dark rounded';
             
@@ -800,35 +679,36 @@ class MatchManager {
 
     static async initializeGame(mode, opponent = null) {
         try {
-            if (mode === 'PVP') {
-                const setupResponse = await fetch('/src/assets/components/player2-setup.html');
-                const setupHtml = await setupResponse.text();
-                
-                document.getElementById('main-page').classList.remove('active-page');
-                
-                let setupDiv = document.getElementById('setup-page');
-                if (!setupDiv) {
-                    setupDiv = document.createElement('div');
-                    setupDiv.id = 'setup-page';
-                    document.body.appendChild(setupDiv);
-                }
-                setupDiv.className = 'page active-page';
-                setupDiv.innerHTML = setupHtml;
+            const currentUser = AuthManager.currentUser;
+            const player2Name = mode === 'PVP' ? 
+                localStorage.getItem('player2Name') || 'Player 2' : 
+                'AI';
 
-                document.getElementById('player2-setup-form')?.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const player2Name = document.getElementById('player2-name').value;
-                    localStorage.setItem('player2Name', player2Name);
-                    setupDiv.remove();
-                    await this.startGame(mode, player2Name);
-                });
+            const payload = {
+                player1_name: currentUser.username,
+                player2_name: player2Name,
+                player1_score: 0,
+                player2_score: 0,
+                tournament: null
+            };
 
-                document.getElementById('cancel-btn')?.addEventListener('click', () => {
-                    setupDiv.remove();
-                    document.getElementById('main-page').classList.add('active-page');
-                });
-            } else {
-                await this.startGame(mode);
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error('Failed to initialize game');
+            const matchData = await response.json();
+
+            // Initialize the game canvas and start the game
+            const gameCanvas = document.getElementById('game-canvas');
+            if (gameCanvas) {
+                // Initialize game with matchData
+                window.initializeGame(matchData);
+                UIManager.showToast(`${mode.toUpperCase()} match started!`, 'success');
             }
         } catch (error) {
             console.error('Error initializing game:', error);
@@ -836,61 +716,9 @@ class MatchManager {
         }
     }
 
-    static async startGame(mode, player2Name = null) {
-        try {
-            const response = await fetch('/src/assets/components/pong.html');
-            const html = await response.text();
-            
-            let gameDiv = document.getElementById('game-page');
-            if (!gameDiv) {
-                gameDiv = document.createElement('div');
-                gameDiv.id = 'game-page';
-                document.body.appendChild(gameDiv);
-            }
-            gameDiv.className = 'page active-page';
-            gameDiv.innerHTML = html;
-
-            const currentUser = AuthManager.currentUser;
-            const matchData = {
-                player1_name: currentUser.username,
-                player2_name: mode === 'PVP' ? 
-                    player2Name || 'Player 2' : 
-                    'AI',
-                player1_score: 0,
-                player2_score: 0,
-                tournament: null
-            };
-
-            const matchResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(matchData)
-            });
-
-            if (!matchResponse.ok) throw new Error('Failed to initialize game');
-            const match = await matchResponse.json();
-
-            requestAnimationFrame(() => {
-                if (typeof window.initGame === 'function') {
-                    window.initGame(mode, match);
-                } else {
-                    console.error('Game initialization function not found');
-                    UIManager.showToast('Failed to start game', 'danger');
-                }
-            });
-
-            UIManager.showToast(`${mode.toUpperCase()} match started!`, 'success');
-        } catch (error) {
-            console.error('Error starting game:', error);
-            UIManager.showToast('Failed to start game', 'danger');
-        }
-    }
-
     static async createTournament() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}tournaments/create/`, {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}tournaments/create/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -924,7 +752,7 @@ class MatchManager {
                 end_time: new Date().toISOString()
             };
 
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -932,7 +760,10 @@ class MatchManager {
                 body: JSON.stringify(matchData)
             });
 
-            if (!response.ok) throw new Error('Failed to save match');
+            if (!response.ok) {
+                throw new Error('Failed to save match');
+            }
+
             return await response.json();
         } catch (error) {
             console.error('Error saving match:', error);
@@ -942,27 +773,17 @@ class MatchManager {
     }
 }
 
+// Initialize event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    // Auth related listeners
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const [username, password] = e.target.querySelectorAll('input');
-        await AuthManager.handleLogin(username.value, password.value);
-    });
-
-    document.getElementById('register-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const inputs = e.target.querySelectorAll('input');
-        const userData = {
-            username: inputs[0].value,
-            email: inputs[1].value,
-            password: inputs[2].value,
-            repeat_password: inputs[3].value
-        };
-        await AuthManager.register(userData);
-    });
-
-    document.getElementById('logout-btn')?.addEventListener('click', () => {
-        AuthManager.logout();
+        try {
+            await AuthManager.login(username.value, password.value);
+        } catch (error) {
+            UIManager.showToast('Login failed', 'danger');
+        }
     });
 
     document.getElementById('2fa-form')?.addEventListener('submit', async (e) => {
@@ -975,68 +796,181 @@ document.addEventListener('DOMContentLoaded', () => {
         await AuthManager.verify2FA(otp);
     });
 
-    document.getElementById('register-link')?.addEventListener('click', UIManager.toggleForms);
-    document.getElementById('login-link')?.addEventListener('click', UIManager.toggleForms);
-
-    document.getElementById('play-player-btn')?.addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            UIManager.showToast('Please login to play', 'warning');
-            return;
-        }
-        await MatchManager.initializeGame('PVP');
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const inputs = e.target.querySelectorAll('input');
+        const userData = {
+            username: inputs[0].value,
+            email: inputs[1].value,
+            password: inputs[2].value,
+            repeat_password: inputs[3].value
+        };
+        await AuthManager.register(userData);
     });
 
-    document.getElementById('play-ai-btn')?.addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            UIManager.showToast('Please login to play', 'warning');
-            return;
-        }
-        await MatchManager.initializeGame('AI');
+    document.getElementById('logout-btn').addEventListener('click', () => AuthManager.logout());
+
+    // Form toggle listeners
+    document.getElementById('register-link').addEventListener('click', UIManager.toggleForms);
+    document.getElementById('login-link').addEventListener('click', UIManager.toggleForms);
+
+    // Profile listeners
+    document.getElementById('update-profile-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        ProfileManager.updateProfile(formData);
     });
 
-    document.getElementById('create-tournament-btn')?.addEventListener('click', MatchManager.createTournament);
-
-    if (AuthManager.accessToken) {
-        UIManager.loadMainPage();
-    } else {
-        UIManager.showPage(UIManager.pages.landing);
-    }
-
-    const otpInput = document.getElementById('otp-input');
-    if (otpInput) {
-        otpInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-        });
-    }
-
-    document.getElementById('send-button')?.addEventListener('click', () => {
+    // Chat related listeners
+    document.getElementById('send-button').addEventListener('click', () => {
         ChatManager.sendMessage();
     });
 
-    document.getElementById('message-input')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+    document.getElementById('message-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
             e.preventDefault();
             ChatManager.sendMessage();
         }
     });
 
-    document.getElementById('user-profile')?.addEventListener('click', () => {
-        UIManager.loadUpdateProfilePage();
-    });
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            ChatManager.handleReconnection();
+    document.getElementById('toggle-chat').addEventListener('click', () => {
+        const chatContainer = document.getElementById('chat-container');
+        const chatBody = chatContainer.querySelector('.card-body');
+        const icon = document.querySelector('#toggle-chat i');
+        
+        if (chatBody.style.display !== 'none') {
+            chatBody.style.display = 'none';
+            icon.className = 'bi bi-chevron-up';
+            chatContainer.style.transform = 'translateY(calc(100% - 38px))';
+        } else {
+            chatBody.style.display = 'block';
+            icon.className = 'bi bi-dash-lg';
+            chatContainer.style.transform = 'none';
         }
     });
 
-    window.addEventListener('online', () => {
-        ChatManager.handleReconnection();
+    // Profile related listeners
+    document.getElementById('user-profile').addEventListener('click', () => {
+        UIManager.showPage(UIManager.pages.updateProfile);
     });
 
-    window.addEventListener('offline', () => {
-        if (ChatManager.statusSocket) {
-            ChatManager.statusSocket.close();
+    document.getElementById('back-to-main').addEventListener('click', (e) => {
+        e.preventDefault();
+        UIManager.showPage(UIManager.pages.main);
+    });
+
+    // Game related listeners
+    document.getElementById('play-player-btn').addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+    
+        try {
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show setup page
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+    
+            // Add event listeners after adding to DOM
+            const setupForm = document.getElementById('player2-setup-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+    
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const player2Name = document.getElementById('player2-name').value;
+                localStorage.setItem('player2Name', player2Name);
+    
+                // Load pong game
+                const pongResponse = await fetch('/src/assets/components/pong.html');
+                const pongHtml = await pongResponse.text();
+                
+                // Remove setup page
+                setupDiv.remove();
+                
+                // Create and show game page
+                const gameDiv = document.createElement('div');
+                gameDiv.id = 'game-page';
+                gameDiv.classList.add('page', 'active-page');
+                gameDiv.innerHTML = pongHtml;
+                document.body.appendChild(gameDiv);
+    
+                // Initialize PvP game
+                requestAnimationFrame(() => {
+                    if (typeof initGame === 'function') {
+                        initGame('PVP');
+                    }
+                });
+            });
+    
+            cancelBtn.addEventListener('click', () => {
+                setupDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+    
+        } catch (error) {
+            console.error('Error loading setup page:', error);
+            alert('Failed to load the setup page');
+        }
+    });
+    
+    document.getElementById('play-ai-btn').addEventListener('click', async () => {
+        // Check if user is logged in
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+    
+        try {
+            const response = await fetch('/src/assets/components/pong.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show game page
+            const gameDiv = document.createElement('div');
+            gameDiv.id = 'game-page';
+            gameDiv.classList.add('page', 'active-page');
+            gameDiv.innerHTML = html;
+            document.body.appendChild(gameDiv);
+    
+            // Initialize game immediately after canvas is available
+            requestAnimationFrame(() => {
+                if (typeof initGame === 'function') {
+                    initGame();
+                }
+            }, 100);
+    
+        } catch (error) {
+            console.error('Error loading game:', error);
+            alert('Failed to load the game');
+        }
+    });
+    
+    document.getElementById('create-tournament-btn').addEventListener('click', async () => {
+        try {
+            const response = await fetch(`${API_BASE}tournaments/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${AuthManager.accessToken}`
+                },
+                body: JSON.stringify({ name: 'New Tournament', participants: [] })
+            });
+            
+            if (!response.ok) throw new Error('Tournament creation failed');
+            alert('Tournament created successfully!');
+        } catch (error) {
+            alert(error.message);
         }
     });
 });
@@ -1126,12 +1060,12 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
-window.AuthManager = AuthManager;
-window.UIManager = UIManager;
-window.ChatManager = ChatManager;
-window.ProfileManager = ProfileManager;
-window.UserManager = UserManager;
-window.MatchManager = MatchManager;
+// window.AuthManager = AuthManager;
+// window.UIManager = UIManager;
+// window.ChatManager = ChatManager;
+// window.ProfileManager = ProfileManager;
+// window.UserManager = UserManager;
+// window.MatchManager = MatchManager;
 
 if (AuthManager.accessToken) {
     UIManager.loadMainPage();
@@ -1151,6 +1085,42 @@ class Utils {
             .replace(/'/g, "&#039;");
     }
 }
+
+// Add preloading for default avatar
+function preloadDefaultAvatar() {
+    const img = new Image();
+    img.src = '/media/avatars/default.svg';
+}
+
+// Update the profile display function
+function updateProfileDisplay(profile) {
+    document.getElementById('username-display').textContent = profile.username;
+    const profileAvatar = document.getElementById('profile-avatar');
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        profileAvatar.src = url;
+    };
+    
+    profileAvatar.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            // If all retries fail, show initials
+            profileAvatar.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = profile.username.charAt(0).toUpperCase();
+            profileAvatar.parentNode.insertBefore(placeholder, profileAvatar);
+        }
+    };
+    
+    loadAvatar(profile.avatar_url || '/media/avatars/default.svg');
+}
+
 
 class ToastManager {
     static show(message, type = 'info') {
