@@ -3,15 +3,19 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from django.http import HttpResponse, JsonResponse
 from users.models import User
-from .serializers import AuthUserSerializer, UserRegistrationSerializer
+from .serializers import AuthUserSerializer, UserRegistrationSerializer, TwoFactorToggleSerializer, TwoFactorVerifySerializer
 from django.core.exceptions import ObjectDoesNotExist
 from urllib.parse import urlencode
 from django.shortcuts import redirect
 import requests
 import os
+from django.core.mail import send_mail # 2FA
+from django.conf import settings
+
+User = get_user_model()
 
 class UserRegistrationView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -33,25 +37,6 @@ class UserRegistrationView(APIView):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class UserLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(username=username, password=password)
-        
-        if user:
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user': AuthUserSerializer(user).data
-            })
-        return Response(
-            {'error': 'Invalid Credentials'}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
 
 class UserLogoutView(APIView):
     def post(self, request):
@@ -65,6 +50,95 @@ class UserLogoutView(APIView):
                 {'error': str(e)}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+# /////////////////// 42FA ////////////////////////////
+
+
+class TwoFactorLoginView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        # 1. Check if user exists
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid credentials'}, status=401)
+
+        # 2. Block OAuth users
+        if user.is_42_auth:
+            return Response({'error': 'Use 42 OAuth login'}, status=400)
+
+        # 4. Authenticate
+        authenticated_user = authenticate(username=username, password=password)
+        if not authenticated_user:
+            return Response({'error': 'Invalid credentials'}, status=401)
+
+        # 5. Handle 2FA
+        if user.is_2fa_enabled:
+            otp = user.generate_otp()
+            subject = 'Your Security Code'
+            message = f'OTP: {otp}'
+            refresh = RefreshToken.for_user(user)
+            try:
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+            except Exception as e:
+                return Response({'error': 'Failed to send OTP'}, status=500)
+            return Response({'2fa_required': True, 'user': AuthUserSerializer(user).data}, status=202)
+        # 6. Return tokens
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': AuthUserSerializer(user).data
+        })
+
+
+class TwoFactorVerifyView(APIView):
+    """Verify 2FA OTP"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = TwoFactorVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            user = User.objects.get(email=request.data['email'])
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if user.is_otp_valid(serializer.validated_data['otp']):
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': AuthUserSerializer(user).data
+            })
+        return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class TwoFactorToggleView(APIView):
+    """Enable/disable 2FA (requires authentication)"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = TwoFactorToggleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        if not user.check_password(serializer.validated_data['password']):
+            return Response({'error': 'Invalid password'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        user.is_2fa_enabled = not user.is_2fa_enabled
+        user.save()
+        return Response({
+            'status': '2FA enabled' if user.is_2fa_enabled else '2FA disabled'
+        })
+
+
+
 
 
 # /////////////////// 42 auth //////////////////////////

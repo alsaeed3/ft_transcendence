@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pong Game</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         .page { display: none; }
         .active-page { display: block; }
@@ -36,19 +37,38 @@
 
                             <form id="register-form" class="d-none">
                                 <div class="mb-3">
-                                    <input type="text" class="form-control" placeholder="Username" required>
+                                    <input type="text" class="form-control" id="register-username" name="username" placeholder="Username" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="email" class="form-control" placeholder="Email" required>
+                                    <input type="email" class="form-control" id="register-email" name="email" placeholder="Email" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="password" class="form-control" placeholder="Password" required>
+                                    <input type="password" class="form-control" id="register-password" name="password" placeholder="Password" required>
                                 </div>
                                 <div class="mb-3">
-                                    <input type="password" class="form-control" placeholder="Repeat Password" required>
+                                    <input type="password" class="form-control" id="register-repeat-password" name="repeat_password" placeholder="Repeat Password" required>
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">Register</button>
                                 <a href="#" id="login-link" class="text-white d-block text-center mt-2">Back to Login</a>
+                            </form>
+
+                            <form id="2fa-form" class="d-none">
+                                <div class="mb-3">
+                                    <h4 class="text-center">Two-Factor Authentication</h4>
+                                    <p class="text-center">Please enter the verification code sent to your email</p>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="otp-input" 
+                                           placeholder="Enter 6-digit code" 
+                                           maxlength="6" 
+                                           pattern="[0-9]*" 
+                                           required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 mb-3">Verify</button>
+                                <button type="button" id="back-to-login" class="btn btn-secondary w-100">Back to Login</button>
+                                <div class="text-center mt-2">
+                                    <small class="text-white">Code expires in <span id="otp-timer">5:00</span></small>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -62,45 +82,17 @@
             <div class="container">
                 <a class="navbar-brand" href="#">Pong</a>
                 <div class="ms-auto d-flex align-items-center">
+                    <!-- User Profile -->
                     <div id="user-profile" class="me-3" style="cursor: pointer;">
-                        <img src="avatar.webp" alt="Avatar" class="rounded-circle" style="width: 40px; height: 40px;">
-                        <span id="username-display" class="text-white ms-2">Username</span>
+                        <div class="d-flex align-items-center">
+                            <img id="profile-avatar" src="avatar.webp" alt="Avatar" class="rounded-circle" style="width: 40px; height: 40px;">
+                            <span id="username-display" class="text-white ms-2">Username</span>
+                        </div>
                     </div>
                     <button class="btn btn-danger" id="logout-btn">Logout</button>
                 </div>
             </div>
         </nav>
-
-        <!-- Update Profile Form -->
-        <div id="update-profile-page" class="page">
-            <div class="container min-vh-100 d-flex flex-column justify-content-center">
-                <div class="row justify-content-center">
-                    <div class="col-md-6 col-lg-4">
-                        <div class="card bg-secondary text-white">
-                            <div class="card-body">
-                                <h2 class="card-title text-center mb-4">Update Profile</h2>
-                                <form id="update-profile-form">
-                                    <div class="mb-3">
-                                        <input type="text" class="form-control" id="update-username" placeholder="Username" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <input type="email" class="form-control" id="update-email" placeholder="Email" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <input type="password" class="form-control" id="update-password" placeholder="New Password">
-                                    </div>
-                                    <div class="mb-3">
-                                        <input type="file" class="form-control" id="update-avatar" accept="image/*">
-                                    </div>
-                                    <button type="submit" class="btn btn-primary w-100">Update</button>
-                                    <a href="#" id="back-to-main" class="text-white d-block text-center mt-2">Back to Main</a>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <div class="container mt-4">
             <div class="row">
@@ -153,11 +145,88 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Friend List -->
+                <div class="col-md-3 mb-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex justify-content-between align-items-center">
+                                Friend List
+                                <button id="add-friend-btn" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-person-plus"></i>
+                                </button>
+                            </h5>
+                            <div id="friend-list">
+                                <table class="table table-dark table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="friend-list-body">
+                                        <!-- Friend rows will be dynamically inserted here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- Close main-page div -->
+
+    <!-- Update Profile Page -->
+    <div id="update-profile-page" class="page">
+        <div class="container min-vh-100 d-flex flex-column justify-content-center">
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h2 class="card-title text-center mb-4">Update Profile</h2>
+                            <!-- Profile Update Form -->
+                            <form id="update-profile-form" class="mb-4">
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" id="update-username" placeholder="Username">
+                                </div>
+                                <div class="mb-3">
+                                    <input type="email" class="form-control" id="update-email" placeholder="Email">
+                                </div>
+                                <div class="mb-3">
+                                    <input type="password" class="form-control" id="update-password" placeholder="New Password (optional)">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="update-avatar" class="form-label">Avatar</label>
+                                    <input type="file" class="form-control" id="update-avatar" accept="image/*">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Update Profile</button>
+                            </form>
+
+                            <!-- Add this new 2FA Section -->
+                            <div class="border-top pt-4 mb-4">
+                                <h4 class="text-center mb-3">Two-Factor Authentication</h4>
+                                <div id="2fa-status" class="text-center mb-3">
+                                    <!-- 2FA status will be inserted here by JavaScript -->
+                                </div>
+                                <form id="2fa-toggle-form">
+                                    <div class="mb-3">
+                                        <input type="password" id="2fa-password" class="form-control" placeholder="Confirm Password" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning w-100">Enable/Disable 2FA</button>
+                                </form>
+                            </div>
+
+                            <button id="back-to-main" class="btn btn-secondary w-100">Back to Main</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="/src/assets/js/pong.js"></script>
     <script src="index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

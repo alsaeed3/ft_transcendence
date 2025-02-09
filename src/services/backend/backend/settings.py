@@ -173,6 +173,8 @@ USE_I18N = True
 
 USE_TZ = True
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = '/app/media'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
@@ -194,3 +196,13 @@ FT_CLIENT_SECRET = get_env_variable('FT_CLIENT_SECRET')
 FT_REDIRECT_URI = get_env_variable('FT_REDIRECT_URI')
 LOGIN_URL = '/login'
 FT_AUTH0_DOMAIN= get_env_variable('FT_AUTH0_DOMAIN') 
+
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.sendinblue.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
