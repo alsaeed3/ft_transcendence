@@ -1281,13 +1281,9 @@ function createChatMessage(message) {
         showUserProfile(e.target.getAttribute('data-user-id'));
     });
     
-    if (isSentByMe) {
-        messageWrapper.appendChild(messageContent);
-        messageWrapper.appendChild(avatarContainer);
-    } else {
-        messageWrapper.appendChild(avatarContainer);
-        messageWrapper.appendChild(messageContent);
-    }
+    // Always add avatar first, then message content
+    messageWrapper.appendChild(avatarContainer);
+    messageWrapper.appendChild(messageContent);
     
     return messageWrapper;
 }
