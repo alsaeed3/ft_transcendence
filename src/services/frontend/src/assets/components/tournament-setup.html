@@ -1,0 +1,102 @@
+<div class="container min-vh-100 d-flex justify-content-center align-items-center">
+    <div class="card bg-dark text-white" style="width: 400px;">
+        <div class="card-header text-center">
+            <h4>Tournament Setup</h4>
+        </div>
+        <div class="card-body">
+            <!-- Player Count Selection -->
+            <div class="mb-3">
+                <label class="form-label">Number of Players</label>
+                <div class="btn-group w-100 mb-3">
+                    <button class="btn btn-primary active player-count-btn" data-count="4">4 Players</button>
+                    <button class="btn btn-primary player-count-btn" data-count="8">8 Players</button>
+                </div>
+            </div>
+
+            <form id="tournamentForm">
+                <div class="mb-3">
+                    <label for="currentPlayer" class="form-label">Player 1 (You)</label>
+                    <input type="text" class="form-control" id="currentPlayer" required>
+                </div>
+                <div id="playerInputs"></div>
+                <button type="submit" class="btn btn-primary w-100 mb-3">Start Tournament</button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary w-100">Cancel</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('tournamentForm');
+    const playerInputs = document.getElementById('playerInputs');
+    const playerCountBtns = document.querySelectorAll('.player-count-btn');
+
+    // Clear any existing tournament data when setup page loads
+    localStorage.removeItem('tournamentPlayers');
+
+    // Handle player count button clicks
+    playerCountBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Remove active class from all buttons
+            playerCountBtns.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Update player input fields
+            const count = parseInt(this.dataset.count);
+            updatePlayerInputs(count);
+        });
+    });
+
+    function updatePlayerInputs(count) {
+        playerInputs.innerHTML = '';
+        // Skip player 1 as it's already in the form
+        for (let i = 2; i <= count; i++) {
+            playerInputs.innerHTML += `
+                <div class="mb-3">
+                    <label for="player${i}" class="form-label">Player ${i}</label>
+                    <input type="text" class="form-control" id="player${i}" required>
+                </div>
+            `;
+        }
+    }
+
+    // Initialize with default player count (4)
+    updatePlayerInputs(4);
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const players = [];
+        const playerCount = parseInt(document.querySelector('.player-count-btn.active').dataset.count);
+        
+        // Add current player (Player 1)
+        const player1 = document.getElementById('currentPlayer').value.trim();
+        if (player1) players.push(player1);
+        
+        // Add other players
+        for (let i = 2; i <= playerCount; i++) {
+            const playerInput = document.getElementById(`player${i}`);
+            if (playerInput && playerInput.value.trim()) {
+                players.push(playerInput.value.trim());
+            }
+        }
+
+        if (players.length === playerCount) {
+            // Store players in localStorage
+            localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+            // Redirect to pong game with tournament mode
+            window.location.href = '/pong?mode=TOURNAMENT';
+        }
+    });
+
+    // Handle cancel button
+    document.getElementById('cancelBtn').addEventListener('click', function() {
+        localStorage.removeItem('tournamentPlayers');
+        window.location.href = '/';
+    });
+});
+</script>
+</html> 
