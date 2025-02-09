@@ -1,13 +1,8 @@
-const API_BASE = 'https://localhost/api/';
-const RECENT_MATCHES_LIMIT = 3;
-let currentOTPTimer = null; // Add this at the top with other global variables
-const MAX_RECONNECT_ATTEMPTS = 5;
-
 class AuthManager {
-    static API_BASE = API_BASE;
-    static RECENT_MATCHES_LIMIT = RECENT_MATCHES_LIMIT;
-    static currentOTPTimer = currentOTPTimer;
-    static MAX_RECONNECT_ATTEMPTS = MAX_RECONNECT_ATTEMPTS;
+    static API_BASE = 'https://localhost/api/';
+    static RECENT_MATCHES_LIMIT = 3;
+    static currentOTPTimer = null;
+    static MAX_RECONNECT_ATTEMPTS = 5;
     
     static accessToken = localStorage.getItem('accessToken');
     static refreshToken = localStorage.getItem('refreshToken');
@@ -110,29 +105,6 @@ class AuthManager {
         }
     }
 
-    static async login(username, password) {
-        try {
-            const response = await fetch(`${API_BASE}auth/login/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            
-            if (!response.ok) throw new Error('Login failed');
-            const data = await response.json();
-            this.accessToken = data.access;
-            this.refreshToken = data.refresh;
-            this.currentUser = data.user;
-            localStorage.setItem('accessToken', this.accessToken);
-            localStorage.setItem('refreshToken', this.refreshToken);
-            
-            await UIManager.loadMainPage();
-        } catch (error) {
-            console.error('Login error:', error);
-            throw error;
-        }
-    }
-
     static async register(userData) {
         try {
             const response = await fetch(`${this.API_BASE}auth/register/`, {
@@ -179,7 +151,7 @@ class AuthManager {
                 throw new Error('Session expired. Please login again.');
             }
 
-            const response = await fetch(`${API_BASE}auth/2fa/verify/`, {
+            const response = await this.fetchWithAuth(`${this.API_BASE}auth/2fa/verify/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, otp })
@@ -215,7 +187,7 @@ class AuthManager {
 
     static async logout() {
         try {
-            await fetch(`${API_BASE}auth/logout/`, {
+            await fetch(`${this.API_BASE}auth/logout/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: this.refreshToken })
@@ -268,40 +240,43 @@ class UIManager {
     }
 
     static showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast align-items-center text-white bg-${type} border-0`;
-        toast.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-        new bootstrap.Toast(toast, { autohide: true, delay: 3000 }).show();
-        setTimeout(() => toast.remove(), 3500);
+        ToastManager.show(message, type);
     }
 
     static async loadMainPage() {
+        // Show main page
         this.showPage(this.pages.main);
-
+    
         try {
+            // Get user profile
             const profile = await ProfileManager.fetchUserProfile();
             if (profile) {
                 AuthManager.currentUser = profile;
-                this.updateProfileDisplay(profile);
+
+                // Update UI elements
+                document.getElementById('username-display').textContent = profile.username;
+                if (profile.avatar) {
+                    const profileAvatar = document.getElementById('profile-avatar');
+                    if (profileAvatar) {
+                        profileAvatar.src = profile.avatar || '/media/avatars/default.svg';
+                    }
+                }
+                // Load user stats
                 await this.loadUserStats(profile);
+
+                // Load users list FIRST
                 await UserManager.loadUsersList();
+
+                // THEN initialize chat status socket
                 ChatManager.initStatusWebSocket();
-                
+
+                // Load match history
                 const matches = await MatchManager.fetchMatchHistory();
                 MatchManager.displayMatchHistory(matches);
             }
         } catch (error) {
             console.error('Error loading main page:', error);
-            if (error.message.includes('401')) {
-                window.location.href = '/';
-            }
+            this.showToast('Failed to load user data', 'danger');
         }
     }
 
@@ -347,17 +322,41 @@ class UIManager {
             document.getElementById('update-username').value = profile.username;
             document.getElementById('update-email').value = profile.email;
             
-            if (profile.avatar) {
-                const avatarPreview = document.createElement('img');
-                avatarPreview.src = profile.avatar;
-                avatarPreview.className = 'mb-3 rounded-circle';
-                avatarPreview.style = 'width: 100px; height: 100px;';
-                document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
+            // Add form submission handler
+            const form = document.getElementById('update-profile-form');
+            if (form) {
+                // Remove any existing listeners
+                const newForm = form.cloneNode(true);
+                form.parentNode.replaceChild(newForm, form);
+                
+                newForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    await ProfileManager.updateProfile(formData);
+                });
             }
+
+            // Add back button handler
+            document.getElementById('back-to-main')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showPage(this.pages.main);
+            });
+
         } catch (error) {
             console.error('Error loading profile:', error);
             this.showToast('Failed to load profile data', 'danger');
         }
+    }
+}
+
+class WebSocketManager {
+    static initSocket(url, handlers) {
+        const socket = new WebSocket(url);
+        socket.onopen = handlers.onOpen;
+        socket.onmessage = handlers.onMessage;
+        socket.onclose = handlers.onClose;
+        socket.onerror = handlers.onError;
+        return socket;
     }
 }
 
@@ -367,439 +366,148 @@ class ChatManager {
     static currentChatPartner = null;
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
+    static disconnectTimeout = null;
     static blockedUsers = new Set();
-    static isIntentionallyClosed = false;
+    static RECONNECT_DELAY = 1000;
+    static DISCONNECT_DELAY = 1000;
+
+    static getWebSocketUrl() {
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        return `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+    }
 
     static initStatusWebSocket() {
-        try {
-            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-            const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
-            
-            if (this.statusSocket) {
-                this.statusSocket.close();
-            }
-
-            this.statusSocket = new WebSocket(wsUrl);
-            this.setupStatusSocketHandlers();
-        } catch (error) {
-            console.error('Error initializing WebSocket:', error);
-            UIManager.showToast('Failed to connect to chat server', 'warning');
+        if (this.disconnectTimeout) {
+            clearTimeout(this.disconnectTimeout);
+            this.disconnectTimeout = null;
         }
-    }
 
-    static setupStatusSocketHandlers() {
-        this.statusSocket.onopen = () => {
-            console.log('Status WebSocket connected');
-            this.resetUserStatuses();
-        };
-        
-        this.statusSocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                this.handleStatusMessage(data);
-            } catch (error) {
-                console.error('Error handling WebSocket message:', error);
-            }
-        };
-
-        this.statusSocket.onclose = (event) => {
-            console.log('Status WebSocket disconnected:', event.code, event.reason);
-            this.handleStatusSocketClose();
-        };
-
-        this.statusSocket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            UIManager.showToast('Chat connection error', 'danger');
-        };
-    }
-
-    static handleStatusMessage(data) {
-        if (data.type === 'initial_status') {
-            this.resetUserStatuses();
-            data.online_users.forEach(userId => {
-                this.updateUserStatus(userId, true);
-            });
-        } else if (data.type === 'status_update') {
-            this.updateUserStatus(data.user_id, data.online_status);
+        if (this.statusSocket?.readyState === WebSocket.OPEN) {
+            console.log('[WebSocket] Already connected');
+            return;
         }
-    }
 
-    static resetUserStatuses() {
-        document.querySelectorAll('[data-user-status]').forEach(badge => {
-            badge.className = 'badge bg-secondary';
-            badge.textContent = 'Offline';
+        const userBadges = document.querySelectorAll('[data-user-status]');
+        if (userBadges.length === 0) {
+            console.warn('[WebSocket] User list not loaded yet, delaying WebSocket connection');
+            setTimeout(() => this.initStatusWebSocket(), 500);
+            return;
+        }
+
+        const wsUrl = this.getWebSocketUrl();
+        console.log('[WebSocket] Connecting to:', wsUrl);
+
+        this.statusSocket = WebSocketManager.initSocket(wsUrl, {
+            onOpen: () => {
+                console.log('[WebSocket] Connected successfully');
+                this.reconnectAttempts = 0;
+                
+                if (this.statusSocket.readyState === WebSocket.OPEN) {
+                    console.log('[WebSocket] Requesting initial status');
+                    this.statusSocket.send(JSON.stringify({
+                        type: 'request_initial_status'
+                    }));
+                }
+            },
+            onMessage: (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('[WebSocket] Received message:', data);
+                    
+                    if (data.type === 'initial_status') {
+                        console.log('[WebSocket] Processing initial status. Online users:', data.online_users);
+                        
+                        const badges = document.querySelectorAll('[data-user-status]');
+                        console.log('[WebSocket] Resetting status for', badges.length, 'users');
+                        
+                        badges.forEach(badge => {
+                            const userId = badge.getAttribute('data-user-status');
+                            console.log('[WebSocket] Resetting user', userId, 'to offline');
+                            badge.className = 'badge bg-secondary';
+                            badge.textContent = 'Offline';
+                        });
+                        
+                        if (Array.isArray(data.online_users)) {
+                            data.online_users.forEach(userId => {
+                                console.log('[WebSocket] Setting user', userId, 'to online');
+                                this.updateUserStatus(userId, true);
+                            });
+                        }
+                    } else if (data.type === 'status_update') {
+                        console.log('[WebSocket] Status update for user:', data.user_id, 'online:', data.online_status);
+                        this.updateUserStatus(data.user_id, data.online_status);
+                    }
+                } catch (error) {
+                    console.error('[WebSocket] Error handling message:', error);
+                }
+            },
+            onClose: (event) => {
+                console.log('[WebSocket] Connection closed:', event.code, event.reason);
+                if (this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
+                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                    console.log(`[WebSocket] Attempting reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${AuthManager.MAX_RECONNECT_ATTEMPTS})`);
+                    this.reconnectTimeout = setTimeout(() => {
+                        if (AuthManager.accessToken) {
+                            this.reconnectAttempts++;
+                            this.initStatusWebSocket();
+                        }
+                    }, delay);
+                }
+            },
+            onError: (error) => {
+                console.error('[WebSocket] Error:', error);
+            }
         });
+
+        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+    }
+
+    static handleBeforeUnload(event) {
+        if (this.disconnectTimeout) {
+            clearTimeout(this.disconnectTimeout);
+        }
+
+        if (this.statusSocket?.readyState === WebSocket.OPEN) {
+            this.statusSocket.close(1000, 'Page closed');
+        }
     }
 
     static updateUserStatus(userId, isOnline) {
+        console.log('[Status] Updating status for user:', userId, 'isOnline:', isOnline);
+        
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
         if (statusBadge) {
+            console.log('[Status] Found badge for user:', userId);
+            const oldStatus = statusBadge.textContent;
             statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
             statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+            console.log('[Status] Updated user', userId, 'from', oldStatus, 'to', statusBadge.textContent);
             
-            this.updateChatHeader(userId, isOnline, statusBadge);
-        }
-    }
-
-    static updateChatHeader(userId, isOnline, statusBadge) {
-        if (this.currentChatPartner && this.currentChatPartner.id === userId) {
-            const chatHeader = document.getElementById('chat-header');
-            const username = statusBadge.getAttribute('data-user-name');
-            const chatBody = document.querySelector('#chat-container .card-body');
-            const isCollapsed = chatBody && chatBody.style.display === 'none';
-            
-            chatHeader.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center w-100">
-                    <div>
-                        Chat with ${username}
-                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
-                            ${isOnline ? 'Online' : 'Offline'}
-                        </span>
-                    </div>
-                    <div>
-                        <button id="toggle-chat" class="btn btn-sm btn-outline-light">
-                            <i class="bi bi-${isCollapsed ? 'plus' : 'dash'}-lg"></i>
-                        </button>
-                        <button id="close-chat" class="btn btn-sm btn-outline-light">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            // Reattach event listeners
-            document.getElementById('toggle-chat')?.addEventListener('click', () => {
-                this.toggleChat();
-            });
-
-            document.getElementById('close-chat')?.addEventListener('click', () => {
-                this.closeChat();
-            });
-        }
-    }
-
-    static handleStatusSocketClose() {
-        if (AuthManager.accessToken) {
-            setTimeout(() => this.initStatusWebSocket(), 5000);
-        }
-    }
-
-    static startChat(userId, username) {
-        this.isIntentionallyClosed = false;
-        
-        const chatContainer = document.getElementById('chat-container');
-        chatContainer.style.display = 'block';
-        
-        this.currentChatPartner = { id: userId, username };
-        
-        this.setupChatUI();
-        
-        this.initChatSocket();
-        
-        this.loadPreviousMessages(userId);
-        
-        const modal = bootstrap.Modal.getInstance(document.getElementById('usersModal'));
-        modal?.hide();
-    }
-
-    static setupChatUI() {
-        const chatContainer = document.getElementById('chat-container');
-        const chatHeader = document.getElementById('chat-header');
-        const statusBadge = document.querySelector(`[data-user-status="${this.currentChatPartner.id}"]`);
-        const isOnline = statusBadge?.classList.contains('bg-success');
-        
-        chatHeader.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center w-100">
-                <div>
-                    Chat with ${this.currentChatPartner.username}
+            if (this.currentChatPartner && this.currentChatPartner.id === userId) {
+                const chatHeader = document.getElementById('chat-header');
+                const username = statusBadge.getAttribute('data-user-name');
+                chatHeader.innerHTML = `
+                    Chat with ${username} 
                     <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
                         ${isOnline ? 'Online' : 'Offline'}
                     </span>
-                </div>
-                <div>
-                    <button id="toggle-chat" class="btn btn-sm btn-outline-light">
-                        <i class="bi bi-dash-lg"></i>
-                    </button>
-                    <button id="close-chat" class="btn btn-sm btn-outline-light">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-        chatContainer.style.display = 'block';
-
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-
-        // Add toggle chat listener
-        document.getElementById('toggle-chat')?.addEventListener('click', () => {
-            this.toggleChat();
-        });
-
-        // Add close chat listener
-        document.getElementById('close-chat')?.addEventListener('click', () => {
-            this.closeChat();
-        });
-
-        sendButton?.addEventListener('click', () => this.sendMessage());
-
-        messageInput?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
-    }
-
-    static initChatSocket() {
-        try {
-            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-            const apiHost = new URL(AuthManager.API_BASE).host;
-            const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${this.currentChatPartner.id}/?token=${encodeURIComponent(AuthManager.accessToken)}`;
-            
-            if (this.chatSocket) {
-                this.chatSocket.close();
-                this.chatSocket = null;
-            }
-            
-            console.log('Connecting to WebSocket:', wsUrl);
-            this.chatSocket = new WebSocket(wsUrl);
-            this.setupChatSocketHandlers();
-        } catch (error) {
-            console.error('Error initializing chat WebSocket:', error);
-            UIManager.showToast('Failed to connect to chat server', 'danger');
-        }
-    }
-
-    static setupChatSocketHandlers() {
-        if (!this.chatSocket) return;
-
-        this.chatSocket.onopen = () => {
-            console.log('Chat WebSocket connected');
-            this.reconnectAttempts = 0;
-            this.isIntentionallyClosed = false;
-        };
-
-        this.chatSocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log('Received message:', data);
-                
-                if (data.type === 'chat_history') {
-                    this.displayMessages(data.messages);
-                } else if (data.type === 'chat_message') {
-                    const messagesContainer = document.getElementById('chat-messages');
-                    const messageElement = this.createChatMessage({
-                        content: data.content || data.message,
-                        sender_id: data.sender_id,
-                        sender_display_name: data.sender_display_name || data.sender_username,
-                        timestamp: data.timestamp || new Date().toISOString(),
-                        sender: {
-                            id: data.sender_id,
-                            username: data.sender_display_name || data.sender_username,
-                            avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
-                        }
-                    });
-                    
-                    if (messageElement) {
-                        messagesContainer.appendChild(messageElement);
-                        this.scrollToBottom(messagesContainer);
-                    }
-                }
-            } catch (error) {
-                console.error('Error handling chat message:', error);
-            }
-        };
-
-        this.chatSocket.onclose = (event) => {
-            console.log('Chat WebSocket closed:', event.code, event.reason);
-            
-            if (!this.isIntentionallyClosed && this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
-                const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
-                this.reconnectTimeout = setTimeout(() => {
-                    this.reconnectAttempts++;
-                    console.log(`Reconnect attempt ${this.reconnectAttempts}`);
-                    this.initChatSocket();
-                }, delay);
-            }
-        };
-
-        this.chatSocket.onerror = (error) => {
-            console.error('Chat WebSocket error:', error);
-            UIManager.showToast('Chat connection error', 'danger');
-        };
-    }
-
-    static async loadPreviousMessages(userId) {
-        try {
-            const response = await AuthManager.fetchWithAuth(
-                `${AuthManager.API_BASE}users/messages/${userId}/`
-            );
-            
-            if (!response.ok) throw new Error('Failed to load messages');
-            
-            const messages = await response.json();
-            this.displayMessages(messages);
-            
-            await AuthManager.fetchWithAuth(
-                `${AuthManager.API_BASE}users/messages/${userId}/read/`,
-                { method: 'POST' }
-            );
-        } catch (error) {
-            console.error('Error loading messages:', error);
-            UIManager.showToast('Failed to load chat history', 'danger');
-        }
-    }
-
-    static displayMessages(messages) {
-        const messagesContainer = document.getElementById('chat-messages');
-        messagesContainer.innerHTML = '';
-        
-        messages.forEach(msg => {
-            const messageElement = this.createChatMessage({
-                ...msg,
-                sender: {
-                    id: msg.sender_id,
-                    username: msg.sender_display_name || msg.username,
-                    avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
-                }
-            });
-            messagesContainer.appendChild(messageElement);
-        });
-        
-        this.scrollToBottom(messagesContainer);
-    }
-
-    static sendMessage() {
-        const input = document.getElementById('message-input');
-        const message = input.value.trim();
-        
-        if (!message) return;
-        
-        if (this.chatSocket?.readyState === WebSocket.OPEN) {
-            const messageData = {
-                type: 'chat_message',
-                message: message,
-                recipient_id: this.currentChatPartner.id,
-                timestamp: new Date().toISOString()
-            };
-            
-            try {
-                this.chatSocket.send(JSON.stringify(messageData));
-                input.value = '';
-                input.focus();
-            } catch (error) {
-                console.error('Error sending message:', error);
-                UIManager.showToast('Failed to send message', 'danger');
+                `;
             }
         } else {
-            console.log('WebSocket not connected. Current state:', this.chatSocket?.readyState);
-            UIManager.showToast('Chat disconnected. Reconnecting...', 'warning');
-            this.initChatSocket();
+            console.warn('[Status] Badge not found for user:', userId);
+            const allBadges = document.querySelectorAll('[data-user-status]');
+            console.log('[Status] Available badges:', Array.from(allBadges).map(b => ({
+                userId: b.getAttribute('data-user-status'),
+                status: b.textContent
+            })));
         }
-    }
-
-    static createChatMessage(message) {
-        try {
-            const messageWrapper = document.createElement('div');
-            const isSentByMe = message.sender_id === AuthManager.currentUser.id;
-            messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-            
-            const timestamp = new Date(message.timestamp);
-            const timeStr = timestamp.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            const dateStr = timestamp.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-            });
-            
-            const senderName = isSentByMe ? 
-                AuthManager.currentUser.username : 
-                (message.sender_display_name || message.sender.username);
-            
-            const senderAvatar = isSentByMe ? 
-                AuthManager.currentUser.avatar : 
-                message.sender.avatar_url;
-            
-            const avatarContainer = document.createElement('div');
-            avatarContainer.className = 'avatar-container';
-            
-            const avatarImg = document.createElement('img');
-            avatarImg.className = 'avatar';
-            avatarImg.alt = this.escapeHtml(String(senderName || ''));
-            
-            let retryCount = 0;
-            const maxRetries = 2;
-            
-            const loadAvatar = (url) => {
-                avatarImg.src = url;
-            };
-            
-            avatarImg.onerror = () => {
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    loadAvatar('/media/avatars/default.svg');
-                } else {
-                    avatarImg.style.display = 'none';
-                    const placeholder = document.createElement('div');
-                    placeholder.className = 'avatar-placeholder';
-                    placeholder.textContent = (senderName || '').charAt(0).toUpperCase();
-                    avatarContainer.appendChild(placeholder);
-                }
-            };
-            
-            loadAvatar(senderAvatar || '/media/avatars/default.svg');
-            avatarContainer.appendChild(avatarImg);
-            
-            const messageContent = document.createElement('div');
-            messageContent.className = 'message-content';
-            messageContent.innerHTML = `
-                <div class="message-header">${this.escapeHtml(String(senderName || ''))}</div>
-                <div class="message-bubble">${this.escapeHtml(String(message.content || ''))}</div>
-                <div class="message-meta">
-                    <span class="timestamp">${timeStr}</span>
-                    <span class="date">${dateStr}</span>
-                </div>
-            `;
-            
-            if (isSentByMe) {
-                messageWrapper.appendChild(messageContent);
-                messageWrapper.appendChild(avatarContainer);
-            } else {
-                messageWrapper.appendChild(avatarContainer);
-                messageWrapper.appendChild(messageContent);
-            }
-            
-            return messageWrapper;
-        } catch (error) {
-            console.error('Error creating chat message:', error);
-            return null;
-        }
-    }
-
-    static escapeHtml(unsafe) {
-        if (typeof unsafe !== 'string') return '';
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    static scrollToBottom(container) {
-        container.scrollTop = container.scrollHeight;
-    }
-
-    static closeUsersModal() {
-        document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
     }
 
     static cleanup() {
+        window.removeEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+
         clearTimeout(this.reconnectTimeout);
+        clearTimeout(this.disconnectTimeout);
         this.reconnectAttempts = 0;
         
         if (this.statusSocket) {
@@ -812,58 +520,136 @@ class ChatManager {
         }
     }
 
-    static toggleChat() {
-        const chatBody = document.querySelector('#chat-container .card-body');
-        const toggleBtn = document.querySelector('#toggle-chat i');
-        
-        if (!chatBody || !toggleBtn) return;
-        
-        if (chatBody.style.display === 'none') {
-            // Expand chat
-            chatBody.style.display = 'block';
-            toggleBtn.className = 'bi bi-dash-lg';
-        } else {
-            // Collapse chat
-            chatBody.style.display = 'none';
-            toggleBtn.className = 'bi bi-plus-lg';
+    static async handleReconnection() {
+        if (this.disconnectTimeout) {
+            clearTimeout(this.disconnectTimeout);
+            this.disconnectTimeout = null;
         }
-    }
-
-    static showUsersList() {
-        const modal = new bootstrap.Modal(document.getElementById('usersModal'));
-        modal.show();
-    }
-
-    static closeChat() {
-        this.isIntentionallyClosed = true;
-
-        if (this.chatSocket) {
-            this.chatSocket.close();
-            this.chatSocket = null;
-        }
-
-        const messagesContainer = document.getElementById('chat-messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '';
-        }
-
-        this.currentChatPartner = null;
-
-        const chatContainer = document.getElementById('chat-container');
-        if (chatContainer) {
-            chatContainer.style.display = 'none';
-        }
-
-        const messageInput = document.getElementById('message-input');
-        if (messageInput) {
-            messageInput.value = '';
-        }
-
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = null;
         }
-        this.reconnectAttempts = 0;
+
+        await this.reconnectAndSync();
+    }
+
+    static startChat(userId, username) {
+        this.currentChatPartner = { id: userId, username };
+        const chatContainer = document.getElementById('chat-container');
+        const chatHeader = document.getElementById('chat-header');
+        const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
+        const isOnline = statusBadge?.classList.contains('bg-success');
+        
+        chatHeader.innerHTML = `
+            Chat with ${username}
+            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                ${isOnline ? 'Online' : 'Offline'}
+            </span>
+        `;
+        chatContainer.style.display = 'block';
+        
+        const apiHost = new URL(AuthManager.API_BASE).host;
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
+        
+        if (this.chatSocket) {
+            this.chatSocket.close();
+        }
+        
+        this.chatSocket = new WebSocket(wsUrl);
+        this.chatSocket.onmessage = this.handleChatMessage.bind(this);
+        this.chatSocket.onclose = this.handleChatClose.bind(this);
+        
+        this.loadPreviousMessages(userId);
+        document.getElementById('chat-messages').innerHTML = '';
+        document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
+    }
+
+    static async loadPreviousMessages(userId) {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/messages/${userId}/`);
+            if (!response.ok) throw new Error('Failed to load messages');
+            const messages = await response.json();
+            
+            const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageElement = createChatMessage({
+                    ...msg,
+                    sender: {
+                        id: msg.sender_id,
+                        username: msg.sender_display_name || msg.username,
+                        avatar_url: msg.sender_avatar_url || '/media/avatars/default.svg'
+                    }
+                });
+                messagesContainer.appendChild(messageElement);
+            });
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    static handleChatMessage(event) {
+        const data = JSON.parse(event.data);
+        console.log('WebSocket message data:', data);
+        if (data.type === 'chat_message') {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageElement = createChatMessage({
+                ...data,
+                sender: {
+                    id: data.sender_id,
+                    username: data.sender_display_name || data.username,
+                    avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
+                },
+                timestamp: new Date().toISOString()
+            });
+            
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+
+    static handleChatClose() {
+        if (this.reconnectAttempts < AuthManager.MAX_RECONNECT_ATTEMPTS) {
+            this.reconnectTimeout = setTimeout(() => {
+                this.reconnectAttempts++;
+                this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
+            }, 5000);
+        }
+    }
+
+    static sendMessage() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+        
+        if (message && this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+            this.chatSocket.send(JSON.stringify({
+                message: message,
+                recipient: this.currentChatPartner.id
+            }));
+            input.value = '';
+        }
+    }
+
+    static async reconnectAndSync() {
+        try {
+            if (this.statusSocket) {
+                this.statusSocket.close();
+                this.statusSocket = null;
+            }
+
+            const userBadges = document.querySelectorAll('[data-user-status]');
+            if (userBadges.length === 0) {
+                await UserManager.loadUsersList();
+            }
+
+            this.initStatusWebSocket();
+        } catch (error) {
+            console.error('[WebSocket] Error during reconnection:', error);
+        }
     }
 }
 
@@ -895,22 +681,38 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
-            const data = {};
-            formData.forEach((value, key) => {
-                if (value) data[key] = value;
+            const data = {
+                username: formData.get('username'),
+                email: formData.get('email'),
+                display_name: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            Object.keys(data).forEach(key => {
+                if (!data[key]) {
+                    delete data[key];
+                }
             });
 
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${AuthManager.accessToken}`
+                },
                 body: JSON.stringify(data)
             });
 
-            if (!response.ok) throw new Error('Profile update failed');
-            alert('Profile updated successfully!');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.username?.[0] || errorData.email?.[0] || errorData.detail || 'Profile update failed');
+            }
+
+            UIManager.showToast('Profile updated successfully!', 'success');
             UIManager.loadMainPage();
         } catch (error) {
-            alert(error.message);
+            console.error('Error updating profile:', error);
+            UIManager.showToast(error.message, 'danger');
         }
     }
 }
@@ -929,17 +731,17 @@ class UserManager {
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${this.escapeHtml(user.username)}</td>
+                    <td>${Utils.escapeHtml(user.username)}</td>
                     <td>
                         <button class="btn btn-primary btn-sm chat-btn" 
-                                onclick="ChatManager.startChat(${user.id}, '${this.escapeHtml(user.username)}')">
+                                onclick="ChatManager.startChat(${user.id}, '${Utils.escapeHtml(user.username)}')">
                             <i class="bi bi-chat-dots"></i> Chat
                         </button>
                     </td>
                     <td>
                         <span class="badge bg-secondary" 
                               data-user-status="${user.id}"
-                              data-user-name="${this.escapeHtml(user.username)}">
+                              data-user-name="${Utils.escapeHtml(user.username)}">
                             Offline
                         </span>
                     </td>
@@ -950,15 +752,6 @@ class UserManager {
             console.error('Error loading users list:', error);
             UIManager.showToast('Error loading users list', 'danger');
         }
-    }
-
-    static escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
     }
 }
 
@@ -1216,30 +1009,122 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const defaultAvatar = new Image();
-    defaultAvatar.src = '/media/avatars/default.svg';
-
-    document.getElementById('toggle-chat')?.addEventListener('click', () => {
-        ChatManager.toggleChat();
-    });
-
     document.getElementById('send-button')?.addEventListener('click', () => {
         ChatManager.sendMessage();
     });
 
-    const messageInput = document.getElementById('message-input');
-    messageInput?.addEventListener('keypress', (e) => {
+    document.getElementById('message-input')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             ChatManager.sendMessage();
         }
     });
 
-    // Add user profile click handler
     document.getElementById('user-profile')?.addEventListener('click', () => {
         UIManager.loadUpdateProfilePage();
     });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            ChatManager.handleReconnection();
+        }
+    });
+
+    window.addEventListener('online', () => {
+        ChatManager.handleReconnection();
+    });
+
+    window.addEventListener('offline', () => {
+        if (ChatManager.statusSocket) {
+            ChatManager.statusSocket.close();
+        }
+    });
 });
+
+function createChatMessage(message) {
+    const messageWrapper = document.createElement('div');
+    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+    const dateStr = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    const senderName = isSentByMe ? 
+        AuthManager.currentUser.username : 
+        message.sender_display_name;
+    
+    const senderAvatar = isSentByMe ? 
+        AuthManager.currentUser.avatar : 
+        message.sender_avatar_url;
+    
+    const avatarContainer = document.createElement('div');
+    avatarContainer.className = 'avatar-container';
+    
+    const avatarImg = document.createElement('img');
+    avatarImg.className = 'avatar';
+    avatarImg.alt = senderName;
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        avatarImg.src = url;
+    };
+    
+    avatarImg.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            avatarImg.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = senderName.charAt(0).toUpperCase();
+            avatarContainer.appendChild(placeholder);
+        }
+    };
+    
+    loadAvatar(senderAvatar);
+    avatarContainer.appendChild(avatarImg);
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.innerHTML = `
+        <div class="message-header">${escapeHtml(senderName)}</div>
+        <div class="message-bubble">${escapeHtml(message.content)}</div>
+        <div class="message-meta">
+            <span class="timestamp">${timeStr}</span>
+            <span class="date">${dateStr}</span>
+        </div>
+    `;
+    
+    if (isSentByMe) {
+        messageWrapper.appendChild(messageContent);
+        messageWrapper.appendChild(avatarContainer);
+    } else {
+        messageWrapper.appendChild(avatarContainer);
+        messageWrapper.appendChild(messageContent);
+    }
+    
+    return messageWrapper;
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
 window.AuthManager = AuthManager;
 window.UIManager = UIManager;
@@ -1248,4 +1133,38 @@ window.ProfileManager = ProfileManager;
 window.UserManager = UserManager;
 window.MatchManager = MatchManager;
 
+if (AuthManager.accessToken) {
+    UIManager.loadMainPage();
+} else {
+    UIManager.showPage(UIManager.pages.landing);
+}
+
 window.refreshAccessToken = () => AuthManager.refreshAccessToken();
+
+class Utils {
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+}
+
+class ToastManager {
+    static show(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        new bootstrap.Toast(toast, { autohide: true, delay: 3000 }).show();
+        setTimeout(() => toast.remove(), 3500);
+    }
+}
