@@ -290,20 +290,6 @@ class UIManager {
             const profile = await ProfileManager.fetchUserProfile();
             document.getElementById('update-username').value = profile.username;
             document.getElementById('update-email').value = profile.email;
-            
-            // Add form submission handler
-            const form = document.getElementById('update-profile-form');
-            if (form) {
-                // Remove any existing listeners
-                const newForm = form.cloneNode(true);
-                form.parentNode.replaceChild(newForm, form);
-                
-                newForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target);
-                    await ProfileManager.updateProfile(formData);
-                });
-            }
 
             // Add back button handler
             document.getElementById('back-to-main')?.addEventListener('click', (e) => {
@@ -719,22 +705,57 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
-            const data = {};
-            formData.forEach((value, key) => {
-                if (value) data[key] = value;
-            });
+            // Check if there's a file to upload
+            const hasFile = formData.get('avatar') && formData.get('avatar').size > 0;
+            
+            if (hasFile) {
+                // Use FormData for file uploads
+                const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
+                    method: 'PUT',
+                    // Don't set Content-Type header - browser will set it with boundary
+                    body: formData
+                });
 
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+                const responseData = await response.json();
+                console.log('Profile update response:', responseData);
 
-            if (!response.ok) throw new Error('Profile update failed');
-            alert('Profile updated successfully!');
-            UIManager.loadMainPage();
+                if (!response.ok) {
+                    throw new Error(responseData.detail || responseData.avatar?.[0] || 'Profile update failed');
+                }
+            } else {
+                // Regular JSON request for non-file updates
+                const data = {
+                    username: formData.get('username') || undefined,
+                    email: formData.get('email') || undefined,
+                    password: formData.get('password') || undefined
+                };
+
+                // Remove undefined values
+                Object.keys(data).forEach(key => {
+                    if (data[key] === undefined) {
+                        delete data[key];
+                    }
+                });
+
+                const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+                console.log('Profile update response:', responseData);
+
+                if (!response.ok) {
+                    throw new Error(responseData.detail || 'Profile update failed');
+                }
+            }
+
+            UIManager.showToast('Profile updated successfully!', 'success');
+            await UIManager.loadMainPage();
         } catch (error) {
-            alert(error.message);
+            console.error('Profile update error:', error);
+            UIManager.showToast(error.message || 'Failed to update profile', 'danger');
         }
     }
 }
@@ -1000,7 +1021,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Profile listeners
     document.getElementById('update-profile-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        
+        // Log form data before submission
         const formData = new FormData(e.target);
+        console.log('Form data before submission:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
+        
         ProfileManager.updateProfile(formData);
     });
 
@@ -1159,6 +1187,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize chat event listeners
     ChatManager.initializeEventListeners();
+
+    // Add name attributes to update profile form fields
+    const updateProfileForm = document.getElementById('update-profile-form');
+    if (updateProfileForm) {
+        const usernameInput = updateProfileForm.querySelector('#update-username');
+        const emailInput = updateProfileForm.querySelector('#update-email');
+        const passwordInput = updateProfileForm.querySelector('#update-password');
+        const avatarInput = updateProfileForm.querySelector('#update-avatar');
+
+        usernameInput.setAttribute('name', 'username');
+        emailInput.setAttribute('name', 'email');
+        passwordInput.setAttribute('name', 'password');
+        avatarInput.setAttribute('name', 'avatar');
+    }
 });
 
 function createChatMessage(message) {
