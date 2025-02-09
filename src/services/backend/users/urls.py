@@ -6,6 +6,7 @@ urlpatterns = [
     path('<int:pk>/', views.UserDetailView.as_view(), name='user-detail'),
     path('profile/', views.ProfileDetail.as_view(), name='profile-detail'),
     path('block/<int:user_id>/', views.BlockUserView.as_view(), name='block-user'),
+    path('unblock/<int:user_id>/', views.UnblockUserView.as_view(), name='unblock-user'),
     path('me/', views.CurrentUserView.as_view(), name='current-user'),
     path('logout/', views.UserLogoutView.as_view(), name='user-logout'),
     path('messages/<int:user_id>/', views.get_chat_messages, name='chat_messages'),

@@ -19,6 +19,7 @@ class MessageSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     avatar_url = serializers.SerializerMethodField()
+    is_blocked = serializers.BooleanField(read_only=True, default=False)
     
     class Meta:
         model = User
@@ -27,7 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
             'online_status', 'language_preference', 'email',
             'user_id_42', 'login_42', 'is_42_auth', 
             'password', 'match_wins', 'tourney_wins', 
-            'total_matches', 'total_tourneys', 'avatar_url'
+            'total_matches', 'total_tourneys', 'avatar_url', 'is_blocked'
         ]
         extra_kwargs = {
             'username': {'required': False},

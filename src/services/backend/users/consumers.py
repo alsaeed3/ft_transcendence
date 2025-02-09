@@ -4,7 +4,7 @@ import datetime
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db.models import Q
-from .models import Message, User
+from .models import Message, User, BlockedUser
 from .serializers import MessageSerializer
 from django.core.cache import cache
 from asgiref.sync import sync_to_async
@@ -92,9 +92,13 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
 
 class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # Get users from the URL parameters
         self.user1_id = self.scope['url_route']['kwargs']['user1_id']
         self.user2_id = self.scope['url_route']['kwargs']['user2_id']
+        
+        # Check if either user has blocked the other
+        if await self.is_blocked(self.user1_id, self.user2_id):
+            await self.close()
+            return
         
         # Create a unique room name for these two users (sorted to ensure consistency)
         user_ids = sorted([int(self.user1_id), int(self.user2_id)])
@@ -150,10 +154,25 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
         serializer = MessageSerializer(messages, many=True)
         return serializer.data
 
+    @database_sync_to_async
+    def is_blocked(self, user1_id, user2_id):
+        return BlockedUser.objects.filter(
+            (Q(blocker_id=user1_id) & Q(blocked_id=user2_id)) |
+            (Q(blocker_id=user2_id) & Q(blocked_id=user1_id))
+        ).exists()
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
             message = data.get('message', '')
+            
+            # Check for blocked status before processing message
+            if await self.is_blocked(self.user1_id, self.user2_id):
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': 'Unable to send message - user is blocked'
+                }))
+                return
             
             if message:
                 # Determine receiver ID

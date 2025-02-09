@@ -11,7 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from .models import Message
-from django.db.models import Q
+from django.db.models import Q, Case, When, BooleanField
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
@@ -19,12 +19,28 @@ class BlockUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, user_id):
-        user_to_block = User.objects.get(id=user_id)
-        BlockedUser.objects.get_or_create(
-            blocker=request.user,
-            blocked=user_to_block
-        )
-        return Response({'status': 'user blocked'})
+        try:
+            user_to_block = User.objects.get(id=user_id)
+            BlockedUser.objects.get_or_create(
+                blocker=request.user,
+                blocked=user_to_block
+            )
+            return Response({'status': 'user blocked'})
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+class UnblockUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id):
+        try:
+            BlockedUser.objects.filter(
+                blocker=request.user,
+                blocked_id=user_id
+            ).delete()
+            return Response({'status': 'user unblocked'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
 
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -37,6 +53,21 @@ class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = User.objects.all()
+        # Annotate users with blocked status
+        if self.request.user.is_authenticated:
+            blocked_users = BlockedUser.objects.filter(blocker=self.request.user)
+            blocked_ids = blocked_users.values_list('blocked_id', flat=True)
+            return queryset.annotate(
+                is_blocked=Case(
+                    When(id__in=blocked_ids, then=True),
+                    default=False,
+                    output_field=BooleanField(),
+                )
+            )
+        return queryset
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
