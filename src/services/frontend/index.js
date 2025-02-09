@@ -1189,8 +1189,14 @@ function createChatMessage(message) {
     avatarContainer.className = 'avatar-container';
     
     const avatarImg = document.createElement('img');
-    avatarImg.className = 'avatar';
+    avatarImg.className = 'avatar profile-clickable';
+    avatarImg.setAttribute('data-user-id', message.sender_id);
     avatarImg.alt = senderName;
+    
+    // Add click handler to avatar
+    avatarImg.addEventListener('click', () => {
+        showUserProfile(message.sender_id);
+    });
     
     let retryCount = 0;
     const maxRetries = 2;
@@ -1218,13 +1224,20 @@ function createChatMessage(message) {
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
     messageContent.innerHTML = `
-        <div class="message-header">${escapeHtml(senderName)}</div>
+        <div class="message-header profile-clickable" data-user-id="${message.sender_id}">
+            ${escapeHtml(senderName)}
+        </div>
         <div class="message-bubble">${escapeHtml(message.content)}</div>
         <div class="message-meta">
             <span class="timestamp">${timeStr}</span>
             <span class="date">${dateStr}</span>
         </div>
     `;
+    
+    // Add click handler to username
+    messageContent.querySelector('.message-header').addEventListener('click', (e) => {
+        showUserProfile(e.target.getAttribute('data-user-id'));
+    });
     
     if (isSentByMe) {
         messageWrapper.appendChild(messageContent);
@@ -1324,3 +1337,40 @@ class ToastManager {
         setTimeout(() => toast.remove(), 3500);
     }
 }
+
+async function showUserProfile(userId) {
+    try {
+        const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/${userId}/`);
+        if (!response.ok) throw new Error('Failed to fetch user profile');
+        
+        const profile = await response.json();
+        
+        // Update modal content
+        document.getElementById('modal-user-avatar').src = profile.avatar_url || '/media/avatars/default.svg';
+        document.getElementById('modal-username').textContent = profile.username;
+        document.getElementById('modal-match-wins').textContent = profile.match_wins;
+        document.getElementById('modal-total-matches').textContent = profile.total_matches;
+        document.getElementById('modal-tourney-wins').textContent = profile.tourney_wins;
+        document.getElementById('modal-total-tourneys').textContent = profile.total_tourneys;
+        
+        // Setup chat button
+        const chatBtn = document.getElementById('modal-chat-btn');
+        chatBtn.onclick = () => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
+            modal.hide();
+            ChatManager.startChat(profile.id, profile.username);
+        };
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('userProfileModal'));
+        modal.show();
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        UIManager.showToast('Failed to load user profile', 'danger');
+    }
+}
+
+// Add error handling for avatar loading
+document.getElementById('modal-user-avatar').onerror = function() {
+    this.src = '/media/avatars/default.svg';
+};

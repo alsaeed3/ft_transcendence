@@ -42,6 +42,16 @@ class UserSerializer(serializers.ModelSerializer):
             'total_tourneys': {'required': False}
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.context.get('is_public'):
+            # Limit fields for public profile
+            allowed = {'id', 'username', 'avatar_url', 'match_wins', 
+                      'tourney_wins', 'total_matches', 'total_tourneys'}
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+
     def update(self, instance, validated_data):
         # Remove password from validated data if it's empty
         password = validated_data.pop('password', None)

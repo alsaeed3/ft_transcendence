@@ -119,6 +119,17 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
+class UserProfileView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_url_kwarg = 'user_id'
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['is_public'] = True
+        return context
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_chat_messages(request, user_id):
