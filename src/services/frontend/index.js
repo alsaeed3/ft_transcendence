@@ -426,6 +426,44 @@ class ChatManager {
         }
     }
 
+    static initializeEventListeners() {
+        document.getElementById('toggle-chat').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chatContainer = document.getElementById('chat-container');
+            const chatBody = chatContainer.querySelector('.card-body');
+            const icon = document.querySelector('#toggle-chat i');
+            
+            if (chatBody.style.display !== 'none') {
+                chatBody.style.display = 'none';
+                icon.className = 'bi bi-chevron-up';
+                chatContainer.style.transform = 'translateY(calc(100% - 38px))';
+            } else {
+                chatBody.style.display = 'block';
+                icon.className = 'bi bi-dash-lg';
+                chatContainer.style.transform = 'none';
+            }
+        });
+
+        document.getElementById('close-chat').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.style.display = 'none';
+            
+            // Reset chat if needed
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.innerHTML = '';
+            }
+            
+            // Reset chat state
+            this.currentChatPartner = null;
+            if (this.chatSocket) {
+                this.chatSocket.close();
+                this.chatSocket = null;
+            }
+        });
+    }
+
     static startChat(userId, username) {
         this.currentChatPartner = { id: userId, username };
         const chatContainer = document.getElementById('chat-container');
@@ -434,12 +472,24 @@ class ChatManager {
         const isOnline = statusBadge?.classList.contains('bg-success');
         
         chatHeader.innerHTML = `
-            Chat with ${username}
-            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
-                ${isOnline ? 'Online' : 'Offline'}
-            </span>
+            <span>Chat with ${username}</span>
+            <div>
+                <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                    <i class="bi bi-dash-lg"></i>
+                </button>
+                <button id="close-chat" class="btn btn-sm btn-outline-light">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
         `;
+        
         chatContainer.style.display = 'block';
+        chatContainer.style.transform = 'none';
+        const chatBody = chatContainer.querySelector('.card-body');
+        chatBody.style.display = 'block';
+        
+        // Re-initialize event listeners after recreating the buttons
+        this.initializeEventListeners();
         
         const apiHost = new URL(API_BASE).host;
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -973,6 +1023,9 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(error.message);
         }
     });
+
+    // Initialize chat event listeners
+    ChatManager.initializeEventListeners();
 });
 
 function createChatMessage(message) {
