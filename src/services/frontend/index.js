@@ -396,11 +396,35 @@ const loadUpdateProfilePage = async () => {
     showPage(pages.updateProfile);
     try {
         const profile = await fetchUserProfile();
+        console.log('Profile data:', profile); // Add this line for debugging
         document.getElementById('update-username').value = profile.username;
         document.getElementById('update-email').value = profile.email;
         
+        const is42User = profile.is_42_auth;
+        const statusElement = document.getElementById('2fa-status');
+        const twoFAToggleForm = document.getElementById('2fa-toggle-form');
+        
+        // Log the 2FA status for debugging
+        console.log('2FA enabled:', profile.is_2fa_enabled);
+        
+        if (is42User) {
+            statusElement.innerHTML = `
+                <div class="alert alert-info text-center">
+                    <strong>2FA is managed by 42 School authentication</strong>
+                </div>
+            `;
+            twoFAToggleForm.style.display = 'none';
+        } else {
+            const is2FAEnabled = Boolean(profile.is_2fa_enabled); // Ensure boolean value
+            statusElement.innerHTML = `
+                <div class="alert ${is2FAEnabled ? 'alert-success' : 'alert-warning'} text-center">
+                    <strong>2FA is currently ${is2FAEnabled ? 'ENABLED' : 'DISABLED'}</strong>
+                </div>
+            `;
+            twoFAToggleForm.style.display = 'block';
+        }
+        
         if (profile.avatar) {
-            // Show current avatar preview if exists
             const avatarPreview = document.createElement('img');
             avatarPreview.src = profile.avatar;
             avatarPreview.className = 'mb-3 rounded-circle';
@@ -436,6 +460,39 @@ const handleUpdateProfile = async (e) => {
         alert('Profile updated successfully!');
         loadMainPage();
     } catch (error) {
+        alert(error.message);
+    }
+};
+
+// Add this new function for 2FA toggle
+const handle2FAToggle = async (e) => {
+    e.preventDefault();
+    
+    try {
+        const profile = await fetchUserProfile();
+        if (profile.is_42_auth) {
+            alert('2FA settings cannot be modified for 42 School users.');
+            return;
+        }
+
+        const password = document.getElementById('2fa-password').value;
+        const response = await fetchWithAuth(`${API_BASE}auth/2fa/toggle/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to toggle 2FA');
+        }
+
+        const data = await response.json();
+        document.getElementById('2fa-password').value = ''; // Clear password field
+        await loadUpdateProfilePage(); // Reload the page to update 2FA status
+        alert(data.message || '2FA status updated successfully');
+    } catch (error) {
+        console.error('Error toggling 2FA:', error);
         alert(error.message);
     }
 };
@@ -554,6 +611,9 @@ document.getElementById('back-to-main').addEventListener('click', async (e) => {
     await loadMainPage(); // Use loadMainPage instead of showPage
 });
 document.getElementById('update-profile-form').addEventListener('submit', handleUpdateProfile);
+
+// Add this with your other event listeners
+document.getElementById('2fa-toggle-form').addEventListener('submit', handle2FAToggle);
 
 // Form Togglenessary
 const toggleForms = () => {
@@ -728,6 +788,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 await addFriend(username);
             }
         });
+    }
+
+    // Add 2FA toggle form handler
+    const twoFAToggleForm = document.getElementById('2fa-toggle-form');
+    if (twoFAToggleForm) {
+        twoFAToggleForm.addEventListener('submit', handle2FAToggle);
     }
 });
 
