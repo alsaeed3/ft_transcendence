@@ -1057,6 +1057,25 @@ class ProfileManager {
             // Check if there's a file to upload
             const hasFile = formData.get('avatar') && formData.get('avatar').size > 0;
             
+            // Create the data object from form inputs
+            const data = {
+                username: formData.get('username'),
+                email: formData.get('email')
+            };
+
+            // Only add password if it's not empty
+            const password = formData.get('password');
+            if (password) {
+                data.password = password;
+            }
+
+            // Remove undefined or empty string values
+            Object.keys(data).forEach(key => {
+                if (!data[key]) {
+                    delete data[key];
+                }
+            });
+            
             if (hasFile) {
                 // Use FormData for file uploads
                 const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
@@ -1066,26 +1085,11 @@ class ProfileManager {
                 });
 
                 const responseData = await response.json();
-                console.log('Profile update response:', responseData);
-
                 if (!response.ok) {
                     throw new Error(responseData.detail || responseData.avatar?.[0] || 'Profile update failed');
                 }
             } else {
                 // Regular JSON request for non-file updates
-                const data = {
-                    username: formData.get('username') || undefined,
-                    email: formData.get('email') || undefined,
-                    password: formData.get('password') || undefined
-                };
-
-                // Remove undefined values
-                Object.keys(data).forEach(key => {
-                    if (data[key] === undefined) {
-                        delete data[key];
-                    }
-                });
-
                 const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -1093,8 +1097,6 @@ class ProfileManager {
                 });
 
                 const responseData = await response.json();
-                console.log('Profile update response:', responseData);
-
                 if (!response.ok) {
                     throw new Error(responseData.detail || 'Profile update failed');
                 }
