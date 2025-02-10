@@ -8,4 +8,12 @@ urlpatterns = [
     path('friends/', views.FriendListView.as_view(), name='friend-list'),
     path('<int:pk>/friend-request/', views.FriendRequestView.as_view(), name='friend-request'),
     path('<int:pk>/unfriend/', views.UnfriendView.as_view(), name='unfriend'),
+    path('block/<int:user_id>/', views.BlockUserView.as_view(), name='block-user'),
+    path('unblock/<int:user_id>/', views.UnblockUserView.as_view(), name='unblock-user'),
+    path('me/', views.CurrentUserView.as_view(), name='current-user'),
+    path('logout/', views.UserLogoutView.as_view(), name='user-logout'),
+    path('messages/<int:user_id>/', views.get_chat_messages, name='chat_messages'),
+    path('messages/send/', views.send_message, name='send_message'),
+    path('messages/<int:other_user_id>/read/', views.mark_messages_read, name='mark-messages-read'),
+    path('profile/<int:user_id>/', views.UserProfileView.as_view(), name='user-profile'),
 ]

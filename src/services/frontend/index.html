@@ -6,11 +6,117 @@
     <title>Pong Game</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/assets/css/chat.css">
     <style>
         .page { display: none; }
         .active-page { display: block; }
         .game-option-card { cursor: pointer; transition: transform 0.2s; }
         .game-option-card:hover { transform: scale(1.05); }
+        #chat-container {
+            transition: transform 0.3s ease;
+            position: fixed;
+            bottom: 0;
+            right: 20px;
+            z-index: 9999;
+            width: 300px;
+            margin: 0;
+        }
+
+        #chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+        
+        #chat-messages .list-group-item {
+            border-radius: 1rem;
+            padding: 0.5rem 1rem;
+            max-width: 80%;
+            word-break: break-word;
+            margin: 0.2rem 0;
+            border: none;
+        }
+        
+        #chat-messages .sent-message {
+            background-color: #0d6efd;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.2rem;
+        }
+        
+        #chat-messages .received-message {
+            background-color: #6c757d;
+            color: white;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.2rem;
+        }
+
+        #chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-messages::-webkit-scrollbar-track {
+            background: #2b3035;
+        }
+
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: #495057;
+            border-radius: 4px;
+        }
+
+        #message-input {
+            background-color: #2b3035;
+            color: white;
+            border: 1px solid #495057;
+        }
+        
+        #message-input:focus {
+            background-color: #2b3035;
+            color: white;
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .message-wrapper .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        
+        .message-wrapper.sent .avatar {
+            order: 2;
+            margin-right: 0;
+            margin-left: 10px;
+        }
+        
+        .message-wrapper.received .avatar {
+            order: 0;
+            margin-right: 10px;
+            margin-left: 0;
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -85,11 +191,55 @@
                     <!-- User Profile -->
                     <div id="user-profile" class="me-3" style="cursor: pointer;">
                         <div class="d-flex align-items-center">
-                            <img id="profile-avatar" src="avatar.webp" alt="Avatar" class="rounded-circle" style="width: 40px; height: 40px;">
+                            <img id="profile-avatar" 
+                                 src="/media/avatars/default.svg" 
+                                 alt="Avatar" 
+                                 class="rounded-circle" 
+                                 style="width: 40px; height: 40px;"
+                                 onerror="this.src='/media/avatars/default.svg'">
                             <span id="username-display" class="text-white ms-2">Username</span>
                         </div>
                     </div>
                     <button class="btn btn-danger" id="logout-btn">Logout</button>
+                </div>
+            </div>
+            <!-- chat -->
+            <div id="chat-container" class="card position-fixed bottom-0 end-0 m-3" style="width: 300px; display: none;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" id="chat-header">
+                    <span>Chat</span>
+                    <div>
+                        <button id="block-user" class="btn btn-sm btn-danger me-2">
+                            <i class="bi bi-slash-circle"></i>
+                        </button>
+                        <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <button id="close-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="height: 400px;">
+                    <div id="chat-messages" class="overflow-auto mb-3" style="height: 320px;"></div>
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control" placeholder="Type a message...">
+                        <button id="send-button" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Modal -->
+            <div class="modal fade" id="usersModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Select User to Chat</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Users list will be inserted here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -101,7 +251,13 @@
                     <div class="card bg-secondary text-white">
                         <div class="card-body">
                             <h5 class="card-title">Player Stats</h5>
-                            <div id="player-stats"></div>
+                            <div id="player-stats">
+                                <p>Username: <span id="stats-username"></span></p>
+                                <p>Match Wins: <span id="stats-match-wins">0</span></p>
+                                <p>Tournament Wins: <span id="stats-tourney-wins">0</span></p>
+                                <p>Total Matches: <span id="stats-total-matches">0</span></p>
+                                <p>Total Tournaments: <span id="stats-total-tourneys">0</span></p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -220,6 +376,59 @@
                             <button id="back-to-main" class="btn btn-secondary w-100">Back to Main</button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="users-list">
+        <table class="table table-dark table-hover">
+            <thead>
+                <tr>
+                    <th scope="col">Username</th>
+                    <th scope="col">Actions</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody id="users-table-body">
+                <!-- Users will be populated here dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Add this after the users modal -->
+    <div class="modal fade" id="userProfileModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">User Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img id="modal-user-avatar" 
+                             src="/media/avatars/default.svg" 
+                             alt="User Avatar" 
+                             class="rounded-circle mb-3" 
+                             style="width: 100px; height: 100px; object-fit: cover;">
+                        <h4 id="modal-username" class="mb-3"></h4>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-muted">Match Statistics</h6>
+                            <p>Wins: <span id="modal-match-wins">0</span></p>
+                            <p>Total: <span id="modal-total-matches">0</span></p>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Tournament Statistics</h6>
+                            <p>Wins: <span id="modal-tourney-wins">0</span></p>
+                            <p>Total: <span id="modal-total-tourneys">0</span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-primary" id="modal-chat-btn">Chat</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
