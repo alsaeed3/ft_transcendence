@@ -25,7 +25,7 @@ class AuthManager {
                 throw new Error("No refresh token available");
             }
     
-            const response = await fetch(`${API_BASE}token/refresh/`, {
+            const response = await fetch(`${AuthManager.API_BASE}token/refresh/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: this.refreshToken })
@@ -364,10 +364,14 @@ class UIManager {
     }
 
     static updateProfileDisplay(profile) {
+        // Update UI elements
         document.getElementById('username-display').textContent = profile.username;
-        const profileAvatar = document.getElementById('profile-avatar');
-        Utils.handleAvatarError(profileAvatar, profile.username);
-        profileAvatar.src = profile.avatar_url || '/media/avatars/default.svg';
+        if (profile.avatar) {
+            const profileAvatar = document.getElementById('profile-avatar');
+            if (profileAvatar) {
+                profileAvatar.src = profile.avatar || '/media/avatars/default.svg';
+            }
+        }
     }
 
     static async showUserProfile(userId) {
@@ -684,7 +688,7 @@ class ChatManager {
 
     static async blockUser(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/block/${userId}/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/block/${userId}/`, {
                 method: 'POST'
             });
             
@@ -709,7 +713,7 @@ class ChatManager {
 
     static async unblockUser(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/unblock/${userId}/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/unblock/${userId}/`, {
                 method: 'POST'
             });
             
@@ -903,7 +907,7 @@ class FriendManager {
 
     static async removeFriend(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/${userId}/unfriend/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${userId}/unfriend/`, {
                 method: 'DELETE'
             });
 
@@ -1024,27 +1028,83 @@ class ToastManager {
 class ProfileManager {
     static async fetchUserProfile() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`);
-            if (!response.ok) throw new Error('Failed to fetch profile');
-            return await response.json();
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const profile = await response.json();
+            
+            // Ensure avatar path is correct
+            if (profile.avatar) {
+                profile.avatar = profile.avatar.startsWith('/') ? 
+                    profile.avatar : `/media/${profile.avatar}`;
+            } else {
+                profile.avatar = '/media/avatars/default.svg';
+            }
+            
+            return profile;
         } catch (error) {
             console.error('Error fetching profile:', error);
+            if (error.message.includes('401')) {
+                localStorage.clear();
+                AuthManager.accessToken = null;
+                UIManager.showPage(UIManager.pages.landing);
+            }
             throw error;
         }
     }
 
     static async updateProfile(formData) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
-                method: 'PUT',
-                body: formData
-            });
+            // Check if there's a file to upload
+            const hasFile = formData.get('avatar') && formData.get('avatar').size > 0;
+            
+            if (hasFile) {
+                // Use FormData for file uploads
+                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+                    method: 'PUT',
+                    // Don't set Content-Type header - browser will set it with boundary
+                    body: formData
+                });
 
-            if (!response.ok) throw new Error('Profile update failed');
+                const responseData = await response.json();
+                console.log('Profile update response:', responseData);
+
+                if (!response.ok) {
+                    throw new Error(responseData.detail || responseData.avatar?.[0] || 'Profile update failed');
+                }
+            } else {
+                // Regular JSON request for non-file updates
+                const data = {
+                    username: formData.get('username') || undefined,
+                    email: formData.get('email') || undefined,
+                    password: formData.get('password') || undefined
+                };
+
+                // Remove undefined values
+                Object.keys(data).forEach(key => {
+                    if (data[key] === undefined) {
+                        delete data[key];
+                    }
+                });
+
+                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+                console.log('Profile update response:', responseData);
+
+                if (!response.ok) {
+                    throw new Error(responseData.detail || 'Profile update failed');
+                }
+            }
+
             UIManager.showToast('Profile updated successfully!', 'success');
             await UIManager.loadMainPage();
         } catch (error) {
-            UIManager.showToast(error.message, 'danger');
+            console.error('Profile update error:', error);
+            UIManager.showToast(error.message || 'Failed to update profile', 'danger');
         }
     }
 }
