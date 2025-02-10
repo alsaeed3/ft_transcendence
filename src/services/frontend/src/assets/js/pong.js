@@ -80,12 +80,12 @@ function initGame(mode = 'AI') {
 
     // Add username variables
     let username = '';
-    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'AI';
+    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'Computer';
 
     // Fetch username at start
     async function fetchUsername() {
         try {
-            const response = await fetch(`${API_BASE}users/profile/`, {
+            const response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
                     'Content-Type': 'application/json'
@@ -212,8 +212,19 @@ function initGame(mode = 'AI') {
                 messageElement.textContent = winner;
                 gameOverMessage.classList.remove('d-none');
                 
-                // Only save match result for non-tournament games
-                saveMatchResult(playerScore, computerScore);
+                // Save match result
+                const matchData = {
+                    tournament: null,
+                    player1_name: username,
+                    player2_name: mode === 'PVP' ? player2Name : 'AI',
+                    player1_score: playerScore,
+                    player2_score: computerScore,
+                    start_time: new Date().toISOString(),
+                    end_time: new Date().toISOString(),
+                    winner_name: playerScore > computerScore ? username : player2Name,
+                    match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
+                };
+                saveMatchResult(matchData);
                 
                 setTimeout(() => {
                     window.location.href = '/';
@@ -229,7 +240,7 @@ function initGame(mode = 'AI') {
                 throw new Error('No access token available');
             }
 
-            let response = await fetch(`${API_BASE}users/profile/`, {
+            let response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
                 headers: {
                     'Authorization': `Bearer ${currentToken}`,
                     'Content-Type': 'application/json'
@@ -239,7 +250,7 @@ function initGame(mode = 'AI') {
             if (response.status === 401) {
                 try {
                     currentToken = await window.refreshAccessToken();
-                    response = await fetch(`${API_BASE}users/profile/`, {
+                    response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
                         headers: {
                             'Authorization': `Bearer ${currentToken}`,
                             'Content-Type': 'application/json'
@@ -259,7 +270,7 @@ function initGame(mode = 'AI') {
             }
 
 
-            const matchResponse = await fetch(`${API_BASE}matches/`, {
+            const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -274,7 +285,7 @@ function initGame(mode = 'AI') {
                 throw new Error('Failed to save match result');
             }
 
-            const userResponse = await fetch(`${API_BASE}users/profile/`, {
+            const userResponse = await fetch(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${currentToken}`,
@@ -289,7 +300,7 @@ function initGame(mode = 'AI') {
                     total_matches: userData.total_matches + 1
                 };
     
-                await fetch(`${API_BASE}users/profile/`, {
+                await fetch(`${AuthManager.API_BASE}users/profile/`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${currentToken}`,

@@ -29,7 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'display_name', 'avatar', 
             'online_status', 'language_preference', 'email',
             'user_id_42', 'login_42', 'is_42_auth', 
-            'password', 'is_friend', 'friends_count', 'is_2fa_enabled',
+            'password', 'is_friend', 'friends_count', 'is_2fa_enabled', 'match_wins', 'tourney_wins',
             'total_matches', 'total_tourneys', 'avatar_url', 'is_blocked'
         ]
         extra_kwargs = {

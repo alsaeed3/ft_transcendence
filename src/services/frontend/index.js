@@ -2,7 +2,6 @@ class AuthManager {
 
     static username;
     static API_BASE = 'https://localhost/api/';
-    static MAX_RECONNECT_ATTEMPTS = 5;
     static RECENT_MATCHES_LIMIT = 3;
     static TOKEN_REFRESH_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
     static currentOTPTimer = null; // For tracking OTP timer
@@ -90,7 +89,7 @@ class AuthManager {
 
     static async login(username, password) {
         try {
-            const response = await this.fetchWithAuth(`${this.API_BASE}auth/login/`, {
+            const response = await fetch(`${this.API_BASE}auth/login/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
@@ -103,10 +102,8 @@ class AuthManager {
                 // Store email for OTP verification
                 sessionStorage.setItem('tempUserEmail', data.user.email);
                 // Switch to 2FA form
-                document.getElementById('login-form').classList.add('d-none');
-                document.getElementById('register-form').classList.add('d-none');
-                document.getElementById('2fa-form').classList.remove('d-none');
-                startOTPTimer();
+                UIManager.show2FAForm();
+                this.startOTPTimer();
                 return;
             }
     
@@ -115,16 +112,16 @@ class AuthManager {
             }
     
             // Only store tokens and proceed if no 2FA required
-            processSuccessfulAuth(data);
+            await this.processSuccessfulAuth(data);
         } catch (error) {
             console.error('Login error:', error);
-            alert(error.message);
+            UIManager.showToast(error.message, 'danger');
         }
     }
 
     static async register(userData) {
         try {
-            const response = await this.fetchWithAuth(`${this.API_BASE}auth/register/`, {
+            const response = await fetch(`${this.API_BASE}auth/register/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
@@ -156,13 +153,12 @@ class AuthManager {
                 throw new Error(errorMessage.trim());
             }
     
-            alert('Registration successful! Please login.');
-            toggleForms();
+            UIManager.showToast('Registration successful! Please login.', 'success');
+            UIManager.toggleForms();
         } catch (error) {
-            // Create formatted alert message
             const errorLines = error.message.split('\n');
             const formattedError = errorLines.join('\n');
-            alert(formattedError);
+            UIManager.showToast(formattedError, 'danger');
         }
     }
 
@@ -225,6 +221,28 @@ class AuthManager {
             UIManager.showPage(UIManager.pages.landing);
         }
     }
+
+    static startOTPTimer() {
+        if (this.currentOTPTimer) {
+            clearInterval(this.currentOTPTimer);
+        }
+        const timerElement = document.getElementById('otp-timer');
+        let timeLeft = 300; // 5 minutes in seconds
+    
+        this.currentOTPTimer = setInterval(() => {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(this.currentOTPTimer);
+                this.currentOTPTimer = null;
+                UIManager.showToast('OTP expired. Please try again.', 'warning');
+                UIManager.showLoginForm();
+            }
+            timeLeft--;
+        }, 1000);
+    }
 }
 
 class UIManager {
@@ -266,7 +284,6 @@ class UIManager {
     }
 
     static async loadMainPage() {
-        // Show main page
         this.showPage(this.pages.main);
     
         try {
@@ -276,13 +293,8 @@ class UIManager {
                 AuthManager.currentUser = profile;
 
                 // Update UI elements
-                document.getElementById('username-display').textContent = profile.username;
-                if (profile.avatar) {
-                    const profileAvatar = document.getElementById('profile-avatar');
-                    if (profileAvatar) {
-                        profileAvatar.src = profile.avatar || '/media/avatars/default.svg';
-                    }
-                }
+                this.updateProfileDisplay(profile);
+
                 // Load user stats
                 this.loadUserStats(profile);
 
@@ -316,22 +328,51 @@ class UIManager {
             const profile = await ProfileManager.fetchUserProfile();
             document.getElementById('update-username').value = profile.username;
             document.getElementById('update-email').value = profile.email;
+            
+            const is42User = profile.is_42_auth;
+            const statusElement = document.getElementById('2fa-status');
+            const twoFAToggleForm = document.getElementById('2fa-toggle-form');
 
-            // Add back button handler
-            document.getElementById('back-to-main')?.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.showPage(this.pages.main);
-            });
-
+            if (is42User) {
+                statusElement.innerHTML = `
+                    <div class="alert alert-info text-center">
+                        <strong>2FA is managed by 42 School authentication</strong>
+                    </div>
+                `;
+                twoFAToggleForm.style.display = 'none';
+            } else {
+                const is2FAEnabled = Boolean(profile.is_2fa_enabled);
+                statusElement.innerHTML = `
+                    <div class="alert ${is2FAEnabled ? 'alert-success' : 'alert-warning'} text-center">
+                        <strong>2FA is currently ${is2FAEnabled ? 'ENABLED' : 'DISABLED'}</strong>
+                    </div>
+                `;
+                twoFAToggleForm.style.display = 'block';
+            }
+            
+            if (profile.avatar) {
+                const avatarPreview = document.createElement('img');
+                avatarPreview.src = profile.avatar;
+                avatarPreview.className = 'mb-3 rounded-circle';
+                avatarPreview.style = 'width: 100px; height: 100px;';
+                document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
+            }
         } catch (error) {
             console.error('Error loading profile:', error);
             this.showToast('Failed to load profile data', 'danger');
         }
     }
 
+    static updateProfileDisplay(profile) {
+        document.getElementById('username-display').textContent = profile.username;
+        const profileAvatar = document.getElementById('profile-avatar');
+        Utils.handleAvatarError(profileAvatar, profile.username);
+        profileAvatar.src = profile.avatar_url || '/media/avatars/default.svg';
+    }
+
     static async showUserProfile(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/profile/${userId}/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/${userId}/`);
             if (!response.ok) throw new Error('Failed to fetch user profile');
             
             const profile = await response.json();
@@ -357,7 +398,7 @@ class UIManager {
             modal.show();
         } catch (error) {
             console.error('Error fetching user profile:', error);
-            UIManager.showToast('Failed to load user profile', 'danger');
+            this.showToast('Failed to load user profile', 'danger');
         }
     }
 }
@@ -366,6 +407,7 @@ class ChatManager {
     static chatSocket = null;
     static statusSocket = null;
     static currentChatPartner = null;
+    static MAX_RECONNECT_ATTEMPTS = 5;
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
     static blockedUsers = new Set();
@@ -559,7 +601,7 @@ class ChatManager {
         // Re-initialize event listeners after recreating the buttons
         this.initializeEventListeners();
         
-        const apiHost = new URL(API_BASE).host;
+        const apiHost = new URL(AuthManager.API_BASE).host;
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
         
@@ -578,7 +620,7 @@ class ChatManager {
 
     static async loadPreviousMessages(userId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/messages/${userId}/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/messages/${userId}/`);
             if (!response.ok) throw new Error('Failed to load messages');
             const messages = await response.json();
             
@@ -619,7 +661,7 @@ class ChatManager {
     }
 
     static handleChatClose() {
-        if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
             this.reconnectTimeout = setTimeout(() => {
                 this.reconnectAttempts++;
                 this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
@@ -815,7 +857,7 @@ class FriendManager {
     // Add these friend-related functions
     static async fetchFriendList() {
         try {
-            const response = await fetchWithAuth(`${API_BASE}users/friends/`);
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/friends/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             return await response.json();
         } catch (error) {
@@ -827,7 +869,7 @@ class FriendManager {
     static async addFriend(username) {
         try {
             // First, search for the user by username
-            const searchResponse = await fetchWithAuth(`${API_BASE}users/?username=${username}`);
+            const searchResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/?username=${username}`);
             if (!searchResponse.ok) {
                 throw new Error('Failed to find user');
             }
@@ -840,7 +882,7 @@ class FriendManager {
             const user = users[0]; // Get the first matching user
 
             // Now send the friend request using the found user's ID
-            const response = await fetchWithAuth(`${API_BASE}users/${user.id}/friend-request/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${user.id}/friend-request/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -855,13 +897,13 @@ class FriendManager {
             await updateFriendListUI();
             alert('Friend added successfully!');
         } catch (error) {
-            alert(error.message);
+            UIManager.showToast(error.message, 'danger');
         }
     };
 
     static async removeFriend(userId) {
         try {
-            const response = await fetchWithAuth(`${API_BASE}users/${userId}/unfriend/`, {
+            const response = await AuthManager.fetchWithAuth(`${API_BASE}users/${userId}/unfriend/`, {
                 method: 'DELETE'
             });
 
@@ -870,12 +912,12 @@ class FriendManager {
             }
             await updateFriendListUI();
         } catch (error) {
-            alert(error.message);
+            UIManager.showToast(error.message, 'danger');
         }
     };
 
     static async updateFriendListUI() {
-        const friends = await fetchFriendList();
+        const friends = await this.fetchFriendList();
         const friendListBody = document.getElementById('friend-list-body');
         friendListBody.innerHTML = '';
 
@@ -902,218 +944,329 @@ class FriendManager {
             button.addEventListener('click', async (e) => {
                 const friendId = e.currentTarget.dataset.friendId;
                 if (confirm('Are you sure you want to remove this friend?')) {
-                    await removeFriend(friendId);
+                    await this.removeFriend(friendId);
                 }
             });
         });
     };
 }
 
-// Profile Management
-const loadUpdateProfilePage = async () => {
-    showPage(pages.updateProfile);
-    try {
-        const profile = await fetchUserProfile();
-        console.log('Profile data:', profile); // Add this line for debugging
-        document.getElementById('update-username').value = profile.username;
-        document.getElementById('update-email').value = profile.email;
-        
-        const is42User = profile.is_42_auth;
-        const statusElement = document.getElementById('2fa-status');
-        const twoFAToggleForm = document.getElementById('2fa-toggle-form');
-        
-        // Log the 2FA status for debugging
-        console.log('2FA enabled:', profile.is_2fa_enabled);
-        
-        if (is42User) {
-            statusElement.innerHTML = `
-                <div class="alert alert-info text-center">
-                    <strong>2FA is managed by 42 School authentication</strong>
-                </div>
-            `;
-            twoFAToggleForm.style.display = 'none';
-        } else {
-            const is2FAEnabled = Boolean(profile.is_2fa_enabled); // Ensure boolean value
-            statusElement.innerHTML = `
-                <div class="alert ${is2FAEnabled ? 'alert-success' : 'alert-warning'} text-center">
-                    <strong>2FA is currently ${is2FAEnabled ? 'ENABLED' : 'DISABLED'}</strong>
-                </div>
-            `;
-            twoFAToggleForm.style.display = 'block';
-        }
-        
-        if (profile.avatar) {
-            const avatarPreview = document.createElement('img');
-            avatarPreview.src = profile.avatar;
-            avatarPreview.className = 'mb-3 rounded-circle';
-            avatarPreview.style = 'width: 100px; height: 100px;';
-            document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
-        }
-        } catch (error) {
-            console.error('Error loading profile:', error);
-            alert('Failed to load profile data');
-        }
-    };
-
-    const handleUpdateProfile = async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('update-username').value;
-        const email = document.getElementById('update-email').value;
-        const password = document.getElementById('update-password').value;
-        const avatarFile = document.getElementById('update-avatar').files[0];
-
-        const formData = new FormData();
-        formData.append('username', username);
-        formData.append('email', email);
-        if (password) formData.append('password', password);
-        if (avatarFile) formData.append('avatar', avatarFile);
-
-    try {
-        const response = await fetchWithAuth(`${API_BASE}users/profile/`, {
-            method: 'PUT',
-            body: formData
-        });
-
-        if (!response.ok) throw new Error('Profile update failed');
-        alert('Profile updated successfully!');
-        loadMainPage();
-    } catch (error) {
-        alert(error.message);
+class Utils {
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
-};
 
-// Add this new function for 2FA toggle
-const handle2FAToggle = async (e) => {
-    e.preventDefault();
-    
-    try {
-        const profile = await fetchUserProfile();
-        if (profile.is_42_auth) {
-            alert('2FA settings cannot be modified for 42 School users.');
-            return;
-        }
-
-        const password = document.getElementById('2fa-password').value;
-        const response = await fetchWithAuth(`${API_BASE}auth/2fa/toggle/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to toggle 2FA');
-        }
-
-        const data = await response.json();
-        document.getElementById('2fa-password').value = ''; // Clear password field
-        await loadUpdateProfilePage(); // Reload the page to update 2FA status
-        alert(data.message || '2FA status updated successfully');
-    } catch (error) {
-        console.error('Error toggling 2FA:', error);
-        alert(error.message);
-    }
-};
-
-// UI Updates
-const loadMainPage = async () => {
-    showPage(pages.main);
-
-    try {
-        const profile = await fetchUserProfile();
-        if (profile) {
-            // Update profile display in nav
-            document.getElementById('username-display').textContent = profile.username;
-            if (profile.avatar) {
-                document.getElementById('profile-avatar').src = profile.avatar;
+    static handleAvatarError(imgElement, username) {
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        imgElement.onerror = () => {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                imgElement.src = '/media/avatars/default.svg';
+            } else {
+                imgElement.style.display = 'none';
+                const placeholder = document.createElement('div');
+                placeholder.className = 'avatar-placeholder';
+                placeholder.textContent = username.charAt(0).toUpperCase();
+                imgElement.parentNode.insertBefore(placeholder, imgElement);
             }
+        };
+    }
 
-            // Update stats
-            document.getElementById('player-stats').innerHTML = `
-                <p>Username: ${profile.username}</p>
-                <p>Email: ${profile.email}</p>
-                <p>Wins: ${profile.stats?.wins || 0}</p>
-                <p>Losses: ${profile.stats?.losses || 0}</p>
-            `;
-        }
+    static preloadDefaultAvatar() {
+        const img = new Image();
+        img.src = '/media/avatars/default.svg';
+    }
+}
 
-        const matches = await fetchMatchHistory();
-
-        if (matches && matches.length > 0) {
-            document.getElementById('match-history').innerHTML = `
-                <h5 class="text-white mb-3">Recent Matches (Last ${RECENT_MATCHES_LIMIT})</h5>
-                ${matches
-                    .slice(0, RECENT_MATCHES_LIMIT)
-                    .map(match => {
-                        const isPlayer1 = match.player1 === profile.id;
-                        const playerScore = isPlayer1 ? match.player1_score : match.player2_score;
-                        const opponentScore = isPlayer1 ? match.player2_score : match.player1_score;
-                        
-                        // Get opponent name and match type
-                        const matchTypeKey = `match_${match.id}_type`;
-                        const storedMatchType = localStorage.getItem(matchTypeKey);
-                        const isPVP = storedMatchType === 'PVP' || match.match_type === 'PVP';
-
-                        let opponentName;
-                        if (isPVP) {
-                            const matchKey = `match_${match.id}_player2`;
-                            opponentName = localStorage.getItem(matchKey) || 'Player 2';
-                        } else {
-                            opponentName = 'Computer';
-                        }
-
-                        const matchDate = new Date(match.end_time).toLocaleDateString();
-                        const matchTypeDisplay = isPVP ? 'PVP Match' : 'AI Match';
-
-                        return `
-                            <div class="mb-3 text-white">
-                                <div>${matchTypeDisplay}: You vs ${opponentName}</div>
-                                <div>Score: ${playerScore}-${opponentScore}</div>
-                                <small class="text-muted">${matchDate}</small>
-                            </div>
-                        `;
-                    }).join('')}
-            `;
+class ToastManager {
+    static show(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Check if bootstrap is available
+        if (typeof bootstrap !== 'undefined') {
+            new bootstrap.Toast(toast, { autohide: true, delay: 3000 }).show();
         } else {
-            document.getElementById('match-history').innerHTML = '<p class="text-white">No matches found</p>';
+            // Fallback if bootstrap is not available
+            toast.style.display = 'block';
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s ease-out';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
         }
+        
+        setTimeout(() => toast.remove(), 3500);
+    }
+}
 
-        // Add this at the end of the try block
-        await updateFriendListUI();
-    } catch (error) {
-        console.error('Error loading main page data:', error);
-        if (error.message.includes('401')) {
-            window.location.href = '/';
+// Add ProfileManager class definition
+class ProfileManager {
+    static async fetchUserProfile() {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`);
+            if (!response.ok) throw new Error('Failed to fetch profile');
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching profile:', error);
+            throw error;
         }
     }
-};
 
-// Single consolidated DOMContentLoaded event listener
-document.addEventListener('DOMContentLoaded', () => {
-    // Auth related listeners
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const [username, password] = e.target.querySelectorAll('input');
+    static async updateProfile(formData) {
         try {
-            await AuthManager.login(username.value, password.value);
-        } catch (error) {
-            UIManager.showToast('Login failed', 'danger');
-        }
-    });
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+                method: 'PUT',
+                body: formData
+            });
 
-    // 2FA form submit handler
-    const twoFAForm = document.getElementById('2fa-form');
-    if (twoFAForm) {
-        twoFAForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const otp = document.getElementById('otp-input').value.trim();
-            if (otp.length !== 6) {
-                UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
+            if (!response.ok) throw new Error('Profile update failed');
+            UIManager.showToast('Profile updated successfully!', 'success');
+            await UIManager.loadMainPage();
+        } catch (error) {
+            UIManager.showToast(error.message, 'danger');
+        }
+    }
+}
+
+class UserManager {
+    static async loadUsersList() {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch users: ${response.status}`);
+            }
+            
+            const users = await response.json();
+            
+            const tableBody = document.getElementById('users-table-body');
+            if (!tableBody) {
+                console.error('Users table body element not found');
                 return;
             }
-            await AuthManager.verify2FA(otp);
+            
+            tableBody.innerHTML = '';
+            
+            users.forEach(user => {
+                if (user.id === AuthManager.currentUser?.id) return;
+                
+                const row = document.createElement('tr');
+                row.setAttribute('data-user-id', user.id);
+                if (user.is_blocked) {
+                    row.classList.add('blocked-user');
+                }
+                
+                row.innerHTML = `
+                    <td>${Utils.escapeHtml(user.username)}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm chat-btn me-2" 
+                                ${user.is_blocked ? 'disabled' : ''}>
+                            <i class="bi bi-chat-dots"></i> Chat
+                        </button>
+                        <button class="btn btn-sm ${user.is_blocked ? 'btn-secondary' : 'btn-danger'} block-btn">
+                            ${user.is_blocked ? 'Unblock' : 'Block'}
+                        </button>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary" 
+                              data-user-status="${user.id}"
+                              data-user-name="${Utils.escapeHtml(user.username)}">
+                            Offline
+                        </span>
+                    </td>
+                `;
+
+                // Add event listeners after creating the elements
+                const chatBtn = row.querySelector('.chat-btn');
+                const blockBtn = row.querySelector('.block-btn');
+
+                chatBtn.addEventListener('click', () => {
+                    ChatManager.startChat(user.id, user.username);
+                });
+
+                blockBtn.addEventListener('click', () => {
+                    const isCurrentlyBlocked = user.is_blocked;
+                    if (isCurrentlyBlocked) {
+                        ChatManager.unblockUser(user.id).then(() => {
+                            user.is_blocked = false;  // Update the user state
+                        });
+                    } else {
+                        ChatManager.blockUser(user.id).then(() => {
+                            user.is_blocked = true;  // Update the user state
+                        });
+                    }
+                });
+
+                tableBody.appendChild(row);
+            });
+        } catch (error) {
+            console.error('Error loading users list:', error);
+            UIManager.showToast(`Error loading users list: ${error.message}`, 'danger');
+        }
+    }
+}
+
+class MatchManager {
+    static async fetchMatchHistory() {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const matches = await response.json();
+
+            // Sort matches by date (most recent first)
+            return matches.sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
+        } catch (error) {
+            console.error('Error fetching matches:', error);
+            return [];
+        }
+    }
+
+    static displayMatchHistory(matches) {
+        const container = document.getElementById('match-history');
+        container.innerHTML = matches.length ? '' : '<p>No recent matches</p>';
+        
+        matches.slice(0, AuthManager.RECENT_MATCHES_LIMIT).forEach(match => {
+            const matchElement = document.createElement('div');
+            matchElement.className = 'mb-2 p-2 bg-dark rounded';
+            
+            const winner = match.winner_name;
+            const winnerClass = match.player1_name === winner ? 'text-success' : 'text-danger';
+            
+            matchElement.innerHTML = `
+                <div>
+                    <strong class="${match.player1_name === winner ? winnerClass : ''}">${match.player1_name}</strong> 
+                    vs 
+                    <strong class="${match.player2_name === winner ? winnerClass : ''}">${match.player2_name}</strong>
+                    <div>Score: ${match.player1_score} - ${match.player2_score}</div>
+                    <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
+                    ${winner ? `<div class="mt-1"><small class="text-success">Winner: ${winner}</small></div>` : ''}
+                </div>
+            `;
+
+            container.appendChild(matchElement);
         });
     }
+
+    static async initializeGame(mode, opponent = null) {
+        try {
+            const currentUser = AuthManager.currentUser;
+            const player2Name = mode === 'PVP' ? 
+                localStorage.getItem('player2Name') || 'Player 2' : 
+                'AI';
+
+            const payload = {
+                player1_name: currentUser.username,
+                player2_name: player2Name,
+                player1_score: 0,
+                player2_score: 0,
+                tournament: null
+            };
+
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error('Failed to initialize game');
+            const matchData = await response.json();
+
+            // Initialize the game canvas and start the game
+            const gameCanvas = document.getElementById('game-canvas');
+            if (gameCanvas) {
+                // Initialize game with matchData
+                window.initializeGame(matchData);
+                UIManager.showToast(`${mode.toUpperCase()} match started!`, 'success');
+            }
+        } catch (error) {
+            console.error('Error initializing game:', error);
+            UIManager.showToast('Failed to start game', 'danger');
+        }
+    }
+
+    static async createTournament() {
+        try {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}tournaments/create/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to create tournament');
+            const tournamentData = await response.json();
+            UIManager.showToast('Tournament created successfully!', 'success');
+            return tournamentData;
+        } catch (error) {
+            console.error('Error creating tournament:', error);
+            UIManager.showToast('Failed to create tournament', 'danger');
+            throw error;
+        }
+    }
+
+    static async createMatch(player1Score, player2Score, mode = 'AI') {
+        try {
+            const currentUser = AuthManager.currentUser;
+            const player2Name = mode === 'PVP' ? 
+                localStorage.getItem('player2Name') || 'Player 2' : 
+                'Computer';
+
+            const matchData = {
+                player1_name: currentUser.username,
+                player2_name: player2Name,
+                player1_score: player1Score,
+                player2_score: player2Score,
+                tournament: null,
+                end_time: new Date().toISOString()
+            };
+
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save match');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving match:', error);
+            UIManager.showToast('Failed to save match result', 'danger');
+            throw error;
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('register-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1133,51 +1286,76 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('register-link').addEventListener('click', UIManager.toggleForms);
     document.getElementById('login-link').addEventListener('click', UIManager.toggleForms);
 
-    // Back to login button handler
-    const backToLoginBtn = document.getElementById('back-to-login');
-    if (backToLoginBtn) {
-        backToLoginBtn.addEventListener('click', () => {
-            UIManager.showLoginForm();
-        });
-    }
-
-    // OTP input validation
-    const otpInput = document.getElementById('otp-input');
-    if (otpInput) {
-        otpInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-        });
-    }
-
     // Profile listeners
     document.getElementById('update-profile-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        
+        // Log form data before submission
         const formData = new FormData(e.target);
         console.log('Form data before submission:');
         for (let [key, value] of formData.entries()) {
             console.log(`${key}: ${value}`);
         }
+        
         ProfileManager.updateProfile(formData);
     });
 
-    // Chat related listeners
-    document.getElementById('send-button').addEventListener('click', () => {
-        ChatManager.sendMessage();
-    });
-
-    document.getElementById('message-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            ChatManager.sendMessage();
+    // Auth related listeners
+    document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const [username, password] = e.target.querySelectorAll('input');
+        try {
+            await AuthManager.login(username.value, password.value);
+        } catch (error) {
+            UIManager.showToast('Login failed', 'danger');
         }
     });
 
-    // Game related listeners
+    // Update profile form handler
+    document.getElementById('update-profile-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        ProfileManager.updateProfile(formData);
+    });
+
+    // 2FA toggle form handler
+    document.getElementById('2fa-toggle-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('2fa-password').value;
+        try {
+            const profile = await ProfileManager.fetchUserProfile();
+            if (profile.is_42_auth) {
+                UIManager.showToast('2FA settings cannot be modified for 42 School users.', 'warning');
+                return;
+            }
+
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}auth/2fa/toggle/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to toggle 2FA');
+            }
+
+            const data = await response.json();
+            document.getElementById('2fa-password').value = '';
+            await UIManager.loadUpdateProfilePage();
+            UIManager.showToast(data.message || '2FA status updated successfully', 'success');
+        } catch (error) {
+            console.error('Error toggling 2FA:', error);
+            UIManager.showToast(error.message, 'danger');
+        }
+    });
+
     document.getElementById('play-player-btn').addEventListener('click', async () => {
         if (!AuthManager.accessToken) {
             window.location.href = '/';
             return;
         }
+    
         try {
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
@@ -1230,15 +1408,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
         } catch (error) {
             console.error('Error loading setup page:', error);
-            alert('Failed to load the setup page');
+            UIManager.showToast('Failed to load the setup page', 'danger');
         }
     });
-
+    
     document.getElementById('play-ai-btn').addEventListener('click', async () => {
         if (!AuthManager.accessToken) {
             window.location.href = '/';
             return;
         }
+    
         try {
             const response = await fetch('/src/assets/components/pong.html');
             const html = await response.text();
@@ -1262,15 +1441,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
         } catch (error) {
             console.error('Error loading game:', error);
-            alert('Failed to load the game');
+            UIManager.showToast('Failed to load the game', 'danger');
         }
     });
-
+    
     document.getElementById('create-tournament-btn').addEventListener('click', async () => {
         if (!AuthManager.accessToken) {
             window.location.href = '/';
             return;
         }
+    
         try {
             // Load and show tournament setup page
             const response = await fetch('/src/assets/components/tournament-setup.html');
@@ -1374,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 } catch (error) {
                     console.error('Error:', error);
-                    alert('Failed to start tournament');
+                    UIManager.showToast('Failed to start tournament', 'danger');
                 }
             });
     
@@ -1394,136 +1574,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         } catch (error) {
             console.error('Error loading tournament setup:', error);
-            alert('Failed to load the tournament setup');
+            UIManager.showToast('Failed to load the tournament setup', 'danger');
         }
     });
-
-    // Add friend button handler
-    const addFriendBtn = document.getElementById('add-friend-btn');
-    if (addFriendBtn) {
-        addFriendBtn.addEventListener('click', async () => {
-            const username = prompt('Enter username to add as friend:');
-            if (username) {
-                await FriendManager.addFriend(username);
-            }
-        });
-    }
-
-    // Add 2FA toggle form handler
-    const twoFAToggleForm = document.getElementById('2fa-toggle-form');
-    if (twoFAToggleForm) {
-        twoFAToggleForm.addEventListener('submit', handle2FAToggle);
-    }
 
     // Initialize chat event listeners
     ChatManager.initializeEventListeners();
 
-    // Add name attributes to update profile form fields
-    const updateProfileForm = document.getElementById('update-profile-form');
-    if (updateProfileForm) {
-        const usernameInput = updateProfileForm.querySelector('#update-username');
-        const emailInput = updateProfileForm.querySelector('#update-email');
-        const passwordInput = updateProfileForm.querySelector('#update-password');
-        const avatarInput = updateProfileForm.querySelector('#update-avatar');
-
-        usernameInput.setAttribute('name', 'username');
-        emailInput.setAttribute('name', 'email');
-        passwordInput.setAttribute('name', 'password');
-        avatarInput.setAttribute('name', 'avatar');
-    }
+    // Preload default avatar
+    Utils.preloadDefaultAvatar();
 });
 
+// Update initialization code
 if (AuthManager.accessToken) {
     UIManager.loadMainPage();
 } else {
     UIManager.showPage(UIManager.pages.landing);
 }
-
-window.refreshAccessToken = () => AuthManager.refreshAccessToken();
-
-class Utils {
-    static escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    static handleAvatarError(imgElement, username) {
-        let retryCount = 0;
-        const maxRetries = 2;
-        
-        imgElement.onerror = () => {
-            if (retryCount < maxRetries) {
-                retryCount++;
-                imgElement.src = '/media/avatars/default.svg';
-            } else {
-                imgElement.style.display = 'none';
-                const placeholder = document.createElement('div');
-                placeholder.className = 'avatar-placeholder';
-                placeholder.textContent = username.charAt(0).toUpperCase();
-                imgElement.parentNode.insertBefore(placeholder, imgElement);
-            }
-        };
-    }
-}
-
-// Add preloading for default avatar
-function preloadDefaultAvatar() {
-    const img = new Image();
-    img.src = '/media/avatars/default.svg';
-}
-
-// Update the profile display function
-function updateProfileDisplay(profile) {
-    document.getElementById('username-display').textContent = profile.username;
-    const profileAvatar = document.getElementById('profile-avatar');
-    
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    const loadAvatar = (url) => {
-        profileAvatar.src = url;
-    };
-    
-    profileAvatar.onerror = () => {
-        if (retryCount < maxRetries) {
-            retryCount++;
-            loadAvatar('/media/avatars/default.svg');
-        } else {
-            // If all retries fail, show initials
-            profileAvatar.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'avatar-placeholder';
-            placeholder.textContent = profile.username.charAt(0).toUpperCase();
-            profileAvatar.parentNode.insertBefore(placeholder, profileAvatar);
-        }
-    };
-    
-    loadAvatar(profile.avatar_url || '/media/avatars/default.svg');
-}
-
-
-class ToastManager {
-    static show(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast align-items-center text-white bg-${type} border-0`;
-        toast.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-        new bootstrap.Toast(toast, { autohide: true, delay: 3000 }).show();
-        setTimeout(() => toast.remove(), 3500);
-    }
-}
-
-// Add error handling for avatar loading
-document.getElementById('modal-user-avatar').onerror = function() {
-    this.src = '/media/avatars/default.svg';
-};
