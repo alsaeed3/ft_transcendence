@@ -1643,6 +1643,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Preload default avatar
     Utils.preloadDefaultAvatar();
+
+    // Profile related listeners
+    document.getElementById('user-profile').addEventListener('click', () => {
+        UIManager.showPage(UIManager.pages.updateProfile);
+    });
+
+    document.getElementById('back-to-main').addEventListener('click', (e) => {
+        e.preventDefault();
+        UIManager.showPage(UIManager.pages.main);
+    });
 });
 
 // Update initialization code
