@@ -78,7 +78,33 @@ CORS_ALLOWED_ORIGINS = [
     "https://localhost",
     "https://localhost:443",
     "http://127.0.0.1",
-    "http://127.0.0.1:80"
+    "http://127.0.0.1:80",
+    "https://api.intra.42.fr"  # Add this line
+]
+
+CORS_ALLOW_CREDENTIALS = True  # Add this line
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Add these settings
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 CSRF_COOKIE_SECURE = True

@@ -624,12 +624,6 @@ const toggleForms = () => {
 document.getElementById('register-link').addEventListener('click', toggleForms);
 document.getElementById('login-link').addEventListener('click', toggleForms);
 
-// OAuth Login
-document.getElementById('oauth-login-link').addEventListener('click', (e) => {
-    e.preventDefault(); // Prevent the default anchor behavior
-    window.location.href = `${API_BASE}auth/oauth/login/`; // Redirect to the OAuth login endpoint
-});
-
 // Game Controls
 document.getElementById('play-player-btn').addEventListener('click', async () => {
     if (!accessToken) {
@@ -795,6 +789,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if (twoFAToggleForm) {
         twoFAToggleForm.addEventListener('submit', handle2FAToggle);
     }
+
+    // Modify OAuth button handler
+    const oauth42Btn = document.getElementById('oauth-42-btn');
+    if (oauth42Btn) {
+        oauth42Btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Store current URL before redirect
+            sessionStorage.setItem('preAuthPath', window.location.pathname);
+            window.location.href = `${API_BASE}auth/oauth/login/`;
+        });
+    }
+
+    // Check for OAuth callback
+    if (window.location.search.includes('code=')) {
+        handleOAuthCallback();
+    }
+});
+
+// Add this function to handle URL parameters
+const getUrlParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        accessToken: params.get('access_token'),
+        refreshToken: params.get('refresh_token'),
+        authError: params.get('auth_error')
+    };
+};
+
+// Update the initialization code
+document.addEventListener('DOMContentLoaded', () => {
+    // Check for auth error first
+    const { accessToken: urlAccessToken, refreshToken: urlRefreshToken, authError } = getUrlParams();
+    
+    if (authError) {
+        alert('Authentication failed: ' + decodeURIComponent(authError));
+        showPage(pages.landing);
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/');
+        return;
+    }
+
+    if (urlAccessToken && urlRefreshToken) {
+        // Store tokens
+        localStorage.setItem('accessToken', urlAccessToken);
+        localStorage.setItem('refreshToken', urlRefreshToken);
+        accessToken = urlAccessToken;
+        refreshToken = urlRefreshToken;
+        
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/');
+        
+        // Show main page
+        showPage(pages.main);
+        loadMainPage();
+        return;
+    }
+
+    // ... rest of your DOMContentLoaded code ...
 });
 
 // Initialization
@@ -806,3 +858,33 @@ if (accessToken) {
 
 // Make refreshAccessToken available globally
 window.refreshAccessToken = refreshAccessToken;
+
+// Keep handleOAuthCallback function definition but move it before it's used
+const handleOAuthCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+        try {
+            const response = await fetch(`${API_BASE}auth/oauth/callback/?code=${code}`);
+            const data = await response.json();
+            if (response.ok) {
+                // Store tokens and redirect to main page
+                accessToken = data.access;
+                refreshToken = data.refresh;
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+                
+                // Clean up URL and redirect to main page
+                window.history.replaceState({}, document.title, '/');
+                showPage(pages.main);
+                await loadMainPage();
+            } else {
+                throw new Error(data.error || 'OAuth authentication failed');
+            }
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            alert('Authentication failed. Please try again.');
+            showPage(pages.landing);
+        }
+    }
+};
