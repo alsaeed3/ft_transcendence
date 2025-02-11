@@ -102,7 +102,9 @@ class AuthManager {
                 // Store email for OTP verification
                 sessionStorage.setItem('tempUserEmail', data.user.email);
                 // Switch to 2FA form
-                UIManager.show2FAForm();
+                document.getElementById('login-form').classList.add('d-none');
+                document.getElementById('register-form').classList.add('d-none');
+                document.getElementById('2fa-form').classList.remove('d-none');
                 this.startOTPTimer();
                 return;
             }
@@ -169,7 +171,8 @@ class AuthManager {
                 throw new Error('Session expired. Please login again.');
             }
 
-            const response = await this.fetchWithAuth(`${this.API_BASE}auth/2fa/verify/`, {
+            // Changed to use direct fetch instead of fetchWithAuth
+            const response = await fetch(`${this.API_BASE}auth/2fa/verify/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, otp })
@@ -200,6 +203,7 @@ class AuthManager {
         
         sessionStorage.removeItem('tempUserEmail');
         
+        UIManager.showPage(UIManager.pages.main);
         await UIManager.loadMainPage();
     }
 
@@ -226,9 +230,10 @@ class AuthManager {
         if (this.currentOTPTimer) {
             clearInterval(this.currentOTPTimer);
         }
+
         const timerElement = document.getElementById('otp-timer');
-        let timeLeft = 300; // 5 minutes in seconds
-    
+        let timeLeft = 300;
+
         this.currentOTPTimer = setInterval(() => {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
@@ -251,12 +256,6 @@ class UIManager {
         main: document.getElementById('main-page'),
         updateProfile: document.getElementById('update-profile-page')
     };
-
-    static show2FAForm() {
-        document.getElementById('login-form').classList.add('d-none');
-        document.getElementById('register-form').classList.add('d-none');
-        document.getElementById('2fa-form').classList.remove('d-none');
-    }
 
     static showPage(page) {
         Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
@@ -328,35 +327,13 @@ class UIManager {
             const profile = await ProfileManager.fetchUserProfile();
             document.getElementById('update-username').value = profile.username;
             document.getElementById('update-email').value = profile.email;
-            
-            const is42User = profile.is_42_auth;
-            const statusElement = document.getElementById('2fa-status');
-            const twoFAToggleForm = document.getElementById('2fa-toggle-form');
 
-            if (is42User) {
-                statusElement.innerHTML = `
-                    <div class="alert alert-info text-center">
-                        <strong>2FA is managed by 42 School authentication</strong>
-                    </div>
-                `;
-                twoFAToggleForm.style.display = 'none';
-            } else {
-                const is2FAEnabled = Boolean(profile.is_2fa_enabled);
-                statusElement.innerHTML = `
-                    <div class="alert ${is2FAEnabled ? 'alert-success' : 'alert-warning'} text-center">
-                        <strong>2FA is currently ${is2FAEnabled ? 'ENABLED' : 'DISABLED'}</strong>
-                    </div>
-                `;
-                twoFAToggleForm.style.display = 'block';
-            }
-            
-            if (profile.avatar) {
-                const avatarPreview = document.createElement('img');
-                avatarPreview.src = profile.avatar;
-                avatarPreview.className = 'mb-3 rounded-circle';
-                avatarPreview.style = 'width: 100px; height: 100px;';
-                document.getElementById('update-avatar').parentNode.prepend(avatarPreview);
-            }
+            // Add back button handler
+            document.getElementById('back-to-main')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showPage(this.pages.main);
+            });
+
         } catch (error) {
             console.error('Error loading profile:', error);
             this.showToast('Failed to load profile data', 'danger');
@@ -1253,6 +1230,38 @@ class MatchManager {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // 2FA form submit handler
+    const twoFAForm = document.getElementById('2fa-form');
+    if (twoFAForm) {
+        twoFAForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const otp = document.getElementById('otp-input').value.trim();
+            if (otp.length !== 6) {
+                alert('Please enter the 6-digit verification code.');
+                return;
+            }
+            await verify2FA(otp);
+        });
+    }
+
+    // Back to login button handler
+    const backToLoginBtn = document.getElementById('back-to-login');
+    if (backToLoginBtn) {
+        backToLoginBtn.addEventListener('click', () => {
+            document.getElementById('2fa-form').classList.add('d-none');
+            document.getElementById('login-form').classList.remove('d-none');
+            sessionStorage.removeItem('tempUserEmail');
+        });
+    }
+
+    // OTP input validation (only allow numbers and max 6 digits)
+    const otpInput = document.getElementById('otp-input');
+    if (otpInput) {
+        otpInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
+    }
+
     document.getElementById('register-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const inputs = e.target.querySelectorAll('input');
@@ -1263,6 +1272,16 @@ document.addEventListener('DOMContentLoaded', () => {
             repeat_password: inputs[3].value
         };
         await AuthManager.register(userData);
+    });
+
+    document.getElementById('2fa-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const otp = document.getElementById('otp-input').value.trim();
+        if (otp.length !== 6) {
+            UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
+            return;
+        }
+        await AuthManager.verify2FA(otp);
     });
 
     document.getElementById('logout-btn').addEventListener('click', () => AuthManager.logout());
