@@ -1645,7 +1645,7 @@ function createChatMessage(message) {
     
     // Add click handler to avatar
     avatarImg.addEventListener('click', () => {
-        showUserProfile(message.sender_id);
+        UIManager.showUserProfile(message.sender_id);
     });
     
     let retryCount = 0;
@@ -1686,7 +1686,7 @@ function createChatMessage(message) {
     
     // Add click handler to username
     messageContent.querySelector('.message-header').addEventListener('click', (e) => {
-        showUserProfile(e.target.getAttribute('data-user-id'));
+        UIManager.showUserProfile(e.target.getAttribute('data-user-id'));
     });
     
     // Always add avatar first, then message content
