@@ -459,23 +459,29 @@ class ChatManager {
 
     static updateUserStatus(userId, isOnline) {
         console.log('Updating status:', userId, isOnline); // Debug log
-        const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
-        if (statusBadge) {
-            statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
-            statusBadge.textContent = isOnline ? 'Online' : 'Offline';
-            
-            // Update chat header if this is the current chat partner
-            if (this.currentChatPartner && this.currentChatPartner.id === userId) {
-                const chatHeader = document.getElementById('chat-header');
-                const username = statusBadge.getAttribute('data-user-name');
-                chatHeader.innerHTML = `
-                    Chat with ${username} 
-                    <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
-                        ${isOnline ? 'Online' : 'Offline'}
-                    </span>
-                `;
+        
+        // Update status in both user list and friend list
+        const statusBadges = document.querySelectorAll(`[data-user-status="${userId}"]`);
+        statusBadges.forEach(statusBadge => {
+            if (statusBadge) {
+                statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                
+                // Update chat header if this is the current chat partner
+                if (this.currentChatPartner && this.currentChatPartner.id === userId) {
+                    const chatHeader = document.getElementById('chat-header');
+                    const username = statusBadge.getAttribute('data-user-name');
+                    if (chatHeader) {
+                        chatHeader.innerHTML = `
+                            Chat with ${username} 
+                            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                                ${isOnline ? 'Online' : 'Offline'}
+                            </span>
+                        `;
+                    }
+                }
             }
-        }
+        });
     }
 
     static cleanup() {
@@ -757,8 +763,6 @@ class ChatManager {
 }
 
 class FriendManager {
-
-    // Add these friend-related functions
     static async fetchFriendList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/friends/`);
@@ -766,93 +770,197 @@ class FriendManager {
             return await response.json();
         } catch (error) {
             console.error('Error fetching friend list:', error);
+            UIManager.showToast('Failed to load friends list', 'danger');
             return [];
         }
-    };
+    }
 
-    static async addFriend(username) {
+    static async sendFriendRequest(username) {
         try {
-            // First, search for the user by username
-            const searchResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/?username=${username}`);
+            // First get the user's ID
+            const searchResponse = await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/?username=${encodeURIComponent(username)}`
+            );
+
             if (!searchResponse.ok) {
                 throw new Error('Failed to find user');
             }
-            
+
             const users = await searchResponse.json();
-            if (!Array.isArray(users) || users.length === 0) {
+            if (!users || users.length === 0) {
                 throw new Error('User not found');
             }
 
-            const user = users[0]; // Get the first matching user
+            const userToAdd = users[0];
+            if (userToAdd.id === AuthManager.currentUser.id) {
+                throw new Error('Cannot add yourself as a friend');
+            }
 
-            // Now send the friend request using the found user's ID
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${user.id}/friend-request/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            // Send the friend request using the user's ID
+            const response = await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/${userToAdd.id}/friend-request/`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
                 }
-            });
+            );
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to add friend');
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to send friend request');
             }
 
-            await updateFriendListUI();
-            alert('Friend added successfully!');
+            await this.updateFriendListUI();
+            UIManager.showToast('Friend request sent successfully!', 'success');
+            return true;
         } catch (error) {
+            console.error('Friend request error:', error);
             UIManager.showToast(error.message, 'danger');
+            return false;
         }
-    };
+    }
 
-    static async removeFriend(userId) {
+    static async removeFriend(friendId) {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${userId}/unfriend/`, {
-                method: 'DELETE'
-            });
+            const response = await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/${friendId}/unfriend/`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
 
             if (!response.ok) {
-                throw new Error('Failed to remove friend');
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to remove friend');
             }
-            await updateFriendListUI();
+
+            await this.updateFriendListUI();
+            UIManager.showToast('Friend removed successfully', 'success');
         } catch (error) {
+            console.error('Remove friend error:', error);
             UIManager.showToast(error.message, 'danger');
         }
-    };
+    }
 
     static async updateFriendListUI() {
-        const friends = await this.fetchFriendList();
-        const friendListBody = document.getElementById('friend-list-body');
-        friendListBody.innerHTML = '';
+        try {
+            const friends = await this.fetchFriendList();
+            const friendListBody = document.getElementById('friend-list-body');
+            
+            if (!friendListBody) {
+                console.error('Friend list body element not found');
+                return;
+            }
 
-        friends.forEach(friend => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${friend.display_name || friend.username}</td>
-                <td>
-                    <span class="badge ${friend.online_status ? 'bg-success' : 'bg-secondary'}">
-                        ${friend.online_status ? 'Online' : 'Offline'}
-                    </span>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-danger remove-friend" data-friend-id="${friend.id}">
-                        <i class="bi bi-person-x"></i>
-                    </button>
-                </td>
-            `;
-            friendListBody.appendChild(row);
-        });
+            friendListBody.innerHTML = '';
 
-        // Add event listeners for friend removal
-        document.querySelectorAll('.remove-friend').forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const friendId = e.currentTarget.dataset.friendId;
-                if (confirm('Are you sure you want to remove this friend?')) {
-                    await this.removeFriend(friendId);
-                }
+            if (!Array.isArray(friends) || friends.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="3" class="text-center">
+                        <em>No friends added yet</em>
+                    </td>
+                `;
+                friendListBody.appendChild(emptyRow);
+                return;
+            }
+
+            friends.forEach(friend => {
+                const row = document.createElement('tr');
+                row.setAttribute('data-user-id', friend.id);
+                row.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <img src="${friend.avatar_url || '/media/avatars/default.svg'}" 
+                                 alt="${friend.username}" 
+                                 class="rounded-circle me-2"
+                                 style="width: 24px; height: 24px;"
+                                 onerror="this.src='/media/avatars/default.svg'">
+                            <span>${friend.username}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary" 
+                              data-user-status="${friend.id}"
+                              data-user-name="${friend.username}">
+                            Offline
+                        </span>
+                    </td>
+                    <td class="text-end friend-actions">
+                        <button class="btn btn-sm btn-primary me-1 chat-btn" 
+                                title="Chat with ${friend.username}">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger remove-friend" 
+                                title="Remove ${friend.username}">
+                            <i class="bi bi-person-x"></i>
+                        </button>
+                    </td>
+                `;
+
+                // Add event listeners
+                const chatBtn = row.querySelector('.chat-btn');
+                chatBtn.addEventListener('click', () => {
+                    ChatManager.startChat(friend.id, friend.username);
+                });
+
+                const removeBtn = row.querySelector('.remove-friend');
+                removeBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    if (confirm(`Are you sure you want to remove ${friend.username} from your friends list?`)) {
+                        await this.removeFriend(friend.id);
+                    }
+                });
+
+                friendListBody.appendChild(row);
             });
+
+            // Update online status for all friends
+            if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
+                // Request current online status
+                ChatManager.statusSocket.send(JSON.stringify({
+                    type: 'get_status',
+                    user_ids: friends.map(friend => friend.id)
+                }));
+            }
+        } catch (error) {
+            console.error('Error updating friend list UI:', error);
+            UIManager.showToast('Failed to update friends list', 'danger');
+        }
+    }
+
+    static initializeEventListeners() {
+        // Add friend form submission handler
+        document.getElementById('add-friend-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById('friend-username');
+            const username = usernameInput.value.trim();
+            
+            if (username) {
+                const success = await this.sendFriendRequest(username);
+                if (success) {
+                    usernameInput.value = '';
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addFriendModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    await this.updateFriendListUI();
+                }
+            }
         });
-    };
+
+        // Add friend button click handler (in case the modal needs to be shown manually)
+        document.getElementById('add-friend-btn')?.addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('addFriendModal'));
+            modal.show();
+        });
+    }
 }
 
 class Utils {
@@ -1609,6 +1717,12 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         UIManager.showPage(UIManager.pages.main);
     });
+
+    // Initialize friend list
+    FriendManager.initializeEventListeners();
+    if (AuthManager.accessToken) {
+        FriendManager.updateFriendListUI();
+    }
 });
 
 function createChatMessage(message) {

@@ -218,3 +218,52 @@
     border-radius: 0.5rem;
     margin-bottom: 1rem;
 }
+
+/* Add these styles at the end of the file */
+#friend-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#friend-list .table {
+    margin-bottom: 0;
+}
+
+#friend-list .table td {
+    vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+    #friend-list {
+        max-height: 200px;
+    }
+    
+    #friend-list .table {
+        font-size: 0.875rem;
+    }
+    
+    #friend-list .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+.friend-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.friend-status.online {
+    background-color: #198754;
+}
+
+.friend-status.offline {
+    background-color: #6c757d;
+}
+
+.friend-actions {
+    white-space: nowrap;
+}
