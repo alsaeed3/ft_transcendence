@@ -285,7 +285,7 @@ class UIManager {
 
     static async loadMainPage() {
         this.showPage(this.pages.main);
-    
+
         try {
             // Get user profile
             const profile = await ProfileManager.fetchUserProfile();
@@ -411,7 +411,6 @@ class ChatManager {
     static chatSocket = null;
     static statusSocket = null;
     static currentChatPartner = null;
-    static MAX_RECONNECT_ATTEMPTS = 5;
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
     static blockedUsers = new Set();
@@ -665,7 +664,7 @@ class ChatManager {
     }
 
     static handleChatClose() {
-        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+        if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             this.reconnectTimeout = setTimeout(() => {
                 this.reconnectAttempts++;
                 this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
@@ -684,6 +683,15 @@ class ChatManager {
             }));
             input.value = '';
         }
+    }
+
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 
     static async blockUser(userId) {
@@ -728,131 +736,46 @@ class ChatManager {
             console.error('Error unblocking user:', error);
             UIManager.showToast('Failed to unblock user', 'danger');
             return false;
-            }
         }
+    }
 
-        static updateBlockedStatus(userId, isBlocked) {
-            const userRow = document.querySelector(`[data-user-id="${userId}"]`);
-            if (userRow) {
-                const chatBtn = userRow.querySelector('.chat-btn');
-                const blockBtn = userRow.querySelector('.block-btn');
-                const statusBadge = userRow.querySelector(`[data-user-status="${userId}"]`);
-                const wasOnline = statusBadge?.classList.contains('bg-success');
-                
-                if (isBlocked) {
-                    userRow.classList.add('blocked-user');
-                    chatBtn.disabled = true;
-                    blockBtn.textContent = 'Unblock';
-                    blockBtn.classList.replace('btn-danger', 'btn-secondary');
-                } else {
-                    userRow.classList.remove('blocked-user');
-                    chatBtn.disabled = false;
-                    blockBtn.textContent = 'Block';
-                    blockBtn.classList.replace('btn-secondary', 'btn-danger');
-                }
-    
-                // Preserve online status
-                if (statusBadge) {
-                    statusBadge.className = `badge ${wasOnline ? 'bg-success' : 'bg-secondary'}`;
-                    statusBadge.textContent = wasOnline ? 'Online' : 'Offline';
-                }
-    
-                // Update chat header if this is the current chat partner
-                if (this.currentChatPartner?.id === userId) {
-                    const chatHeader = document.getElementById('chat-header');
-                    if (chatHeader) {
-                        const blockButton = chatHeader.querySelector('#block-user');
-                        if (blockButton) {
-                            blockButton.className = `btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} me-2`;
-                        }
+    static updateBlockedStatus(userId, isBlocked) {
+        const userRow = document.querySelector(`[data-user-id="${userId}"]`);
+        if (userRow) {
+            const chatBtn = userRow.querySelector('.chat-btn');
+            const blockBtn = userRow.querySelector('.block-btn');
+            const statusBadge = userRow.querySelector(`[data-user-status="${userId}"]`);
+            const wasOnline = statusBadge?.classList.contains('bg-success');
+            
+            if (isBlocked) {
+                userRow.classList.add('blocked-user');
+                chatBtn.disabled = true;
+                blockBtn.textContent = 'Unblock';
+                blockBtn.classList.replace('btn-danger', 'btn-secondary');
+            } else {
+                userRow.classList.remove('blocked-user');
+                chatBtn.disabled = false;
+                blockBtn.textContent = 'Block';
+                blockBtn.classList.replace('btn-secondary', 'btn-danger');
+            }
+
+            // Preserve online status
+            if (statusBadge) {
+                statusBadge.className = `badge ${wasOnline ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.textContent = wasOnline ? 'Online' : 'Offline';
+            }
+
+            // Update chat header if this is the current chat partner
+            if (this.currentChatPartner?.id === userId) {
+                const chatHeader = document.getElementById('chat-header');
+                if (chatHeader) {
+                    const blockButton = chatHeader.querySelector('#block-user');
+                    if (blockButton) {
+                        blockButton.className = `btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} me-2`;
                     }
                 }
             }
         }
-
-    static createChatMessage(message) {
-        const messageWrapper = document.createElement('div');
-        const isSentByMe = message.sender_id === AuthManager.currentUser.id;
-        messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-        
-        const timestamp = new Date(message.timestamp);
-        const timeStr = timestamp.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: false 
-        });
-        const dateStr = timestamp.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric' 
-        });
-        
-        const senderName = isSentByMe ? 
-            AuthManager.currentUser.username : 
-            message.sender_display_name;
-        
-        const senderAvatar = isSentByMe ? 
-            AuthManager.currentUser.avatar : 
-            message.sender_avatar_url;
-        
-        const avatarContainer = document.createElement('div');
-        avatarContainer.className = 'avatar-container';
-        
-        const avatarImg = document.createElement('img');
-        avatarImg.className = 'avatar profile-clickable';
-        avatarImg.setAttribute('data-user-id', message.sender_id);
-        avatarImg.alt = senderName;
-        
-        // Add click handler to avatar
-        avatarImg.addEventListener('click', () => {
-            showUserProfile(message.sender_id);
-        });
-        
-        let retryCount = 0;
-        const maxRetries = 2;
-        
-        const loadAvatar = (url) => {
-            avatarImg.src = url;
-        };
-        
-        avatarImg.onerror = () => {
-            if (retryCount < maxRetries) {
-                retryCount++;
-                loadAvatar('/media/avatars/default.svg');
-            } else {
-                avatarImg.style.display = 'none';
-                const placeholder = document.createElement('div');
-                placeholder.className = 'avatar-placeholder';
-                placeholder.textContent = senderName.charAt(0).toUpperCase();
-                avatarContainer.appendChild(placeholder);
-            }
-        };
-        
-        loadAvatar(senderAvatar);
-        avatarContainer.appendChild(avatarImg);
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
-        messageContent.innerHTML = `
-            <div class="message-header profile-clickable" data-user-id="${message.sender_id}">
-                ${escapeHtml(senderName)}
-            </div>
-            <div class="message-bubble">${escapeHtml(message.content)}</div>
-            <div class="message-meta">
-                <span class="timestamp">${timeStr}</span>
-                <span class="date">${dateStr}</span>
-            </div>
-        `;
-        
-        // Add click handler to username
-        messageContent.querySelector('.message-header').addEventListener('click', (e) => {
-            showUserProfile(e.target.getAttribute('data-user-id'));
-        });
-        
-        // Always add avatar first, then message content
-        messageWrapper.appendChild(avatarContainer);
-        messageWrapper.appendChild(messageContent);
-        
-        return messageWrapper;
     }
 }
 
@@ -1380,6 +1303,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ProfileManager.updateProfile(formData);
     });
 
+    // Chat related listeners
+    document.getElementById('send-button').addEventListener('click', () => {
+        ChatManager.sendMessage();
+    });
+
+    document.getElementById('message-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            ChatManager.sendMessage();
+        }
+    });
+
     // 2FA toggle form handler
     document.getElementById('2fa-toggle-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1656,6 +1591,91 @@ document.addEventListener('DOMContentLoaded', () => {
         UIManager.showPage(UIManager.pages.main);
     });
 });
+
+function createChatMessage(message) {
+    const messageWrapper = document.createElement('div');
+    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+    const dateStr = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    const senderName = isSentByMe ? 
+        AuthManager.currentUser.username : 
+        message.sender_display_name;
+    
+    const senderAvatar = isSentByMe ? 
+        AuthManager.currentUser.avatar : 
+        message.sender_avatar_url;
+    
+    const avatarContainer = document.createElement('div');
+    avatarContainer.className = 'avatar-container';
+    
+    const avatarImg = document.createElement('img');
+    avatarImg.className = 'avatar profile-clickable';
+    avatarImg.setAttribute('data-user-id', message.sender_id);
+    avatarImg.alt = senderName;
+    
+    // Add click handler to avatar
+    avatarImg.addEventListener('click', () => {
+        showUserProfile(message.sender_id);
+    });
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        avatarImg.src = url;
+    };
+    
+    avatarImg.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            avatarImg.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = senderName.charAt(0).toUpperCase();
+            avatarContainer.appendChild(placeholder);
+        }
+    };
+    
+    loadAvatar(senderAvatar);
+    avatarContainer.appendChild(avatarImg);
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.innerHTML = `
+        <div class="message-header profile-clickable" data-user-id="${message.sender_id}">
+            ${Utils.escapeHtml(senderName)}
+        </div>
+        <div class="message-bubble">${Utils.escapeHtml(message.content)}</div>
+        <div class="message-meta">
+            <span class="timestamp">${timeStr}</span>
+            <span class="date">${dateStr}</span>
+        </div>
+    `;
+    
+    // Add click handler to username
+    messageContent.querySelector('.message-header').addEventListener('click', (e) => {
+        showUserProfile(e.target.getAttribute('data-user-id'));
+    });
+    
+    // Always add avatar first, then message content
+    messageWrapper.appendChild(avatarContainer);
+    messageWrapper.appendChild(messageContent);
+    
+    return messageWrapper;
+}
 
 // Update initialization code
 if (AuthManager.accessToken) {
