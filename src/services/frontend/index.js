@@ -90,16 +90,18 @@ class AuthManager {
     static async login(username, password) {
         try {
             const response = await fetch(`${this.API_BASE}auth/login/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        
-        const data = await response.json();
-    
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            
+            const data = await response.json();
+
             // Check specifically for 2FA requirement
             if (response.status === 202 && data['2fa_required']) {
-                // Store email for OTP verification
+                // Store username for OTP verification
+                sessionStorage.setItem('tempUsername', username);
+                sessionStorage.setItem('tempPassword', password);
                 sessionStorage.setItem('tempUserEmail', data.user.email);
                 // Switch to 2FA form
                 document.getElementById('login-form').classList.add('d-none');
@@ -108,17 +110,17 @@ class AuthManager {
                 this.startOTPTimer();
                 return;
             }
-    
+
             if (!response.ok) {
                 throw new Error(data.error || 'Login failed');
             }
-    
+
             // Only store tokens and proceed if no 2FA required
             await this.processSuccessfulAuth(data);
-    } catch (error) {
+        } catch (error) {
             console.error('Login error:', error);
             UIManager.showToast(error.message, 'danger');
-    }
+        }
     }
 
     static async register(userData) {
@@ -167,15 +169,17 @@ class AuthManager {
     static async verify2FA(otp) {
         try {
             const email = sessionStorage.getItem('tempUserEmail');
-            if (!email) {
+            const username = sessionStorage.getItem('tempUsername');
+            const password = sessionStorage.getItem('tempPassword');
+            
+            if (!email || !username || !password) {
                 throw new Error('Session expired. Please login again.');
             }
 
-            // Changed to use direct fetch instead of fetchWithAuth
             const response = await fetch(`${this.API_BASE}auth/2fa/verify/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, otp })
+                body: JSON.stringify({ email, otp, username, password })
             });
 
             const data = await response.json();
@@ -184,10 +188,17 @@ class AuthManager {
                 throw new Error(data.error || 'Invalid or expired OTP');
             }
 
+            // Clear temporary storage before processing auth
+            sessionStorage.removeItem('tempUserEmail');
+            sessionStorage.removeItem('tempUsername');
+            sessionStorage.removeItem('tempPassword');
+
             await this.processSuccessfulAuth(data);
         } catch (error) {
             console.error('2FA verification error:', error);
             UIManager.showToast(error.message, 'danger');
+            // On error, return to login form
+            UIManager.showLoginForm();
         }
     }
 
@@ -201,6 +212,8 @@ class AuthManager {
         localStorage.setItem('accessToken', this.accessToken);
         localStorage.setItem('refreshToken', this.refreshToken);
         
+        sessionStorage.removeItem('tempUsername');
+        sessionStorage.removeItem('tempPassword');
         sessionStorage.removeItem('tempUserEmail');
         
         UIManager.showPage(UIManager.pages.main);
@@ -209,16 +222,21 @@ class AuthManager {
 
     static async logout() {
         try {
-            await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: this.refreshToken })
-            });
+            if (this.accessToken && this.refreshToken) {
+                await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: this.refreshToken })
+                });
+            }
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
             ChatManager.cleanup();
             localStorage.clear();
+            sessionStorage.removeItem('tempUserEmail');
+            sessionStorage.removeItem('tempUsername');
+            sessionStorage.removeItem('tempPassword');
             this.accessToken = null;
             this.refreshToken = null;
             this.currentUser = null;
@@ -1838,8 +1856,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store tokens
         localStorage.setItem('accessToken', urlAccessToken);
         localStorage.setItem('refreshToken', urlRefreshToken);
-        accessToken = urlAccessToken;
-        refreshToken = urlRefreshToken;
+        AuthManager.accessToken = urlAccessToken;
+        AuthManager.refreshToken = urlRefreshToken;
         
         // Clean up URL
         window.history.replaceState({}, document.title, '/');
@@ -1901,7 +1919,7 @@ function createChatMessage(message) {
         if (retryCount < maxRetries) {
             retryCount++;
             loadAvatar('/media/avatars/default.svg');
-} else {
+        } else {
             avatarImg.style.display = 'none';
             const placeholder = document.createElement('div');
             placeholder.className = 'avatar-placeholder';
@@ -1951,10 +1969,10 @@ const handleOAuthCallback = async () => {
             const data = await response.json();
             if (response.ok) {
                 // Store tokens and redirect to main page
-                accessToken = data.access;
-                refreshToken = data.refresh;
-                localStorage.setItem('accessToken', accessToken);
-                localStorage.setItem('refreshToken', refreshToken);
+                AuthManager.accessToken = data.access;
+                AuthManager.refreshToken = data.refresh;
+                localStorage.setItem('accessToken', AuthManager.accessToken);
+                localStorage.setItem('refreshToken', AuthManager.refreshToken);
                 
                 // Clean up URL and redirect to main page
                 window.history.replaceState({}, document.title, '/');
