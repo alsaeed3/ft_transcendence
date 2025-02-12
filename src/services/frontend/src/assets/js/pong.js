@@ -59,13 +59,19 @@ function initGame(mode = 'AI') {
     let paddle1Y = canvas.height / 2 - paddleHeight / 2;
     let paddle2Y = canvas.height / 2 - paddleHeight / 2;
     let ballX = canvas.width / 2;
-    let ballY = canvas.height / 2;
-    let ballSpeedX = BALL_SPEED;
-    let ballSpeedY = BALL_SPEED;
+    // Set initial serve position
+    const startFromTop = Math.random() < 0.5;
+    let ballY = startFromTop ? 
+        canvas.height * 0.25 :  // Top quarter
+        canvas.height * 0.75;   // Bottom quarter
+    let ballSpeedX = 0;  // No initial movement
+    let ballSpeedY = 0;
 
     // AI properties
     let lastAIUpdate = Date.now();
-    const AI_UPDATE_INTERVAL = 1000;    // Rule: 1-second refresh rate
+    let lastAIPaddleMove = Date.now();  // Track last paddle movement
+    const AI_UPDATE_INTERVAL = 1000;    // Decision making interval
+    const AI_MOVE_INTERVAL = 20;       // Paddle movement interval
     const AI_DIFFICULTY = 0.85;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
 
     let aiMoveUp = false;              // Rule: Simulated keyboard
@@ -74,7 +80,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 2;
+    const WINNING_SCORE = 11;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -109,16 +115,18 @@ function initGame(mode = 'AI') {
     }
 
     function updateAI() {
+        const currentTime = Date.now();
+
         // Only recalculate target position every second
-        if (Date.now() - lastAIUpdate >= AI_UPDATE_INTERVAL) {
+        if (currentTime - lastAIUpdate >= AI_UPDATE_INTERVAL) {
             if (ballSpeedX < 0) {  // Ball moving towards AI
                 // Recalculate on direction change, new serve, or no existing calculation
                 if (prevBallSpeedX >= 0 || Math.abs(ballX - canvas.width/2) < 10 || !calculationMade) {
                     // Calculate ball intersection with paddle plane
-                    let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
-                    
+                let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
+                
                     // Bounce prediction
-                    while (predictedY < 0 || predictedY > canvas.height) {
+                while (predictedY < 0 || predictedY > canvas.height) {
                         predictedY = predictedY < 0 ? -predictedY : 2 * canvas.height - predictedY;
                     }
                     
@@ -135,7 +143,7 @@ function initGame(mode = 'AI') {
                         // If ball is below paddle, miss by staying too high
                         if (predictedY > paddleCenter) {
                             predictedY = predictedY - missDistance;  // Miss by not moving up enough
-                        } else {
+                    } else {
                             predictedY = predictedY + missDistance;  // Miss by not moving down enough
                         }
                     }
@@ -149,7 +157,7 @@ function initGame(mode = 'AI') {
             }
             
             prevBallSpeedX = ballSpeedX;
-            lastAIUpdate = Date.now();
+            lastAIUpdate = currentTime;
         }
         
         // Simulate keyboard input
@@ -160,7 +168,7 @@ function initGame(mode = 'AI') {
         aiMoveUp = false;
         aiMoveDown = false;
         
-        // Set movement flags based on target position (simulating keyboard)
+        // Set movement flags based on target position
         if (Math.abs(distanceToTarget) > 10) {  // Deadzone to prevent jitter
             if (distanceToTarget < 0) {
                 aiMoveUp = true;
@@ -169,11 +177,15 @@ function initGame(mode = 'AI') {
             }
         }
         
-        // Move paddle based on simulated keyboard input
-        if (aiMoveUp) {
-            paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
-        } else if (aiMoveDown) {
-            paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+        // Move paddle with delay
+        if (currentTime - lastAIPaddleMove >= AI_MOVE_INTERVAL) {
+            if (aiMoveUp) {
+                paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+                lastAIPaddleMove = currentTime;
+            } else if (aiMoveDown) {
+                paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+                lastAIPaddleMove = currentTime;
+            }
         }
     }
 
@@ -409,14 +421,26 @@ function initGame(mode = 'AI') {
     }
 
     function resetBall() {
-        // Reset ball speed to initial value when point ends
         BALL_SPEED = 6;  // Reset to initial speed
         
+        // Keep using same starting position as initial serve
         ballX = canvas.width / 2;
-        ballY = canvas.height / 2;
+        ballY = startFromTop ? 
+            canvas.height * 0.25 :  // Top quarter
+            canvas.height * 0.75;   // Bottom quarter
+        
+        // Random serve direction
         ballSpeedX = BALL_SPEED * (Math.random() < 0.5 ? 1 : -1);
-        ballSpeedY = BALL_SPEED * (Math.random() < 0.5 ? 0.5 : -0.5);
+        
+        // Maintain diagonal serve direction based on starting position
+        ballSpeedY = BALL_SPEED * (startFromTop ? 0.5 : -0.5);  // Down from top, up from bottom
         calculationMade = false;
+
+        // Add 1-second serve delay
+        gameActive = false;
+        setTimeout(() => {
+            gameActive = true;
+        }, 1000);
     }
 
     // Make updateGameSettings available globally
@@ -437,7 +461,7 @@ function initGame(mode = 'AI') {
         switch(event.key.toLowerCase()) {
             case 'p':  // Right player controls
                 if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
-                    paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
+                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
                 }
                 break;
             case 'l':
@@ -476,9 +500,9 @@ function initGame(mode = 'AI') {
             
             if (gameActive && gameStarted) {  // Only move ball if game has started
                 if (mode === 'AI') {
-                    updateAI();
+        updateAI();
                 }
-                moveBall();
+        moveBall();
             }
             
             lastTime = currentTime - (deltaTime % frameInterval);

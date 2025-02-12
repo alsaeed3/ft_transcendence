@@ -90,12 +90,12 @@ class AuthManager {
     static async login(username, password) {
         try {
             const response = await fetch(`${this.API_BASE}auth/login/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            
-            const data = await response.json();
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
     
             // Check specifically for 2FA requirement
             if (response.status === 202 && data['2fa_required']) {
@@ -115,20 +115,20 @@ class AuthManager {
     
             // Only store tokens and proceed if no 2FA required
             await this.processSuccessfulAuth(data);
-        } catch (error) {
+    } catch (error) {
             console.error('Login error:', error);
             UIManager.showToast(error.message, 'danger');
-        }
+    }
     }
 
     static async register(userData) {
-        try {
+    try {
             const response = await fetch(`${this.API_BASE}auth/register/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            });
-    
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+        });
+
             const data = await response.json();
     
             if (!response.ok) {
@@ -157,7 +157,7 @@ class AuthManager {
     
             UIManager.showToast('Registration successful! Please login.', 'success');
             UIManager.toggleForms();
-        } catch (error) {
+    } catch (error) {
             const errorLines = error.message.split('\n');
             const formattedError = errorLines.join('\n');
             UIManager.showToast(formattedError, 'danger');
@@ -434,7 +434,7 @@ class ChatManager {
                     } else if (data.type === 'status_update') {
                         this.updateUserStatus(data.user_id, data.online_status);
                     }
-                } catch (error) {
+    } catch (error) {
                     console.error('Error handling WebSocket message:', error);
                 }
             };
@@ -767,8 +767,8 @@ class FriendManager {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/friends/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return await response.json();
-        } catch (error) {
+        return await response.json();
+    } catch (error) {
             console.error('Error fetching friend list:', error);
             UIManager.showToast('Failed to load friends list', 'danger');
             return [];
@@ -1454,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}auth/2fa/toggle/`, {
-                method: 'POST',
+            method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
             });
@@ -1468,7 +1468,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('2fa-password').value = '';
             await UIManager.loadUpdateProfilePage();
             UIManager.showToast(data.message || '2FA status updated successfully', 'success');
-        } catch (error) {
+    } catch (error) {
             console.error('Error toggling 2FA:', error);
             UIManager.showToast(error.message, 'danger');
         }
@@ -1773,7 +1773,7 @@ function createChatMessage(message) {
         if (retryCount < maxRetries) {
             retryCount++;
             loadAvatar('/media/avatars/default.svg');
-        } else {
+} else {
             avatarImg.style.display = 'none';
             const placeholder = document.createElement('div');
             placeholder.className = 'avatar-placeholder';
