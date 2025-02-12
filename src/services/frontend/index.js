@@ -44,7 +44,7 @@ class AuthManager {
         } catch (error) {
             console.error('Token refresh failed:', error);
             localStorage.clear();
-            showPage(pages.landing);
+            UIManager.showPage(UIManager.pages.landing);
             throw error;
         }
     }
@@ -1801,7 +1801,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             // Store current URL before redirect
             sessionStorage.setItem('preAuthPath', window.location.pathname);
-            window.location.href = `${API_BASE}auth/oauth/login/`;
+            window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
         });
     }
 
@@ -1828,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (authError) {
         alert('Authentication failed: ' + decodeURIComponent(authError));
-        showPage(pages.landing);
+        UIManager.showPage(UIManager.pages.landing);
         // Clean up URL
         window.history.replaceState({}, document.title, '/');
         return;
@@ -1845,8 +1845,8 @@ document.addEventListener('DOMContentLoaded', () => {
         window.history.replaceState({}, document.title, '/');
         
         // Show main page
-        showPage(pages.main);
-        loadMainPage();
+        UIManager.showPage(UIManager.pages.main);
+        UIManager.loadMainPage();
         return;
     }
 
@@ -1939,7 +1939,7 @@ function createChatMessage(message) {
 }
 
 // Make refreshAccessToken available globally
-window.refreshAccessToken = refreshAccessToken;
+// window.refreshAccessToken = refreshAccessToken;
 
 // Keep handleOAuthCallback function definition but move it before it's used
 const handleOAuthCallback = async () => {
@@ -1947,7 +1947,7 @@ const handleOAuthCallback = async () => {
     const code = urlParams.get('code');
     if (code) {
         try {
-            const response = await fetch(`${API_BASE}auth/oauth/callback/?code=${code}`);
+            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
             const data = await response.json();
             if (response.ok) {
                 // Store tokens and redirect to main page
@@ -1958,15 +1958,15 @@ const handleOAuthCallback = async () => {
                 
                 // Clean up URL and redirect to main page
                 window.history.replaceState({}, document.title, '/');
-                showPage(pages.main);
-                await loadMainPage();
+                UIManager.showPage(UIManager.pages.main);
+                await UIManager.loadMainPage();
             } else {
                 throw new Error(data.error || 'OAuth authentication failed');
             }
         } catch (error) {
             console.error('OAuth callback error:', error);
-            alert('Authentication failed. Please try again.');
-            showPage(pages.landing);
+            UIManager.showToast('Authentication failed. Please try again.', 'danger');
+            UIManager.showPage(UIManager.pages.landing);
         }
     }
 };
