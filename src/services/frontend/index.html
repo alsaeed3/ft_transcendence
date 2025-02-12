@@ -308,17 +308,17 @@
                         <div class="card-body">
                             <h5 class="card-title d-flex justify-content-between align-items-center">
                                 Friend List
-                                <button id="add-friend-btn" class="btn btn-sm btn-primary">
+                                <button id="add-friend-btn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal">
                                     <i class="bi bi-person-plus"></i>
                                 </button>
                             </h5>
-                            <div id="friend-list">
-                                <table class="table table-dark table-striped">
+                            <div id="friend-list" class="table-responsive">
+                                <table class="table table-dark table-striped table-sm">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Status</th>
-                                            <th scope="col">Actions</th>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="friend-list-body">
@@ -429,6 +429,28 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-primary" id="modal-chat-btn">Chat</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this new modal after the userProfileModal -->
+    <div class="modal fade" id="addFriendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Add Friend</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-friend-form">
+                        <div class="mb-3">
+                            <label for="friend-username" class="form-label">Username</label>
+                            <input type="text" class="form-control bg-secondary text-light" id="friend-username" required>
+                            <div class="form-text text-light">Enter the username of the player you want to add as a friend.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Friend Request</button>
+                    </form>
                 </div>
             </div>
         </div>
