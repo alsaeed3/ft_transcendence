@@ -763,6 +763,97 @@ class ChatManager {
 }
 
 class FriendManager {
+    static friendsModal = null;
+
+    static initializeEventListeners() {
+        // Initialize the modal
+        this.friendsModal = new bootstrap.Modal(document.getElementById('friendsListModal'));
+
+        // Show friends list button handler
+        document.getElementById('show-friends-btn')?.addEventListener('click', async () => {
+            await this.updateFriendListUI();
+            this.friendsModal.show();
+
+            // Request status update for all friends when modal is opened
+            const friends = await this.fetchFriendList();
+            if (friends.length > 0 && ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
+                ChatManager.statusSocket.send(JSON.stringify({
+                    type: 'get_status',
+                    user_ids: friends.map(friend => friend.id)
+                }));
+            }
+        });
+
+        // Add friend form submission handler
+        document.getElementById('add-friend-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById('friend-username');
+            const username = usernameInput.value.trim();
+            
+            if (username) {
+                const success = await this.sendFriendRequest(username);
+                if (success) {
+                    usernameInput.value = '';
+                    const addFriendModal = bootstrap.Modal.getInstance(document.getElementById('addFriendModal'));
+                    if (addFriendModal) {
+                        addFriendModal.hide();
+                    }
+                    await this.updateFriendListUI();
+                }
+            }
+        });
+
+        // Handle modal chain (closing addFriendModal should return to friendsListModal)
+        document.getElementById('addFriendModal')?.addEventListener('hidden.bs.modal', () => {
+            if (document.body.classList.contains('modal-open')) {
+                document.body.classList.add('modal-open');
+            }
+        });
+
+        // Add friend button click handler
+        document.getElementById('add-friend-btn')?.addEventListener('click', () => {
+            const addFriendModal = new bootstrap.Modal(document.getElementById('addFriendModal'));
+            addFriendModal.show();
+        });
+
+        // Listen for WebSocket status updates
+        if (ChatManager.statusSocket) {
+            ChatManager.statusSocket.addEventListener('message', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'status_update' || data.type === 'initial_status') {
+                        this.updateFriendStatus(data);
+                    }
+                } catch (error) {
+                    console.error('Error handling WebSocket message:', error);
+                }
+            });
+        }
+    }
+
+    static updateFriendStatus(data) {
+        if (data.type === 'initial_status' && Array.isArray(data.online_users)) {
+            // Update all friends' status based on the initial status list
+            const statusBadges = document.querySelectorAll('#friend-list-body [data-user-status]');
+            statusBadges.forEach(badge => {
+                const userId = badge.getAttribute('data-user-status');
+                const isOnline = data.online_users.includes(parseInt(userId));
+                this.updateStatusBadge(badge, isOnline);
+            });
+        } else if (data.type === 'status_update') {
+            // Update individual friend status
+            const badge = document.querySelector(`#friend-list-body [data-user-status="${data.user_id}"]`);
+            if (badge) {
+                this.updateStatusBadge(badge, data.online_status);
+            }
+        }
+    }
+
+    static updateStatusBadge(badge, isOnline) {
+        badge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+        badge.textContent = isOnline ? 'Online' : 'Offline';
+    }
+
     static async fetchFriendList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/friends/`);
@@ -863,8 +954,14 @@ class FriendManager {
             if (!Array.isArray(friends) || friends.length === 0) {
                 const emptyRow = document.createElement('tr');
                 emptyRow.innerHTML = `
-                    <td colspan="3" class="text-center">
-                        <em>No friends added yet</em>
+                    <td colspan="3" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="bi bi-people fs-2"></i>
+                            <p class="mt-2">No friends added yet</p>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal">
+                                <i class="bi bi-person-plus"></i> Add Your First Friend
+                            </button>
+                        </div>
                     </td>
                 `;
                 friendListBody.appendChild(emptyRow);
@@ -933,33 +1030,6 @@ class FriendManager {
             console.error('Error updating friend list UI:', error);
             UIManager.showToast('Failed to update friends list', 'danger');
         }
-    }
-
-    static initializeEventListeners() {
-        // Add friend form submission handler
-        document.getElementById('add-friend-form')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const usernameInput = document.getElementById('friend-username');
-            const username = usernameInput.value.trim();
-            
-            if (username) {
-                const success = await this.sendFriendRequest(username);
-                if (success) {
-                    usernameInput.value = '';
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('addFriendModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    await this.updateFriendListUI();
-                }
-            }
-        });
-
-        // Add friend button click handler (in case the modal needs to be shown manually)
-        document.getElementById('add-friend-btn')?.addEventListener('click', () => {
-            const modal = new bootstrap.Modal(document.getElementById('addFriendModal'));
-            modal.show();
-        });
     }
 }
 

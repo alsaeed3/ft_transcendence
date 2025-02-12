@@ -307,25 +307,10 @@
                     <div class="card bg-secondary text-white">
                         <div class="card-body">
                             <h5 class="card-title d-flex justify-content-between align-items-center">
-                                Friend List
-                                <button id="add-friend-btn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal">
-                                    <i class="bi bi-person-plus"></i>
+                                <button id="show-friends-btn" class="btn btn-primary mb-3">
+                                    <i class="bi bi-people-fill me-2"></i>Friends List
                                 </button>
                             </h5>
-                            <div id="friend-list" class="table-responsive">
-                                <table class="table table-dark table-striped table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Status</th>
-                                            <th class="text-end">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="friend-list-body">
-                                        <!-- Friend rows will be dynamically inserted here -->
-                                    </tbody>
-                                </table>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -451,6 +436,40 @@
                         </div>
                         <button type="submit" class="btn btn-primary">Send Friend Request</button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal at the bottom of the body, next to other modals -->
+    <div class="modal fade" id="friendsListModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Friends List</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="h6 mb-0">Your Friends</span>
+                        <button id="add-friend-btn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal">
+                            <i class="bi bi-person-plus"></i> Add Friend
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="friend-list-body">
+                                <!-- Friend rows will be dynamically inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
