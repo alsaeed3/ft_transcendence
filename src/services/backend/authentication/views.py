@@ -151,75 +151,96 @@ def ft_oauth_login(request):
         'redirect_uri': os.getenv('FT_REDIRECT_URI'),
     }
     url =  f"{baseurl}?{urlencode(parameters)}"
+    # Return an actual redirect response instead of JsonResponse
     return redirect(url)
 
 @api_view(['GET'])
 def ft_oauth_callback(request):
+    # Check for error parameter first
+    error = request.GET.get('error')
+    if error:
+        error_description = request.GET.get('error_description', 'Authorization was denied')
+        frontend_url = "https://localhost"  # Your frontend URL
+        # Redirect to frontend with error message
+        return redirect(f"{frontend_url}/?auth_error={error_description}")
+
     code = request.GET.get('code')
-    # Exchange code for access token
-    token_url = 'https://api.intra.42.fr/oauth/token/'
-    token_data = {
-        'grant_type': 'authorization_code',
-        'client_id': os.getenv('FT_CLIENT_ID'),
-        'client_secret': os.getenv('FT_CLIENT_SECRET'),
-        'code': code,
-        'redirect_uri': 'https://localhost:443/api/auth/oauth/callback/', #
-    }
-    token_response = requests.post(token_url, data=token_data)
-    if token_response.status_code != 200:
-        return HttpResponse('Failed to obtain access token', status=400)
-    token_response = token_response.json()
-    access_token = token_response.get('access_token')
-    if not access_token:
-        return HttpResponse('Failed to obtain access token', status=400)
-    
-
-    # Get user info from 42 API
-    user_info_url = 'https://api.intra.42.fr/v2/me'
-    headers = {'Authorization': f'Bearer {access_token}'}
-    user_info_response = requests.get(user_info_url, headers=headers)
-    if user_info_response.status_code != 200:
-        return Response({'error': 'Failed to get user info'}, status=status.HTTP_400_BAD_REQUEST)
-
-    user_data = user_info_response.json()
-    login_42 = user_data.get('login')
-    email = user_data.get('email')
-    first_name = user_data.get('first_name')
-    last_name = user_data.get('last_name')
-    user_id_42 = user_data.get('id') 
-    is_42_auth = True
-
-    if not all([login_42, email, first_name, last_name, user_id_42]):
-        return HttpResponse('Error: Missing user data', status=400)
+    if not code:
+        frontend_url = "https://localhost"  # Your frontend URL
+        return redirect(f"{frontend_url}/?auth_error=Authorization failed")
 
     try:
-        # Check if the user exists
-        user = User.objects.get(user_id_42=user_id_42)
-        # user = profile.user
-    except ObjectDoesNotExist:
-    # Create a new user
-        username = login_42
-        if User.objects.filter(username=username).exists():
-            username = f"{username}_42"
-        if User.objects.filter(email=email).exists(): # i can delete this if i will not alow any registration comes from outside 42 api
-            return HttpResponse('Error: Email already exists', status=400)
+        token_url = 'https://api.intra.42.fr/oauth/token'
+        token_data = {
+            'grant_type': 'authorization_code',
+            'client_id': os.getenv('FT_CLIENT_ID'),
+            'client_secret': os.getenv('FT_CLIENT_SECRET'),
+            'code': code,
+            'redirect_uri': os.getenv('FT_REDIRECT_URI'),
+        }
+        
+        with requests.Session() as session:
+            # Use session for both requests
+            token_response = session.post(token_url, data=token_data, timeout=5)
+            token_response.raise_for_status()
+            token_data = token_response.json()
+            access_token = token_data.get('access_token')
+            
+            if not access_token:
+                return Response({'error': 'Failed to obtain access token'}, 
+                              status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.create(
-            user_id_42=user_id_42,
-            username=username,
-            email=email,
-            display_name=login_42,
-            is_42_auth=is_42_auth,
-            login_42=login_42
-        )
-        user.set_unusable_password()
-        user.save()
+            # Get user info from 42 API
+            user_info_url = 'https://api.intra.42.fr/v2/me'
+            headers = {'Authorization': f'Bearer {access_token}'}
+            user_info_response = session.get(user_info_url, headers=headers, timeout=5)
+            user_info_response.raise_for_status()
+            user_data = user_info_response.json()
 
-    refresh = RefreshToken.for_user(user)
-    return Response({
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-        'user': AuthUserSerializer(user).data
-    }, status=status.HTTP_200_OK)
+        # Extract user info
+        first_name = user_data.get('first_name')
+        last_name = user_data.get('last_name')
+        user_id_42 = user_data.get('id')
+        login_42 = user_data.get('login')
+        email = user_data.get('email')
+        
+        if not all([user_id_42, login_42, email]):
+            return Response({'error': 'Incomplete user data from 42 API'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
 
-    # return JsonResponse(AuthUserSerializer(user).data, status=200)
+        # Get or create user
+        try:
+            user = User.objects.get(user_id_42=user_id_42)
+        except User.DoesNotExist:
+            username = login_42
+            if User.objects.filter(username=username).exists():
+                username = f"{username}_42"
+
+            user = User.objects.create(
+                first_name=first_name,
+                last_name=last_name,
+                user_id_42=user_id_42,
+                username=username,
+                email=email,
+                display_name=login_42,
+                is_42_auth=True,
+                login_42=login_42
+            )
+            user.set_unusable_password()
+            user.save()
+
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        # Redirect to frontend with tokens
+        frontend_url = "https://localhost"  # Change this to your frontend URL
+        redirect_url = f"{frontend_url}/?access_token={access_token}&refresh_token={refresh_token}"
+        return redirect(redirect_url)
+
+    except requests.exceptions.RequestException as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'error': 'Authentication failed'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
