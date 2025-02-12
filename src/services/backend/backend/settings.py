@@ -40,7 +40,7 @@ SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_env_variable('DJANGO_DEBUG')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0', 'nginx', '*']
 
 # Application definition
 
@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'tournaments.apps.TournamentsConfig',
     'matches.apps.MatchesConfig',
 	'corsheaders',
+    'channels',
+    'daphne',
 	'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -69,9 +71,12 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1)
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
+CORS_ALLOW_ALL_ORIGINS = True  # For development only, configure properly for production
 CORS_ALLOWED_ORIGINS = [
     "http://localhost",
     "http://localhost:80",
@@ -79,10 +84,14 @@ CORS_ALLOWED_ORIGINS = [
     "https://localhost:443",
     "http://127.0.0.1",
     "http://127.0.0.1:80",
-    "https://api.intra.42.fr"  # Add this line
+    "https://api.intra.42.fr",
+    "ws://localhost",
+    "wss://localhost",
+    "ws://127.0.0.1",
+    "wss://127.0.0.1"
 ]
 
-CORS_ALLOW_CREDENTIALS = True  # Add this line
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -112,9 +121,12 @@ SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'http://localhost',
-    'http://127.0.0.1'
+    'http://127.0.0.1',
+    'ws://localhost',
+    'wss://localhost',
+    'ws://127.0.0.1',
+    'wss://127.0.0.1'
 ]
-
 
 MIDDLEWARE = [
 	'corsheaders.middleware.CorsMiddleware',
@@ -148,7 +160,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
-
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -221,8 +233,7 @@ FT_CLIENT_ID = get_env_variable('FT_CLIENT_ID')
 FT_CLIENT_SECRET = get_env_variable('FT_CLIENT_SECRET')
 FT_REDIRECT_URI = get_env_variable('FT_REDIRECT_URI')
 LOGIN_URL = '/login'
-FT_AUTH0_DOMAIN= get_env_variable('FT_AUTH0_DOMAIN') 
-
+FT_AUTH0_DOMAIN = get_env_variable('FT_AUTH0_DOMAIN') 
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -232,3 +243,74 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('redis', 6379)],
+            'capacity': 1500,  # Default channel layer capacity
+            'expiry': 60,  # Message expiry in seconds
+        },
+    },
+}
+
+# WebSocket settings
+WEBSOCKET_ACCEPT_ALL = True  # Accept WebSocket connections from all origins
+WEBSOCKET_URL = '/ws/'  # Base WebSocket URL path
+
+# Add or update the LOGGING configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'channels': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'users': {  # Add this for your app's logging
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
+# Redis settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'RETRY_ON_TIMEOUT': True,
+            'MAX_CONNECTIONS': 1000,
+            'CONNECTION_POOL_KWARGS': {'max_connections': 100},
+        }
+    }
+}
+
+# Use Redis as the session backend
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'

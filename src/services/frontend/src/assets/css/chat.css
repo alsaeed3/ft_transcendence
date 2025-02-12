@@ -1,0 +1,269 @@
+#chat-container {
+	transition: transform 0.3s ease;
+	position: fixed;
+	bottom: 0;
+	right: 20px;
+	z-index: 9999;
+	width: 300px;
+	margin: 0;
+}
+
+#chat-header {
+	cursor: pointer;
+}
+
+#toggle-chat,
+#close-chat {
+	padding: 0.25rem 0.5rem;
+	margin-left: 0.5rem;
+	border: none;
+	background: transparent;
+}
+
+#toggle-chat:hover,
+#close-chat:hover {
+	background-color: rgba(255, 255, 255, 0.2);
+}
+
+.card-body {
+	transition: all 0.3s ease;
+}
+
+.message-wrapper {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 1rem;
+	padding: 0.5rem;
+	width: 100%;
+}
+
+.message-wrapper.sent {
+	flex-direction: row-reverse;
+}
+
+.message-wrapper.received {
+	flex-direction: row;
+}
+
+.message-content {
+	max-width: 70%;
+	display: flex;
+	flex-direction: column;
+}
+
+.message-header {
+	font-size: 0.85rem;
+	margin-bottom: 0.2rem;
+	color: #adb5bd;
+	display: block !important;
+	opacity: 0.9;
+}
+
+.sent .message-header {
+	text-align: right;
+	padding-right: 0.5rem;
+	padding-left: 0;
+}
+
+.received .message-header {
+	text-align: left;
+	padding-left: 0.5rem;
+	padding-right: 0;
+}
+
+.message-bubble {
+	padding: 0.75rem;
+	border-radius: 1rem;
+	margin-bottom: 0.25rem;
+	word-break: break-word;
+	position: relative;
+}
+
+.sent .message-bubble {
+	background-color: #0d6efd;
+	color: white;
+	border-bottom-left-radius: 0.2rem;
+	margin-left: auto;
+	margin-right: 0;
+}
+
+.received .message-bubble {
+	background-color: #6c757d;
+	color: white;
+	border-bottom-right-radius: 0.2rem;
+	margin-right: auto;
+	margin-left: 0;
+}
+
+.message-meta {
+	font-size: 0.8rem;
+	color: #adb5bd;
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.sent .message-meta {
+	justify-content: flex-end;
+}
+
+.received .message-meta {
+	justify-content: flex-start;
+}
+
+.avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+.avatar-placeholder {
+	width: 32px;
+	height: 32px;
+	background-color: #6c757d;
+	color: white;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: bold;
+	font-size: 1em;
+}
+
+.message-wrapper.sent .avatar,
+.message-wrapper.sent .avatar-placeholder {
+	margin-left: 10px;
+	margin-right: 0;
+}
+
+.message-wrapper.received .avatar,
+.message-wrapper.received .avatar-placeholder {
+	margin-right: 10px;
+	margin-left: 0;
+}
+
+/* Hover effect for messages */
+.message-bubble:hover {
+	opacity: 0.9;
+}
+
+/* Time tooltip on hover */
+.message-meta .timestamp:hover + .date {
+	display: inline;
+}
+
+.message-meta .date {
+	display: none;
+}
+
+/* Add these styles */
+.blocked-message {
+    background-color: #dc3545 !important;
+    opacity: 0.7;
+}
+
+.blocked-user {
+    position: relative;
+}
+
+.blocked-user::after {
+    content: 'BLOCKED';
+    position: absolute;
+    right: 10px;
+    color: #dc3545;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.blocked-badge {
+    background-color: #dc3545;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    margin-left: 5px;
+}
+
+/* Add these styles */
+.profile-clickable {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.profile-clickable:hover {
+    opacity: 0.8;
+}
+
+#userProfileModal .modal-content {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#userProfileModal .modal-body {
+    padding: 2rem;
+}
+
+#modal-user-avatar {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s;
+}
+
+#modal-user-avatar:hover {
+    transform: scale(1.05);
+}
+
+.stats-section {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Add these styles at the end of the file */
+#friend-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#friend-list .table {
+    margin-bottom: 0;
+}
+
+#friend-list .table td {
+    vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+    #friend-list {
+        max-height: 200px;
+    }
+    
+    #friend-list .table {
+        font-size: 0.875rem;
+    }
+    
+    #friend-list .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+.friend-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.friend-status.online {
+    background-color: #198754;
+}
+
+.friend-status.offline {
+    background-color: #6c757d;
+}
+
+.friend-actions {
+    white-space: nowrap;
+}

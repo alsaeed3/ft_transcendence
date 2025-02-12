@@ -4,4 +4,14 @@ from .models import Match
 class MatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Match
-        fields = '__all__'
+        fields = [
+            'id',
+            'tournament',
+            'player1_name',
+            'player2_name',
+            'player1_score',
+            'player2_score',
+            'start_time',
+            'end_time',
+            'winner_name'
+        ]

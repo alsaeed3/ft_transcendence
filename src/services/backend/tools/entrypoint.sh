@@ -50,4 +50,4 @@ fi
 
 # Start server
 echo "Starting server..."
-uvicorn backend.asgi:application --host 0.0.0.0 --port 8000 --reload --lifespan off
+daphne -b 0.0.0.0 -p 8000 backend.asgi:application
