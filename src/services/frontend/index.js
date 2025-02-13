@@ -97,29 +97,38 @@ class AuthManager {
             
             const data = await response.json();
 
-            // Check specifically for 2FA requirement
-            if (response.status === 202 && data['2fa_required']) {
-                // Store username for OTP verification
-                sessionStorage.setItem('tempUsername', username);
-                sessionStorage.setItem('tempPassword', password);
-                sessionStorage.setItem('tempUserEmail', data.user.email);
-                // Switch to 2FA form
-                document.getElementById('login-form').classList.add('d-none');
-                document.getElementById('register-form').classList.add('d-none');
-                document.getElementById('2fa-form').classList.remove('d-none');
-                this.startOTPTimer();
+            if (!response.ok) {
+                UIManager.showToast(data.error || 'Login failed', 'danger');
                 return;
             }
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
+            // Check for 2FA requirement (changed from is_2fa_enabled to 2fa_required)
+            if (data['2fa_required']) {
+                sessionStorage.setItem('tempUsername', username);
+                if (data.is_2fa_enabled) {
+                    sessionStorage.setItem('tempUsername', username);
+                    sessionStorage.setItem('tempPassword', password);
+                    sessionStorage.setItem('tempUserEmail', data.user.email);
+                    
+                    document.getElementById('login-form').classList.add('d-none');
+                    document.getElementById('2fa-form').classList.remove('d-none');
+                    
+                    AuthManager.startOTPTimer();
+                    return;
+                }
+                sessionStorage.setItem('tempPassword', password);
+                sessionStorage.setItem('tempUserEmail', data.user.email);
+                
+                document.getElementById('login-form').classList.add('d-none');
+                document.getElementById('2fa-form').classList.remove('d-none');
+                
+                AuthManager.startOTPTimer();
+                return;
             }
 
-            // Only store tokens and proceed if no 2FA required
             await this.processSuccessfulAuth(data);
         } catch (error) {
-            console.error('Login error:', error);
-            UIManager.showToast(error.message, 'danger');
+            UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
 
@@ -134,6 +143,10 @@ class AuthManager {
             const data = await response.json();
     
             if (!response.ok) {
+                if (data.error === 'Email is already in use') {
+                    UIManager.showToast(data.error, 'danger');
+                    return;
+                }
                 let errorMessage = '';
                 
                 // Handle each possible error field
@@ -203,15 +216,24 @@ class AuthManager {
     }
 
     static async processSuccessfulAuth(data) {
-        if (!data.access || !data.refresh) {
+        // Check the structure of data
+        console.log('Auth data received:', data);  // Debug log
+        
+        // Handle both standard login and OAuth flows
+        const access = data.access || data.access_token;
+        const refresh = data.refresh || data.refresh_token;
+        
+        if (!access || !refresh) {
+            console.error('Invalid auth data:', data);  // Debug log
             throw new Error('Invalid authentication response');
         }
         
-        this.accessToken = data.access;
-        this.refreshToken = data.refresh;
-        localStorage.setItem('accessToken', this.accessToken);
-        localStorage.setItem('refreshToken', this.refreshToken);
+        this.accessToken = access;
+        this.refreshToken = refresh;
+        localStorage.setItem('accessToken', access);
+        localStorage.setItem('refreshToken', refresh);
         
+        // Clear any temporary data
         sessionStorage.removeItem('tempUsername');
         sessionStorage.removeItem('tempPassword');
         sessionStorage.removeItem('tempUserEmail');
@@ -297,7 +319,24 @@ class UIManager {
     }
 
     static showToast(message, type = 'info') {
-        ToastManager.show(message, type);
+        const toastContainer = document.createElement('div');
+        toastContainer.className = `toast align-items-center text-white bg-${type} border-0`;
+        toastContainer.setAttribute('role', 'alert');
+        toastContainer.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toastContainer);
+        const bsToast = new bootstrap.Toast(toastContainer, { delay: 3000 });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toastContainer.addEventListener('hidden.bs.toast', () => {
+            toastContainer.remove();
+        });
     }
 
     static async loadMainPage() {
@@ -1841,34 +1880,26 @@ const getUrlParams = () => {
 
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
-    // Check for auth error first
-    const { accessToken: urlAccessToken, refreshToken: urlRefreshToken, authError } = getUrlParams();
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    const accessToken = new URLSearchParams(window.location.search).get('access_token');
+    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
     
     if (authError) {
-        alert('Authentication failed: ' + decodeURIComponent(authError));
+        UIManager.showToast(decodeURIComponent(authError), 'danger');
         UIManager.showPage(UIManager.pages.landing);
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/');
-        return;
-    }
-
-    if (urlAccessToken && urlRefreshToken) {
-        // Store tokens
-        localStorage.setItem('accessToken', urlAccessToken);
-        localStorage.setItem('refreshToken', urlRefreshToken);
-        AuthManager.accessToken = urlAccessToken;
-        AuthManager.refreshToken = urlRefreshToken;
+    } else if (accessToken && refreshToken) {
+        // Store tokens and proceed to main page
+        AuthManager.accessToken = accessToken;
+        AuthManager.refreshToken = refreshToken;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
         
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/');
-        
-        // Show main page
         UIManager.showPage(UIManager.pages.main);
         UIManager.loadMainPage();
-        return;
     }
-
-    // ... rest of your DOMContentLoaded code ...
+    
+    // Clean up URL
+    window.history.replaceState({}, document.title, '/');
 });
 
 function createChatMessage(message) {
