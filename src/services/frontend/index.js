@@ -115,29 +115,38 @@ class AuthManager {
             
             const data = await response.json();
 
-            // Check specifically for 2FA requirement
-            if (response.status === 202 && data['2fa_required']) {
-                // Store username for OTP verification
-                sessionStorage.setItem('tempUsername', username);
-                sessionStorage.setItem('tempPassword', password);
-                sessionStorage.setItem('tempUserEmail', data.user.email);
-                // Switch to 2FA form
-                document.getElementById('login-form').classList.add('d-none');
-                document.getElementById('register-form').classList.add('d-none');
-                document.getElementById('2fa-form').classList.remove('d-none');
-                this.startOTPTimer();
+            if (!response.ok) {
+                UIManager.showToast(data.error || 'Login failed', 'danger');
                 return;
             }
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
+            // Check for 2FA requirement (changed from is_2fa_enabled to 2fa_required)
+            if (data['2fa_required']) {
+                sessionStorage.setItem('tempUsername', username);
+                if (data.is_2fa_enabled) {
+                    sessionStorage.setItem('tempUsername', username);
+                    sessionStorage.setItem('tempPassword', password);
+                    sessionStorage.setItem('tempUserEmail', data.user.email);
+                    
+                    document.getElementById('login-form').classList.add('d-none');
+                    document.getElementById('2fa-form').classList.remove('d-none');
+                    
+                    AuthManager.startOTPTimer();
+                    return;
+                }
+                sessionStorage.setItem('tempPassword', password);
+                sessionStorage.setItem('tempUserEmail', data.user.email);
+                
+                document.getElementById('login-form').classList.add('d-none');
+                document.getElementById('2fa-form').classList.remove('d-none');
+                
+                AuthManager.startOTPTimer();
+                return;
             }
 
-            // Only store tokens and proceed if no 2FA required
             await this.processSuccessfulAuth(data);
         } catch (error) {
-            console.error('Login error:', error);
-            UIManager.showToast(error.message, 'danger');
+            UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
 
@@ -157,6 +166,10 @@ class AuthManager {
             const data = await response.json();
 
             if (!response.ok) {
+                if (data.error === 'Email is already in use') {
+                    UIManager.showToast(data.error, 'danger');
+                    return;
+                }
                 let errorMessage = '';
                 
                 // Handle each possible error field
@@ -226,7 +239,15 @@ class AuthManager {
     }
 
     static async processSuccessfulAuth(data) {
-        if (!data.access || !data.refresh) {
+        // Check the structure of data
+        console.log('Auth data received:', data);  // Debug log
+        
+        // Handle both standard login and OAuth flows
+        const access = data.access || data.access_token;
+        const refresh = data.refresh || data.refresh_token;
+        
+        if (!access || !refresh) {
+            console.error('Invalid auth data:', data);  // Debug log
             throw new Error('Invalid authentication response');
         }
         
@@ -334,6 +355,52 @@ class AuthManager {
             return [];
         }
     }
+
+    static async handleOAuthCallback() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+            const authError = params.get('auth_error');
+
+            if (authError) {
+                throw new Error(decodeURIComponent(authError));
+            }
+
+            // The backend redirects with tokens directly in URL
+            if (!accessToken || !refreshToken) {
+                throw new Error('Invalid authentication response');
+            }
+
+            // Store tokens
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            localStorage.setItem('accessToken', accessToken);
+            localStorage.setItem('refreshToken', refreshToken);
+
+            // Fetch user profile
+            const response = await this.fetchWithAuth(`${this.API_BASE}users/me/`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch user profile');
+            }
+            
+            const userData = await response.json();
+            this.currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+
+            // Clean up URL and load main page
+            window.history.replaceState({}, document.title, '/');
+            await UIManager.loadMainPage();
+            UIManager.showPage(UIManager.pages.main);
+            
+            return true;
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            UIManager.showToast(error.message || 'Authentication failed', 'danger');
+            UIManager.showPage(UIManager.pages.landing);
+            return false;
+        }
+    }
 }
 
 class UIManager {
@@ -365,7 +432,24 @@ class UIManager {
     }
 
     static showToast(message, type = 'info') {
-        ToastManager.show(message, type);
+        const toastContainer = document.createElement('div');
+        toastContainer.className = `toast align-items-center text-white bg-${type} border-0`;
+        toastContainer.setAttribute('role', 'alert');
+        toastContainer.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toastContainer);
+        const bsToast = new bootstrap.Toast(toastContainer, { delay: 3000 });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toastContainer.addEventListener('hidden.bs.toast', () => {
+            toastContainer.remove();
+        });
     }
 
     static async loadMainPage() {
@@ -2313,20 +2397,25 @@ document.addEventListener('DOMContentLoaded', () => {
         FriendManager.updateFriendListUI();
     }
 
-    // Modify OAuth button handler
+    // Update OAuth button handler
     const oauth42Btn = document.getElementById('oauth-42-btn');
     if (oauth42Btn) {
         oauth42Btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // Store current URL before redirect
             sessionStorage.setItem('preAuthPath', window.location.pathname);
+            // The API_BASE already includes /api/, so we don't need to add it
             window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
         });
     }
 
-    // Check for OAuth callback
-    if (window.location.search.includes('code=')) {
-        handleOAuthCallback();
+    // Single OAuth callback check
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('access_token') || params.has('auth_error')) {
+        AuthManager.handleOAuthCallback();
+    } else if (AuthManager.accessToken) {
+        UIManager.loadMainPage();
+    } else {
+        UIManager.showPage(UIManager.pages.landing);
     }
 
     // Initialize UserManager event listeners
@@ -2343,183 +2432,8 @@ const getUrlParams = () => {
     };
 };
 
-// Update the initialization code
-document.addEventListener('DOMContentLoaded', () => {
-    // Check for auth error first
-    const { accessToken: urlAccessToken, refreshToken: urlRefreshToken, authError } = getUrlParams();
-    
-    if (authError) {
-        alert('Authentication failed: ' + decodeURIComponent(authError));
-        UIManager.showPage(UIManager.pages.landing);
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/');
-        return;
-    }
-
-    if (urlAccessToken && urlRefreshToken) {
-        // Store tokens
-        localStorage.setItem('accessToken', urlAccessToken);
-        localStorage.setItem('refreshToken', urlRefreshToken);
-        AuthManager.accessToken = urlAccessToken;
-        AuthManager.refreshToken = urlRefreshToken;
-        
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/');
-        
-        // Show main page
-        UIManager.showPage(UIManager.pages.main);
-        UIManager.loadMainPage();
-        return;
-    }
-
-    // ... rest of your DOMContentLoaded code ...
-});
-
-function createChatMessage(message) {
-    const messageWrapper = document.createElement('div');
-    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
-    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
-    
-    const timestamp = new Date(message.timestamp);
-    const timeStr = timestamp.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-    });
-    const dateStr = timestamp.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-    });
-    
-    const senderName = isSentByMe ? 
-        AuthManager.currentUser.username : 
-        message.sender_display_name;
-    
-    const senderAvatar = isSentByMe ? 
-        AuthManager.currentUser.avatar : 
-        message.sender_avatar_url;
-    
-    const avatarContainer = document.createElement('div');
-    avatarContainer.className = 'avatar-container';
-    
-    const avatarImg = document.createElement('img');
-    avatarImg.className = 'avatar';
-    avatarImg.setAttribute('data-user-id', message.sender_id);
-    avatarImg.alt = senderName;
-    
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    const loadAvatar = (url) => {
-        avatarImg.src = url;
-    };
-    
-    avatarImg.onerror = () => {
-        if (retryCount < maxRetries) {
-            retryCount++;
-            loadAvatar('/media/avatars/default.svg');
-        } else {
-            avatarImg.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'avatar-placeholder';
-            placeholder.textContent = senderName.charAt(0).toUpperCase();
-            avatarContainer.appendChild(placeholder);
-        }
-    };
-    
-    loadAvatar(senderAvatar);
-    avatarContainer.appendChild(avatarImg);
-    
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    
-    // Create message header with username
-    const messageHeader = document.createElement('div');
-    messageHeader.className = 'message-header';
-    
-    if (!isSentByMe) {
-        // For other users' messages, make the username clickable
-        const usernameSpan = document.createElement('span');
-        usernameSpan.className = 'clickable-username';
-        usernameSpan.textContent = senderName;
-        usernameSpan.style.cursor = 'pointer';
-        usernameSpan.style.textDecoration = 'underline';
-        
-        usernameSpan.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            UIManager.showUserProfile(message.sender_id);
-        });
-        
-        messageHeader.appendChild(usernameSpan);
-    } else {
-        // For own messages, just show the username
-        messageHeader.textContent = senderName;
-    }
-    
-    messageContent.appendChild(messageHeader);
-    
-    // Add message bubble and meta information
-    const messageBubble = document.createElement('div');
-    messageBubble.className = 'message-bubble';
-    messageBubble.textContent = message.content;
-    
-    const messageMeta = document.createElement('div');
-    messageMeta.className = 'message-meta';
-    messageMeta.innerHTML = `
-        <span class="timestamp">${timeStr}</span>
-        <span class="date">${dateStr}</span>
-    `;
-    
-    messageContent.appendChild(messageBubble);
-    messageContent.appendChild(messageMeta);
-    
-    // Add avatar and message content to wrapper
-    messageWrapper.appendChild(avatarContainer);
-    messageWrapper.appendChild(messageContent);
-    
-    return messageWrapper;
-}
-
 // Make refreshAccessToken available globally
 // window.refreshAccessToken = refreshAccessToken;
-
-// Keep handleOAuthCallback function definition but move it before it's used
-const handleOAuthCallback = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    if (code) {
-        try {
-            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
-            const data = await response.json();
-            if (response.ok) {
-                // Store tokens and redirect to main page
-                AuthManager.accessToken = data.access;
-                AuthManager.refreshToken = data.refresh;
-                localStorage.setItem('accessToken', AuthManager.accessToken);
-                localStorage.setItem('refreshToken', AuthManager.refreshToken);
-                
-                // Clean up URL and redirect to main page
-                window.history.replaceState({}, document.title, '/');
-                UIManager.showPage(UIManager.pages.main);
-                await UIManager.loadMainPage();
-            } else {
-                throw new Error(data.error || 'OAuth authentication failed');
-            }
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            UIManager.showToast('Authentication failed. Please try again.', 'danger');
-            UIManager.showPage(UIManager.pages.landing);
-        }
-    }
-};
-
-// Update initialization code
-if (AuthManager.accessToken) {
-    UIManager.loadMainPage();
-} else {
-    UIManager.showPage(UIManager.pages.landing);
-}
 
 // Add this to your existing styles or create a new style tag
 const style = document.createElement('style');

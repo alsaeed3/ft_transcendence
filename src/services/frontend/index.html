@@ -339,6 +339,11 @@
     </style>
 </head>
 <body class="bg-dark text-light">
+    <!-- Add this near the top of body -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <!-- Toasts will be inserted here -->
+    </div>
+    
     <div id="landing-page" class="page active-page">
         <div class="container min-vh-100 d-flex flex-column justify-content-center">
             <div class="row justify-content-center">
@@ -357,8 +362,6 @@
                                 <a href="#" id="register-link" class="text-white d-block text-center">Create Account</a>
                                 <div class="text-center mt-3">
                                     <a href="#" id="oauth-42-btn" class="btn btn-light w-100">
-                                        <img src="https://42.fr/wp-content/uploads/2021/08/42-Final-sigle-seul.svg" 
-                                             alt="42" style="height: 20px; margin-right: 10px;">
                                         Login with 42
                                     </a>
                                 </div>
