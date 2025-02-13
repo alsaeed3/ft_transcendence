@@ -1672,8 +1672,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
             
-            // Hide main page
+            // Hide main page and users list
             document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';  // Hide users list
             
             // Create and show setup page
             const setupDiv = document.createElement('div');
@@ -1716,6 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelBtn.addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
+                document.getElementById('users-list').style.display = '';  // Show users list
             });
     
         } catch (error) {
@@ -1734,8 +1736,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/pong.html');
             const html = await response.text();
             
-            // Hide main page
+            // Hide main page and users list
             document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';
             
             // Create and show game page
             const gameDiv = document.createElement('div');
@@ -1764,16 +1767,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         try {
-            // Load and show tournament setup page
             const response = await fetch('/src/assets/components/tournament-setup.html');
             const html = await response.text();
+            
+            // Hide main page and users list
+            document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';  // Add this line
             
             const setupDiv = document.createElement('div');
             setupDiv.id = 'tournament-setup-page';
             setupDiv.classList.add('page', 'active-page');
             setupDiv.innerHTML = html;
-            
-            document.getElementById('main-page').classList.remove('active-page');
             document.body.appendChild(setupDiv);
     
             // Setup player selection
@@ -1874,6 +1878,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancelBtn').addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
+                document.getElementById('users-list').style.display = '';  // Add this line
             });
     
             document.addEventListener('input', (e) => {
