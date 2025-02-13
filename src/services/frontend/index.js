@@ -386,6 +386,9 @@ class UIManager {
                 // Load users list FIRST
                 await UserManager.loadUsersList();
 
+                // Load friends list AFTER users list
+                await FriendManager.updateFriendListUI();
+
                 // THEN initialize chat status socket
                 ChatManager.initStatusWebSocket();
 
@@ -520,7 +523,7 @@ class ChatManager {
                     } else if (data.type === 'status_update') {
                         this.updateUserStatus(data.user_id, data.online_status);
                     }
-    } catch (error) {
+                } catch (error) {
                     console.error('Error handling WebSocket message:', error);
                 }
             };
@@ -546,22 +549,32 @@ class ChatManager {
     static updateUserStatus(userId, isOnline) {
         console.log('Updating status:', userId, isOnline);
         
-        // Update status in both user list and friend list
+        // Update all status badges for this user
         const statusBadges = document.querySelectorAll(`[data-user-status="${userId}"]`);
         statusBadges.forEach(statusBadge => {
             if (statusBadge) {
-                statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
-                statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                // Check if this is in the friends list modal (has different styling)
+                const isInFriendsList = statusBadge.closest('#friendsListModal') !== null;
+                
+                if (isInFriendsList) {
+                    // For friends list modal
+                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                    statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
+                } else {
+                    // For main users list
+                    statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                }
             }
         });
 
-        // Update friend list status
+        // Update friend list status in modal
         const friendRow = document.querySelector(`#friend-list-body tr[data-user-id="${userId}"]`);
         if (friendRow) {
             const statusBadge = friendRow.querySelector(`[data-user-status="${userId}"]`);
             if (statusBadge) {
-                statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
                 statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
             }
         }
 
@@ -569,7 +582,7 @@ class ChatManager {
         if (this.currentChatPartner && this.currentChatPartner.id === userId) {
             const chatHeader = document.getElementById('chat-header');
             if (chatHeader) {
-                const username = statusBadge?.getAttribute('data-user-name') || this.currentChatPartner.username;
+                const username = this.currentChatPartner.username;
                 chatHeader.innerHTML = `
                     Chat with ${username} 
                     <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
@@ -1067,6 +1080,10 @@ class FriendManager {
             }
 
             friends.forEach(friend => {
+                // Get the online status from the users list
+                const userInList = document.querySelector(`#users-table-body [data-user-status="${friend.id}"]`);
+                const isOnline = userInList?.classList.contains('bg-success') || false;
+                
                 const row = document.createElement('tr');
                 row.setAttribute('data-user-id', friend.id);
                 row.innerHTML = `
@@ -1081,10 +1098,10 @@ class FriendManager {
                         </div>
                     </td>
                     <td>
-                        <span class="badge bg-secondary" 
+                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
                               data-user-status="${friend.id}"
                               data-user-name="${friend.username}">
-                            ${friend.online_status ? 'Online' : 'Offline'}
+                            ${isOnline ? 'Online' : 'Offline'}
                         </span>
                     </td>
                     <td class="text-end friend-actions">
@@ -1115,14 +1132,6 @@ class FriendManager {
 
                 friendListBody.appendChild(row);
             });
-
-            // Request status update for all friends
-            if (ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
-                ChatManager.statusSocket.send(JSON.stringify({
-                    type: 'get_status',
-                    user_ids: friends.map(friend => friend.id)
-                }));
-            }
         } catch (error) {
             console.error('Error updating friend list UI:', error);
             UIManager.showToast('Failed to update friends list', 'danger');
