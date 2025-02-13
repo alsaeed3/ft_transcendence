@@ -251,8 +251,8 @@ class AuthManager {
             throw new Error('Invalid authentication response');
         }
         
-        this.accessToken = data.access;
-        this.refreshToken = data.refresh;
+        this.accessToken = access;
+        this.refreshToken = refresh;
         
         // Ensure we have the complete user object with ID
         if (!data.user || !data.user.id) {
@@ -267,10 +267,11 @@ class AuthManager {
         }
 
         // Store tokens and user data
-        localStorage.setItem('accessToken', this.accessToken);
-        localStorage.setItem('refreshToken', this.refreshToken);
+        localStorage.setItem('accessToken', access);
+        localStorage.setItem('refreshToken', refresh);
         localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
 
+        // Clear any temporary data
         // Clear temporary storage
         sessionStorage.removeItem('tempUsername');
         sessionStorage.removeItem('tempPassword');
@@ -2431,6 +2432,115 @@ const getUrlParams = () => {
         authError: params.get('auth_error')
     };
 };
+
+// Update the initialization code
+document.addEventListener('DOMContentLoaded', () => {
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    const accessToken = new URLSearchParams(window.location.search).get('access_token');
+    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
+    
+    if (authError) {
+        UIManager.showToast(decodeURIComponent(authError), 'danger');
+        UIManager.showPage(UIManager.pages.landing);
+    } else if (accessToken && refreshToken) {
+        // Store tokens and proceed to main page
+        AuthManager.accessToken = accessToken;
+        AuthManager.refreshToken = refreshToken;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        
+        UIManager.showPage(UIManager.pages.main);
+        UIManager.loadMainPage();
+    }
+    
+    // Clean up URL
+    window.history.replaceState({}, document.title, '/');
+});
+
+function createChatMessage(message) {
+    const messageWrapper = document.createElement('div');
+    const isSentByMe = message.sender_id === AuthManager.currentUser.id;
+    messageWrapper.className = `message-wrapper ${isSentByMe ? 'sent' : 'received'}`;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+    const dateStr = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    const senderName = isSentByMe ? 
+        AuthManager.currentUser.username : 
+        message.sender_display_name;
+    
+    const senderAvatar = isSentByMe ? 
+        AuthManager.currentUser.avatar : 
+        message.sender_avatar_url;
+    
+    const avatarContainer = document.createElement('div');
+    avatarContainer.className = 'avatar-container';
+    
+    const avatarImg = document.createElement('img');
+    avatarImg.className = 'avatar profile-clickable';
+    avatarImg.setAttribute('data-user-id', message.sender_id);
+    avatarImg.alt = senderName;
+    
+    // Add click handler to avatar
+    avatarImg.addEventListener('click', () => {
+        UIManager.showUserProfile(message.sender_id);
+    });
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const loadAvatar = (url) => {
+        avatarImg.src = url;
+    };
+    
+    avatarImg.onerror = () => {
+        if (retryCount < maxRetries) {
+            retryCount++;
+            loadAvatar('/media/avatars/default.svg');
+        } else {
+            avatarImg.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'avatar-placeholder';
+            placeholder.textContent = senderName.charAt(0).toUpperCase();
+            avatarContainer.appendChild(placeholder);
+        }
+    };
+    
+    loadAvatar(senderAvatar);
+    avatarContainer.appendChild(avatarImg);
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.innerHTML = `
+        <div class="message-header profile-clickable" data-user-id="${message.sender_id}">
+            ${Utils.escapeHtml(senderName)}
+        </div>
+        <div class="message-bubble">${Utils.escapeHtml(message.content)}</div>
+        <div class="message-meta">
+            <span class="timestamp">${timeStr}</span>
+            <span class="date">${dateStr}</span>
+        </div>
+    `;
+    
+    // Add click handler to username
+    messageContent.querySelector('.message-header').addEventListener('click', (e) => {
+        UIManager.showUserProfile(e.target.getAttribute('data-user-id'));
+    });
+    
+    // Always add avatar first, then message content
+    messageWrapper.appendChild(avatarContainer);
+    messageWrapper.appendChild(messageContent);
+    
+    return messageWrapper;
+}
 
 // Make refreshAccessToken available globally
 // window.refreshAccessToken = refreshAccessToken;
