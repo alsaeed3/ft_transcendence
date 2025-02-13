@@ -35,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'password': {'write_only': True, 'required': False, 'allow_blank': True},
             'username': {'required': False},
-            'email': {'required': False},
+            'email': {'required': True},
             'avatar': {'required': False},
             'display_name': {'required': False},
             'language_preference': {'required': False},
@@ -79,7 +79,18 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+    def validate_email(self, value):
+        # Case-insensitive email validation
+        if User.objects.filter(email__iexact=value).exists():
+            if not self.instance or self.instance.email.lower() != value.lower():
+                raise serializers.ValidationError('A user with this email already exists.')
+        return value.lower()  # Store emails in lowercase
+
     def validate(self, data):
+        # Add email validation to the general validation
+        if 'email' in data:
+            self.validate_email(data['email'])
+        
         # Optional: Add custom validation logic
         if 'username' in data:
             # Example: Prevent duplicate usernames

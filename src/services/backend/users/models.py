@@ -36,6 +36,13 @@ class User(AbstractUser):
         related_name='friend_of'
     )
 
+    email = models.EmailField(
+        unique=True,
+        error_messages={
+            'unique': 'A user with this email already exists.',
+        }
+    )
+
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
             return self.avatar.url

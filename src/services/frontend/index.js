@@ -142,15 +142,20 @@ class AuthManager {
     }
 
     static async register(userData) {
-    try {
+        try {
+            // Convert email to lowercase before sending
+            if (userData.email) {
+                userData.email = userData.email.toLowerCase();
+            }
+
             const response = await fetch(`${this.API_BASE}auth/register/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
-        });
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            });
 
             const data = await response.json();
-    
+
             if (!response.ok) {
                 let errorMessage = '';
                 
@@ -177,7 +182,7 @@ class AuthManager {
     
             UIManager.showToast('Registration successful! Please login.', 'success');
             UIManager.toggleForms();
-    } catch (error) {
+        } catch (error) {
             const errorLines = error.message.split('\n');
             const formattedError = errorLines.join('\n');
             UIManager.showToast(formattedError, 'danger');

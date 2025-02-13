@@ -70,11 +70,34 @@ class UserListView(generics.ListAPIView):
         return queryset
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        try:
+            # Convert email to lowercase
+            if 'email' in request.data:
+                request.data['email'] = request.data['email'].lower()
+
+            serializer = self.get_serializer(data=request.data)
+            
+            if not serializer.is_valid():
+                errors = {}
+                for field, error_list in serializer.errors.items():
+                    if field == 'email':
+                        errors['email'] = ['A user with this email already exists.']
+                    else:
+                        errors[field] = error_list
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def list(self, request, *args, **kwargs):
         try:
