@@ -253,26 +253,10 @@ class AuthManager {
         
         this.accessToken = access;
         this.refreshToken = refresh;
-        
-        // Ensure we have the complete user object with ID
-        if (!data.user || !data.user.id) {
-            // Fetch user profile if not provided in auth response
-            const profileResponse = await this.fetchWithAuth(`${this.API_BASE}users/me/`);
-            if (!profileResponse.ok) {
-                throw new Error('Failed to fetch user profile');
-            }
-            this.currentUser = await profileResponse.json();
-        } else {
-            this.currentUser = data.user;
-        }
-
-        // Store tokens and user data
         localStorage.setItem('accessToken', access);
         localStorage.setItem('refreshToken', refresh);
-        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-
+        
         // Clear any temporary data
-        // Clear temporary storage
         sessionStorage.removeItem('tempUsername');
         sessionStorage.removeItem('tempPassword');
         sessionStorage.removeItem('tempUserEmail');
