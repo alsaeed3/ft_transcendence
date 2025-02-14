@@ -117,6 +117,32 @@
             margin-right: 10px;
             margin-left: 0;
         }
+
+        /* Add these styles for the user profile modal */
+        #modal-recent-matches .match-item {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        #modal-recent-matches .clickable-username {
+            color: #fff;
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.5);
+        }
+        
+        #modal-recent-matches .clickable-username:hover {
+            border-bottom-style: solid;
+            opacity: 0.8;
+        }
+        
+        #modal-recent-matches .text-success {
+            color: #28a745 !important;
+        }
+        
+        #modal-recent-matches .text-muted {
+            color: #6c757d !important;
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -412,6 +438,12 @@
                             <h6 class="text-muted">Tournament Statistics</h6>
                             <p>Wins: <span id="modal-tourney-wins">0</span></p>
                             <p>Total: <span id="modal-total-tourneys">0</span></p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <h6 class="text-muted mb-3">Recent Matches</h6>
+                        <div id="modal-recent-matches" class="border-top border-secondary pt-3">
+                            <!-- Recent matches will be populated here -->
                         </div>
                     </div>
                 </div>

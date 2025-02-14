@@ -400,6 +400,9 @@ class UIManager {
             console.error('Error loading main page:', error);
             this.showToast('Failed to load user data', 'danger');
         }
+
+        // After loading all components
+        this.applyUsernameClickability();
     }
 
     static loadUserStats(profile) {
@@ -442,34 +445,191 @@ class UIManager {
 
     static async showUserProfile(userId) {
         try {
+            const modalElement = document.getElementById('userProfileModal');
+            if (!modalElement) {
+                console.error('User profile modal not found in DOM');
+                return;
+            }
+
+            // Clean up any existing modal instance
+            const existingModal = bootstrap.Modal.getInstance(modalElement);
+            if (existingModal) {
+                existingModal.dispose();
+            }
+
+            // Show loading state
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static', // Prevent closing when clicking outside
+                keyboard: true      // Allow closing with Esc key
+            });
+            
+            const modalBody = modalElement.querySelector('.modal-body');
+            modalBody.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+            
+            modal.show();
+
+            // Add event listener for modal hidden event
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                modal.dispose(); // Clean up the modal instance
+            }, { once: true }); // Use once: true to ensure the listener is removed after first use
+
+            // Fetch user profile data
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/${userId}/`);
             if (!response.ok) throw new Error('Failed to fetch user profile');
-            
             const profile = await response.json();
+
+            // Fetch recent matches
+            const matchesResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/history/${userId}/`);
+            if (!matchesResponse.ok) throw new Error('Failed to fetch match history');
+            const matches = await matchesResponse.json();
             
             // Update modal content
-            document.getElementById('modal-user-avatar').src = profile.avatar_url || '/media/avatars/default.svg';
-            document.getElementById('modal-username').textContent = profile.username;
-            document.getElementById('modal-match-wins').textContent = profile.match_wins;
-            document.getElementById('modal-total-matches').textContent = profile.total_matches;
-            document.getElementById('modal-tourney-wins').textContent = profile.tourney_wins;
-            document.getElementById('modal-total-tourneys').textContent = profile.total_tourneys;
-            
+            modalBody.innerHTML = `
+                <div class="text-center mb-3">
+                    <img id="modal-user-avatar" src="${profile.avatar_url || '/media/avatars/default.svg'}" 
+                         class="rounded-circle" style="width: 100px; height: 100px;"
+                         onerror="this.src='/media/avatars/default.svg'">
+                    <h4 id="modal-username" class="mt-2">${profile.username}</h4>
+                </div>
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <p class="mb-0"><strong>Match Wins</strong></p>
+                        <p id="modal-match-wins">${profile.match_wins || 0}</p>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-0"><strong>Total Matches</strong></p>
+                        <p id="modal-total-matches">${profile.total_matches || 0}</p>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-0"><strong>Tournament Wins</strong></p>
+                        <p id="modal-tourney-wins">${profile.tourney_wins || 0}</p>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-0"><strong>Total Tournaments</strong></p>
+                        <p id="modal-total-tourneys">${profile.total_tourneys || 0}</p>
+                    </div>
+                </div>
+                <div class="recent-matches">
+                    <h5>Recent Matches</h5>
+                    <div id="modal-recent-matches">
+                        ${matches.slice(0, 5).map(match => `
+                            <div class="match-item border-bottom py-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="clickable-username ${match.winner_name === match.player1_name ? 'text-success' : ''}"
+                                          data-user-id="${match.player1_id}">
+                                        ${match.player1_name}
+                                    </span>
+                                    <span>vs</span>
+                                    <span class="clickable-username ${match.winner_name === match.player2_name ? 'text-success' : ''}"
+                                          data-user-id="${match.player2_id}">
+                                        ${match.player2_name}
+                                    </span>
+                                </div>
+                                <div class="text-center">
+                                    Score: ${match.player1_score} - ${match.player2_score}
+                                </div>
+                                <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
+                            </div>
+                        `).join('') || '<p class="text-muted">No recent matches</p>'}
+                    </div>
+                </div>
+            `;
+
             // Setup chat button
-            const chatBtn = document.getElementById('modal-chat-btn');
-            chatBtn.onclick = () => {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
-                modal.hide();
-                ChatManager.startChat(profile.id, profile.username);
-            };
-            
-            // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('userProfileModal'));
-            modal.show();
+            const chatBtn = modalElement.querySelector('#modal-chat-btn');
+            if (chatBtn) {
+                chatBtn.onclick = () => {
+                    modal.hide(); // Use hide() instead of dispose()
+                    ChatManager.startChat(profile.id, profile.username);
+                };
+            }
+
+            // Make usernames in recent matches clickable
+            modalElement.querySelectorAll('.clickable-username').forEach(el => {
+                const userId = el.dataset.userId;
+                const username = el.textContent.trim();
+                if (userId) {
+                    this.makeUsernameClickable(el, userId, username);
+                }
+            });
+
         } catch (error) {
             console.error('Error fetching user profile:', error);
-            this.showToast('Failed to load user profile', 'danger');
+            UIManager.showToast('Failed to load user profile', 'danger');
+            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
+            if (modalInstance) {
+                modalInstance.dispose();
+            }
         }
+    }
+
+    static makeUsernameClickable(element, userId, username) {
+        if (!element || !userId) return;
+        
+        element.style.cursor = 'pointer';
+        element.style.textDecoration = 'underline';
+        element.classList.add('clickable-username');
+        
+        // Remove any existing click handlers
+        element.replaceWith(element.cloneNode(true));
+        element = document.querySelector(`[data-user-id="${userId}"]`);
+        
+        element.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Close any existing modal before showing the new one
+            const existingModal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
+            if (existingModal) {
+                existingModal.hide();
+                await new Promise(resolve => setTimeout(resolve, 150)); // Wait for modal to close
+            }
+
+            this.showUserProfile(userId);
+        });
+    }
+
+    static applyUsernameClickability() {
+        // Apply to match history
+        document.querySelectorAll('.match-history-item').forEach(item => {
+            const player1El = item.querySelector('.player1-name');
+            const player2El = item.querySelector('.player2-name');
+            if (player1El && player1El.dataset.userId) {
+                this.makeUsernameClickable(player1El, player1El.dataset.userId);
+            }
+            if (player2El && player2El.dataset.userId) {
+                this.makeUsernameClickable(player2El, player2El.dataset.userId);
+            }
+        });
+
+        // Apply to friends list
+        document.querySelectorAll('#friend-list-body .friend-username').forEach(el => {
+            const userId = el.closest('tr').dataset.userId;
+            if (userId) {
+                this.makeUsernameClickable(el, userId);
+            }
+        });
+
+        // Apply to users list
+        document.querySelectorAll('#users-table-body .user-username').forEach(el => {
+            const userId = el.closest('tr').dataset.userId;
+            if (userId) {
+                this.makeUsernameClickable(el, userId);
+            }
+        });
+
+        // Apply to tournament brackets
+        document.querySelectorAll('.tournament-player-name').forEach(el => {
+            if (el.dataset.userId) {
+                this.makeUsernameClickable(el, el.dataset.userId);
+            }
+        });
     }
 }
 
@@ -1120,7 +1280,9 @@ class FriendManager {
                                  class="rounded-circle me-2"
                                  style="width: 24px; height: 24px;"
                                  onerror="this.src='/media/avatars/default.svg'">
-                            <span>${friend.username}</span>
+                            <span class="friend-username clickable-username" data-user-id="${friend.id}">
+                                ${friend.username}
+                            </span>
                         </div>
                     </td>
                     <td>
@@ -1157,6 +1319,10 @@ class FriendManager {
                 });
 
                 friendListBody.appendChild(row);
+
+                // After creating the row, make username clickable
+                const usernameEl = row.querySelector('.friend-username');
+                UIManager.makeUsernameClickable(usernameEl, friend.id, friend.username);
             });
         } catch (error) {
             console.error('Error updating friend list UI:', error);
@@ -1330,7 +1496,6 @@ class UserManager {
             }
             
             const users = await response.json();
-            
             const tableBody = document.getElementById('users-table-body');
             if (!tableBody) {
                 console.error('Users table body element not found');
@@ -1349,7 +1514,11 @@ class UserManager {
                 }
                 
                 row.innerHTML = `
-                    <td>${Utils.escapeHtml(user.username)}</td>
+                    <td>
+                        <span class="user-username clickable-username" data-user-id="${user.id}">
+                            ${Utils.escapeHtml(user.username)}
+                        </span>
+                    </td>
                     <td>
                         <button class="btn btn-primary btn-sm chat-btn me-2" 
                                 ${user.is_blocked ? 'disabled' : ''}>
@@ -1368,7 +1537,10 @@ class UserManager {
                     </td>
                 `;
 
-                // Add event listeners after creating the elements
+                // Add event listeners
+                const username = row.querySelector('.user-username');
+                UIManager.makeUsernameClickable(username, user.id, user.username);
+
                 const chatBtn = row.querySelector('.chat-btn');
                 const blockBtn = row.querySelector('.block-btn');
 
@@ -1434,16 +1606,22 @@ class MatchManager {
         
         matches.slice(0, AuthManager.RECENT_MATCHES_LIMIT).forEach(match => {
             const matchElement = document.createElement('div');
-            matchElement.className = 'mb-2 p-2 bg-dark rounded';
+            matchElement.className = 'mb-2 p-2 bg-dark rounded match-history-item';
             
             const winner = match.winner_name;
             const winnerClass = match.player1_name === winner ? 'text-success' : 'text-danger';
             
             matchElement.innerHTML = `
                 <div>
-                    <strong class="${match.player1_name === winner ? winnerClass : ''}">${match.player1_name}</strong> 
+                    <strong class="player1-name ${match.player1_name === winner ? winnerClass : ''}" 
+                            data-user-id="${match.player1_id}">
+                        ${match.player1_name}
+                    </strong> 
                     vs 
-                    <strong class="${match.player2_name === winner ? winnerClass : ''}">${match.player2_name}</strong>
+                    <strong class="player2-name ${match.player2_name === winner ? winnerClass : ''}"
+                            data-user-id="${match.player2_id}">
+                        ${match.player2_name}
+                    </strong>
                     <div>Score: ${match.player1_score} - ${match.player2_score}</div>
                     <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
                     ${winner ? `<div class="mt-1"><small class="text-success">Winner: ${winner}</small></div>` : ''}
@@ -1452,6 +1630,9 @@ class MatchManager {
 
             container.appendChild(matchElement);
         });
+
+        // Make usernames clickable
+        UIManager.applyUsernameClickability();
     }
 
     static async initializeGame(mode, opponent = null) {
@@ -2065,7 +2246,8 @@ function createChatMessage(message) {
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
     messageContent.innerHTML = `
-        <div class="message-header profile-clickable" data-user-id="${message.sender_id}">
+        <div class="message-header clickable-username" 
+             data-user-id="${message.sender_id}">
             ${Utils.escapeHtml(senderName)}
         </div>
         <div class="message-bubble">${Utils.escapeHtml(message.content)}</div>
@@ -2075,10 +2257,12 @@ function createChatMessage(message) {
         </div>
     `;
     
-    // Add click handler to username
-    messageContent.querySelector('.message-header').addEventListener('click', (e) => {
-        UIManager.showUserProfile(e.target.getAttribute('data-user-id'));
-    });
+    // Make username clickable
+    UIManager.makeUsernameClickable(
+        messageContent.querySelector('.message-header'),
+        message.sender_id,
+        senderName
+    );
     
     // Always add avatar first, then message content
     messageWrapper.appendChild(avatarContainer);
@@ -2126,3 +2310,19 @@ if (AuthManager.accessToken) {
 } else {
     UIManager.showPage(UIManager.pages.landing);
 }
+
+// Add this to your existing styles or create a new style tag
+const style = document.createElement('style');
+style.textContent = `
+    .clickable-username {
+        cursor: pointer;
+        text-decoration: underline;
+        color: inherit;
+    }
+    
+    .clickable-username:hover {
+        opacity: 0.8;
+        text-decoration: none;
+    }
+`;
+document.head.appendChild(style);
