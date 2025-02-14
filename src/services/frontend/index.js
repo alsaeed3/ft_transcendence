@@ -576,11 +576,14 @@ class UIManager {
         element.style.textDecoration = 'underline';
         element.classList.add('clickable-username');
         
-        // Remove any existing click handlers
-        element.replaceWith(element.cloneNode(true));
-        element = document.querySelector(`[data-user-id="${userId}"]`);
+        // Create a new element with the same properties
+        const newElement = element.cloneNode(true);
         
-        element.addEventListener('click', async (e) => {
+        // Replace the old element with the new one
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add click handler to the new element
+        newElement.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
 
