@@ -873,11 +873,13 @@ class ChatManager {
 
 class FriendManager {
     static friendsModal = null;
+    static addFriendModal = null; // Add this to track the add friend modal instance
 
     static initializeEventListeners() {
-        // Initialize the modal
+        // Initialize the modals
         this.friendsModal = new bootstrap.Modal(document.getElementById('friendsListModal'));
-
+        this.addFriendModal = new bootstrap.Modal(document.getElementById('addFriendModal'));
+        
         // Show friends list button handler
         document.getElementById('show-friends-btn')?.addEventListener('click', async () => {
             await this.updateFriendListUI();
@@ -903,29 +905,46 @@ class FriendManager {
                 const success = await this.sendFriendRequest(username);
                 if (success) {
                     usernameInput.value = '';
-                    const addFriendModal = bootstrap.Modal.getInstance(document.getElementById('addFriendModal'));
-                    if (addFriendModal) {
-                        addFriendModal.hide();
-                    }
+                    this.addFriendModal.hide();
                     await this.updateFriendListUI();
+                    // Show friends list modal after successful add
+                    setTimeout(() => this.friendsModal.show(), 150);
                 }
-            }
-        });
-
-        // Handle modal chain (closing addFriendModal should return to friendsListModal)
-        document.getElementById('addFriendModal')?.addEventListener('hidden.bs.modal', () => {
-            if (document.body.classList.contains('modal-open')) {
-                document.body.classList.add('modal-open');
             }
         });
 
         // Add friend button click handler
         document.getElementById('add-friend-btn')?.addEventListener('click', () => {
-            const addFriendModal = new bootstrap.Modal(document.getElementById('addFriendModal'));
-            addFriendModal.show();
+            this.friendsModal.hide();
+            setTimeout(() => this.addFriendModal.show(), 150);
         });
 
-        // Listen for WebSocket status updates
+        // Handle modal cleanup
+        document.getElementById('addFriendModal')?.addEventListener('hidden.bs.modal', (event) => {
+            // Remove modal-open class and backdrop
+            document.body.classList.remove('modal-open');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Reset any inline styles added by Bootstrap
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        });
+
+        // When friends list modal is hidden
+        document.getElementById('friendsListModal')?.addEventListener('hidden.bs.modal', () => {
+            // Clean up friends list modal
+            document.body.classList.remove('modal-open');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        });
+
+        // Restore WebSocket status updates listener
         if (ChatManager.statusSocket) {
             ChatManager.statusSocket.addEventListener('message', (event) => {
                 try {
