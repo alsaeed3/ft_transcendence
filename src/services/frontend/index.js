@@ -1013,9 +1013,16 @@ class FriendManager {
                 throw new Error('User not found');
             }
 
-            const userToAdd = users[0];
-            console.log('Current user:', AuthManager.currentUser);
-            console.log('User to add:', userToAdd);
+            // Find the exact user match (case-sensitive)
+            const userToAdd = users.find(user => user.username === username);
+            if (!userToAdd) {
+                throw new Error('User not found');
+            }
+
+            // Verify we're not trying to add ourselves
+            if (userToAdd.id === AuthManager.currentUser.id) {
+                throw new Error('Cannot add yourself as friend');
+            }
 
             // Send the friend request using the user's ID
             const response = await AuthManager.fetchWithAuth(
