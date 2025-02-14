@@ -80,7 +80,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 11;
+    const WINNING_SCORE = 2;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 

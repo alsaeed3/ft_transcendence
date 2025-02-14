@@ -9,6 +9,19 @@ class AuthManager {
     static refreshToken = localStorage.getItem('refreshToken');
     static currentUser = null;
 
+    static {
+        // Initialize currentUser from localStorage if available
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                this.currentUser = JSON.parse(storedUser);
+            } catch (e) {
+                console.error('Error parsing stored user data:', e);
+                localStorage.removeItem('currentUser');
+            }
+        }
+    }
+
     static async refreshAccessToken() {
         try {
             // Check if we have a valid token that doesn't need refresh yet
@@ -50,41 +63,46 @@ class AuthManager {
     }
 
     static async fetchWithAuth(url, options = {}) {
-        if (!this.accessToken) {
-            throw new Error('No access token available');
+        try {
+            if (!this.accessToken) {
+                throw new Error('No access token available');
+            }
+    
+            let response = await fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${this.accessToken}`
+                }
+            });
+    
+            if (response.status === 401) {
+                try {
+                    const newToken = await this.refreshAccessToken();
+                    response = await fetch(url, {
+                        ...options,
+                        headers: {
+                            ...options.headers,
+                            'Authorization': `Bearer ${newToken}`
+                        }
+                    });
+                } catch (error) {
+                    console.error('Token refresh failed:', error);
+                    this.logout();
+                    throw new Error('Session expired. Please login again.');
+                }
+            }
+
+            if (response.status === 502) {
+                console.error('Backend server error (502)');
+                throw new Error('Server temporarily unavailable. Please try again later.');
+            }
+    
+            return response;
+        } catch (error) {
+            console.error('Fetch error:', error);
+            throw error;
         }
-    
-        let response = await fetch(url, {
-            ...options,
-            headers: {
-                ...options.headers,
-                'Authorization': `Bearer ${this.accessToken}`
-            }
-        });
-    
-        if (response.status === 401) {
-            if (!this.refreshToken) {
-                throw new Error('Session expired. Please login again.');
-            }
-            
-            try {
-                const newToken = await this.refreshAccessToken();
-                response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        ...options.headers,
-                        'Authorization': `Bearer ${newToken}`
-                    }
-                });
-            } catch (error) {
-                // If refresh fails, redirect to login
-                localStorage.clear();
-                UIManager.showPage(UIManager.pages.landing);
-                throw new Error('Session expired. Please login again.');
-            }
-        }
-    
-        return response;
     }
 
     static async login(username, password) {
@@ -133,15 +151,20 @@ class AuthManager {
     }
 
     static async register(userData) {
-    try {
+        try {
+            // Convert email to lowercase before sending
+            if (userData.email) {
+                userData.email = userData.email.toLowerCase();
+            }
+
             const response = await fetch(`${this.API_BASE}auth/register/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
-        });
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            });
 
             const data = await response.json();
-    
+
             if (!response.ok) {
                 if (data.error === 'Email is already in use') {
                     UIManager.showToast(data.error, 'danger');
@@ -172,7 +195,7 @@ class AuthManager {
     
             UIManager.showToast('Registration successful! Please login.', 'success');
             UIManager.toggleForms();
-    } catch (error) {
+        } catch (error) {
             const errorLines = error.message.split('\n');
             const formattedError = errorLines.join('\n');
             UIManager.showToast(formattedError, 'danger');
@@ -228,12 +251,27 @@ class AuthManager {
             throw new Error('Invalid authentication response');
         }
         
-        this.accessToken = access;
-        this.refreshToken = refresh;
-        localStorage.setItem('accessToken', access);
-        localStorage.setItem('refreshToken', refresh);
+        this.accessToken = data.access;
+        this.refreshToken = data.refresh;
         
-        // Clear any temporary data
+        // Ensure we have the complete user object with ID
+        if (!data.user || !data.user.id) {
+            // Fetch user profile if not provided in auth response
+            const profileResponse = await this.fetchWithAuth(`${this.API_BASE}users/me/`);
+            if (!profileResponse.ok) {
+                throw new Error('Failed to fetch user profile');
+            }
+            this.currentUser = await profileResponse.json();
+        } else {
+            this.currentUser = data.user;
+        }
+
+        // Store tokens and user data
+        localStorage.setItem('accessToken', this.accessToken);
+        localStorage.setItem('refreshToken', this.refreshToken);
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+
+        // Clear temporary storage
         sessionStorage.removeItem('tempUsername');
         sessionStorage.removeItem('tempPassword');
         sessionStorage.removeItem('tempUserEmail');
@@ -287,6 +325,35 @@ class AuthManager {
             }
             timeLeft--;
         }, 1000);
+    }
+
+    static async fetchMatchHistory() {
+        try {
+            if (!AuthManager.currentUser?.id) {
+                console.log('No current user ID available');
+                return [];
+            }
+            
+            const url = `${AuthManager.API_BASE}matches/history/${AuthManager.currentUser.id}/`;
+            const response = await AuthManager.fetchWithAuth(url);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return [];
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const matches = await response.json();
+            return matches.sort((a, b) => {
+                const dateA = new Date(a.end_time || a.start_time);
+                const dateB = new Date(b.end_time || b.start_time);
+                return dateB - dateA;
+            });
+        } catch (error) {
+            console.error('Error fetching matches:', error);
+            return [];
+        }
     }
 }
 
@@ -357,11 +424,14 @@ class UIManager {
                 // Load users list FIRST
                 await UserManager.loadUsersList();
 
+                // Load friends list AFTER users list
+                await FriendManager.updateFriendListUI();
+
                 // THEN initialize chat status socket
                 ChatManager.initStatusWebSocket();
 
                 // Load match history
-                const matches = await MatchManager.fetchMatchHistory();
+                const matches = await AuthManager.fetchMatchHistory();
                 MatchManager.displayMatchHistory(matches);
             }
         } catch (error) {
@@ -491,7 +561,7 @@ class ChatManager {
                     } else if (data.type === 'status_update') {
                         this.updateUserStatus(data.user_id, data.online_status);
                     }
-    } catch (error) {
+                } catch (error) {
                     console.error('Error handling WebSocket message:', error);
                 }
             };
@@ -515,30 +585,50 @@ class ChatManager {
     }
 
     static updateUserStatus(userId, isOnline) {
-        console.log('Updating status:', userId, isOnline); // Debug log
+        console.log('Updating status:', userId, isOnline);
         
-        // Update status in both user list and friend list
+        // Update all status badges for this user
         const statusBadges = document.querySelectorAll(`[data-user-status="${userId}"]`);
         statusBadges.forEach(statusBadge => {
             if (statusBadge) {
-                statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
-                statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                // Check if this is in the friends list modal (has different styling)
+                const isInFriendsList = statusBadge.closest('#friendsListModal') !== null;
                 
-                // Update chat header if this is the current chat partner
-                if (this.currentChatPartner && this.currentChatPartner.id === userId) {
-                    const chatHeader = document.getElementById('chat-header');
-                    const username = statusBadge.getAttribute('data-user-name');
-                    if (chatHeader) {
-                        chatHeader.innerHTML = `
-                            Chat with ${username} 
-                            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
-                                ${isOnline ? 'Online' : 'Offline'}
-                            </span>
-                        `;
-                    }
+                if (isInFriendsList) {
+                    // For friends list modal
+                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                    statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
+                } else {
+                    // For main users list
+                    statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
                 }
             }
         });
+
+        // Update friend list status in modal
+        const friendRow = document.querySelector(`#friend-list-body tr[data-user-id="${userId}"]`);
+        if (friendRow) {
+            const statusBadge = friendRow.querySelector(`[data-user-status="${userId}"]`);
+            if (statusBadge) {
+                statusBadge.textContent = isOnline ? 'Online' : 'Offline';
+                statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
+            }
+        }
+
+        // Update chat header if this is the current chat partner
+        if (this.currentChatPartner && this.currentChatPartner.id === userId) {
+            const chatHeader = document.getElementById('chat-header');
+            if (chatHeader) {
+                const username = this.currentChatPartner.username;
+                chatHeader.innerHTML = `
+                    Chat with ${username} 
+                    <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'} ms-2">
+                        ${isOnline ? 'Online' : 'Offline'}
+                    </span>
+                `;
+            }
+        }
     }
 
     static cleanup() {
@@ -914,11 +1004,14 @@ class FriendManager {
     static async fetchFriendList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/friends/`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
-    } catch (error) {
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
             console.error('Error fetching friend list:', error);
-            UIManager.showToast('Failed to load friends list', 'danger');
+            UIManager.showToast('Failed to load friends list. Please try again later.', 'danger');
             return [];
         }
     }
@@ -940,9 +1033,8 @@ class FriendManager {
             }
 
             const userToAdd = users[0];
-            if (userToAdd.id === AuthManager.currentUser.id) {
-                throw new Error('Cannot add yourself as a friend');
-            }
+            console.log('Current user:', AuthManager.currentUser);
+            console.log('User to add:', userToAdd);
 
             // Send the friend request using the user's ID
             const response = await AuthManager.fetchWithAuth(
@@ -1026,6 +1118,10 @@ class FriendManager {
             }
 
             friends.forEach(friend => {
+                // Get the online status from the users list
+                const userInList = document.querySelector(`#users-table-body [data-user-status="${friend.id}"]`);
+                const isOnline = userInList?.classList.contains('bg-success') || false;
+                
                 const row = document.createElement('tr');
                 row.setAttribute('data-user-id', friend.id);
                 row.innerHTML = `
@@ -1040,10 +1136,10 @@ class FriendManager {
                         </div>
                     </td>
                     <td>
-                        <span class="badge bg-secondary" 
+                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
                               data-user-status="${friend.id}"
                               data-user-name="${friend.username}">
-                            Offline
+                            ${isOnline ? 'Online' : 'Offline'}
                         </span>
                     </td>
                     <td class="text-end friend-actions">
@@ -1074,15 +1170,6 @@ class FriendManager {
 
                 friendListBody.appendChild(row);
             });
-
-            // Update online status for all friends
-            if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
-                // Request current online status
-                ChatManager.statusSocket.send(JSON.stringify({
-                    type: 'get_status',
-                    user_ids: friends.map(friend => friend.id)
-                }));
-            }
         } catch (error) {
             console.error('Error updating friend list UI:', error);
             UIManager.showToast('Failed to update friends list', 'danger');
@@ -1326,15 +1413,27 @@ class UserManager {
 class MatchManager {
     static async fetchMatchHistory() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`);
+            if (!AuthManager.currentUser?.id) {
+                console.log('No current user ID available');
+                return [];
+            }
+            
+            const url = `${AuthManager.API_BASE}matches/history/${AuthManager.currentUser.id}/`;
+            const response = await AuthManager.fetchWithAuth(url);
             
             if (!response.ok) {
+                if (response.status === 404) {
+                    return [];
+                }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            const matches = await response.json();
 
-            // Sort matches by date (most recent first)
-            return matches.sort((a, b) => new Date(b.end_time) - new Date(a.end_time));
+            const matches = await response.json();
+            return matches.sort((a, b) => {
+                const dateA = new Date(a.end_time || a.start_time);
+                const dateB = new Date(b.end_time || b.start_time);
+                return dateB - dateA;
+            });
         } catch (error) {
             console.error('Error fetching matches:', error);
             return [];
@@ -1611,8 +1710,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
             
-            // Hide main page
+            // Hide main page and users list
             document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';  // Hide users list
             
             // Create and show setup page
             const setupDiv = document.createElement('div');
@@ -1655,6 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelBtn.addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
+                document.getElementById('users-list').style.display = '';  // Show users list
             });
     
         } catch (error) {
@@ -1673,8 +1774,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/pong.html');
             const html = await response.text();
             
-            // Hide main page
+            // Hide main page and users list
             document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';
             
             // Create and show game page
             const gameDiv = document.createElement('div');
@@ -1703,16 +1805,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         try {
-            // Load and show tournament setup page
             const response = await fetch('/src/assets/components/tournament-setup.html');
             const html = await response.text();
+            
+            // Hide main page and users list
+            document.getElementById('main-page').classList.remove('active-page');
+            document.getElementById('users-list').style.display = 'none';  // Add this line
             
             const setupDiv = document.createElement('div');
             setupDiv.id = 'tournament-setup-page';
             setupDiv.classList.add('page', 'active-page');
             setupDiv.innerHTML = html;
-            
-            document.getElementById('main-page').classList.remove('active-page');
             document.body.appendChild(setupDiv);
     
             // Setup player selection
@@ -1813,6 +1916,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancelBtn').addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
+                document.getElementById('users-list').style.display = '';  // Add this line
             });
     
             document.addEventListener('input', (e) => {

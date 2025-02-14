@@ -70,11 +70,34 @@ class UserListView(generics.ListAPIView):
         return queryset
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        try:
+            # Convert email to lowercase
+            if 'email' in request.data:
+                request.data['email'] = request.data['email'].lower()
+
+            serializer = self.get_serializer(data=request.data)
+            
+            if not serializer.is_valid():
+                errors = {}
+                for field, error_list in serializer.errors.items():
+                    if field == 'email':
+                        errors['email'] = ['A user with this email already exists.']
+                    else:
+                        errors[field] = error_list
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def list(self, request, *args, **kwargs):
         try:
@@ -136,7 +159,27 @@ class FriendListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.request.user.friends.all()
+        try:
+            # Add debug logging
+            print(f"Fetching friends for user: {self.request.user.username} (ID: {self.request.user.id})")
+            friends = self.request.user.friends.all()
+            print(f"Found {friends.count()} friends")
+            return friends
+        except Exception as e:
+            print(f"Error in get_queryset: {str(e)}")
+            return User.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            print(f"Error in list method: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch friends list'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class FriendRequestView(APIView):
     permission_classes = [IsAuthenticated]
@@ -144,20 +187,32 @@ class FriendRequestView(APIView):
     def post(self, request, pk):
         try:
             friend = User.objects.get(pk=pk)
-            if friend == request.user:
+            
+            # Add debug logging
+            print(f"Current user ID: {request.user.id}, Friend ID: {friend.id}")
+            print(f"Current user: {request.user.username}, Friend: {friend.username}")
+            
+            # Ensure we're comparing integers
+            current_user_id = int(request.user.id)
+            friend_id = int(pk)
+            
+            if current_user_id == friend_id:
                 return Response(
                     {'error': 'Cannot add yourself as friend'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            if request.user.friends.filter(pk=friend.pk).exists():
+            # Check for existing friendship in both directions
+            if (request.user.friends.filter(pk=friend.pk).exists() or 
+                friend.friends.filter(pk=request.user.pk).exists()):
                 return Response(
                     {'error': 'Already friends'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # Create bilateral friendship
             request.user.friends.add(friend)
-            friend.friends.add(request.user)  # Make it bilateral
+            friend.friends.add(request.user)
             
             return Response(
                 {'message': 'Friend added successfully'}, 
