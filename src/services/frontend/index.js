@@ -1333,6 +1333,10 @@ class FriendManager {
                 // Add event listeners
                 const chatBtn = row.querySelector('.chat-btn');
                 chatBtn.addEventListener('click', () => {
+                    // Hide the friends list modal before starting chat
+                    if (this.friendsModal) {
+                        this.friendsModal.hide();
+                    }
                     ChatManager.startChat(friend.id, friend.username);
                 });
 
@@ -2365,26 +2369,48 @@ function createChatMessage(message) {
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
     
-    // Create username element with clickable functionality
-    const usernameDiv = document.createElement('div');
-    usernameDiv.className = 'message-header';
-    usernameDiv.textContent = senderName;
+    // Create message header with username
+    const messageHeader = document.createElement('div');
+    messageHeader.className = 'message-header';
     
-    // Make username clickable if it's not the current user
     if (!isSentByMe) {
-        UIManager.makeUsernameClickable(usernameDiv, message.sender_id, senderName);
+        // For other users' messages, make the username clickable
+        const usernameSpan = document.createElement('span');
+        usernameSpan.className = 'clickable-username';
+        usernameSpan.textContent = senderName;
+        usernameSpan.style.cursor = 'pointer';
+        usernameSpan.style.textDecoration = 'underline';
+        
+        usernameSpan.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            UIManager.showUserProfile(message.sender_id);
+        });
+        
+        messageHeader.appendChild(usernameSpan);
+    } else {
+        // For own messages, just show the username
+        messageHeader.textContent = senderName;
     }
     
-    messageContent.appendChild(usernameDiv);
-    messageContent.innerHTML += `
-        <div class="message-bubble">${Utils.escapeHtml(message.content)}</div>
-        <div class="message-meta">
-            <span class="timestamp">${timeStr}</span>
-            <span class="date">${dateStr}</span>
-        </div>
+    messageContent.appendChild(messageHeader);
+    
+    // Add message bubble and meta information
+    const messageBubble = document.createElement('div');
+    messageBubble.className = 'message-bubble';
+    messageBubble.textContent = message.content;
+    
+    const messageMeta = document.createElement('div');
+    messageMeta.className = 'message-meta';
+    messageMeta.innerHTML = `
+        <span class="timestamp">${timeStr}</span>
+        <span class="date">${dateStr}</span>
     `;
     
-    // Always add avatar first, then message content
+    messageContent.appendChild(messageBubble);
+    messageContent.appendChild(messageMeta);
+    
+    // Add avatar and message content to wrapper
     messageWrapper.appendChild(avatarContainer);
     messageWrapper.appendChild(messageContent);
     
