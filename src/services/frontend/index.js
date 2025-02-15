@@ -1628,86 +1628,84 @@ class UserManager {
     static async loadUsersList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch users: ${response.status}`);
-            }
-            
+            if (!response.ok) throw new Error('Failed to fetch users');
             const users = await response.json();
+
             const tableBody = document.getElementById('users-table-body');
-            if (!tableBody) {
-                console.error('Users table body element not found');
-                return;
-            }
-            
             tableBody.innerHTML = '';
-            
+
             users.forEach(user => {
-                if (user.id === AuthManager.currentUser?.id) return;
-                
-                // Check if user is online (by checking existing status badges)
-                const existingStatus = document.querySelector(`[data-user-status="${user.id}"].bg-success`);
-                const isOnline = existingStatus !== null;
-                
-                const row = document.createElement('tr');
-                row.setAttribute('data-user-id', user.id);
-                if (user.is_blocked) {
-                    row.classList.add('blocked-user');
+                if (user.id !== AuthManager.currentUser.id) {
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-user-id', user.id);
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="${user.avatar_url || '/media/avatars/default.svg'}" 
+                                     alt="${user.username}" 
+                                     class="rounded-circle me-2"
+                                     style="width: 24px; height: 24px;"
+                                     onerror="this.src='/media/avatars/default.svg'">
+                                <span class="user-username clickable-username">
+                                    ${user.username}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary" 
+                                  data-user-status="${user.id}"
+                                  data-user-name="${user.username}">
+                                Offline
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-primary me-1 chat-btn" 
+                                    title="Chat with ${user.username}">
+                                <i class="bi bi-chat-dots"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger block-btn" 
+                                    title="Block ${user.username}">
+                                Block
+                            </button>
+                        </td>
+                    `;
+
+                    // Add event listeners
+                    const chatBtn = row.querySelector('.chat-btn');
+                    chatBtn.addEventListener('click', () => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
+                        if (modal) {
+                            modal.hide();
+                        }
+                        ChatManager.startChat(user.id, user.username);
+                    });
+
+                    const blockBtn = row.querySelector('.block-btn');
+                    blockBtn.addEventListener('click', async () => {
+                        const isBlocked = row.classList.contains('blocked-user');
+                        if (isBlocked) {
+                            await ChatManager.unblockUser(user.id);
+                        } else {
+                            await ChatManager.blockUser(user.id);
+                        }
+                    });
+
+                    tableBody.appendChild(row);
+
+                    // Make username clickable
+                    const usernameEl = row.querySelector('.user-username');
+                    UIManager.makeUsernameClickable(usernameEl, user.id, user.username);
                 }
-                
-                row.innerHTML = `
-                    <td>
-                        <span class="user-username clickable-username" data-user-id="${user.id}">
-                            ${Utils.escapeHtml(user.username)}
-                        </span>
-                    </td>
-                    <td>
-                        <button class="btn btn-primary btn-sm chat-btn me-2" 
-                                ${user.is_blocked ? 'disabled' : ''}>
-                            <i class="bi bi-chat-dots"></i> Chat
-                        </button>
-                        <button class="btn btn-sm ${user.is_blocked ? 'btn-secondary' : 'btn-danger'} block-btn">
-                            ${user.is_blocked ? 'Unblock' : 'Block'}
-                        </button>
-                    </td>
-                    <td>
-                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
-                              data-user-status="${user.id}"
-                              data-user-name="${Utils.escapeHtml(user.username)}">
-                            ${isOnline ? 'Online' : 'Offline'}
-                        </span>
-                    </td>
-                `;
-
-                // Add event listeners
-                const username = row.querySelector('.user-username');
-                UIManager.makeUsernameClickable(username, user.id, user.username);
-
-                const chatBtn = row.querySelector('.chat-btn');
-                const blockBtn = row.querySelector('.block-btn');
-
-                chatBtn.addEventListener('click', () => {
-                    this.usersModal.hide();
-                    ChatManager.startChat(user.id, user.username);
-                });
-
-                blockBtn.addEventListener('click', () => {
-                    const isCurrentlyBlocked = user.is_blocked;
-                    if (isCurrentlyBlocked) {
-                        ChatManager.unblockUser(user.id).then(() => {
-                            user.is_blocked = false;
-                        });
-                    } else {
-                        ChatManager.blockUser(user.id).then(() => {
-                            user.is_blocked = true;
-                        });
-                    }
-                });
-
-                tableBody.appendChild(row);
             });
+
+            // Update online status for all users
+            if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
+                ChatManager.statusSocket.send(JSON.stringify({ type: 'get_status' }));
+            }
+
         } catch (error) {
-            console.error('Error loading users list:', error);
-            UIManager.showToast(`Error loading users list: ${error.message}`, 'danger');
+            console.error('Error updating users list:', error);
+            UIManager.showToast('Failed to update users list', 'danger');
         }
     }
 }
