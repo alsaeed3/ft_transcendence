@@ -1,7 +1,7 @@
 # Define shell to use
 SHELL := /bin/bash
 
-COMPOSE := docker compose -f docker-compose.yml
+COMPOSE := docker compose
 
 default: up
 

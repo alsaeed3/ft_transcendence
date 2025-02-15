@@ -417,11 +417,34 @@ class UIManager {
         try {
             const profile = await ProfileManager.fetchUserProfile();
             if (profile) {
-                // Pre-fill the form with current values
-                document.getElementById('update-username').value = profile.username || '';
-                document.getElementById('update-email').value = profile.email || '';
-                // Don't pre-fill password
+                // Set the email value and placeholder
+                const emailInput = document.getElementById('update-email');
+                if (emailInput) {
+                    emailInput.value = profile.email || '';
+                    emailInput.placeholder = 'Enter your email';
+                }
+                
+                // Clear password field
                 document.getElementById('update-password').value = '';
+
+                // Set current avatar
+                const currentAvatar = document.getElementById('current-avatar');
+                if (currentAvatar) {
+                    currentAvatar.src = profile.avatar || '/media/avatars/default.svg';
+                    currentAvatar.onerror = () => {
+                        currentAvatar.src = '/media/avatars/default.svg';
+                    };
+                }
+
+                // Update 2FA status display immediately
+                const twoFAStatus = document.getElementById('2fa-status');
+                if (twoFAStatus) {
+                    twoFAStatus.innerHTML = `
+                        <div class="alert ${profile.is_2fa_enabled ? 'alert-success' : 'alert-danger'} text-center">
+                            2FA ${profile.is_2fa_enabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                    `;
+                }
             }
         } catch (error) {
             console.error('Error loading profile page:', error);
@@ -2274,8 +2297,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Utils.preloadDefaultAvatar();
 
     // Profile related listeners
-    document.getElementById('user-profile').addEventListener('click', () => {
+    document.getElementById('user-profile').addEventListener('click', async () => {
         UIManager.showPage(UIManager.pages.updateProfile);
+        await UIManager.loadUpdateProfilePage(); // Add this line to load profile data
     });
 
     document.getElementById('back-to-main').addEventListener('click', (e) => {
