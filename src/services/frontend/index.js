@@ -1742,28 +1742,55 @@ class MatchManager {
 
     static displayMatchHistory(matches) {
         const container = document.getElementById('match-history');
-        container.innerHTML = matches.length ? '' : '<p>No recent matches</p>';
+        container.innerHTML = matches.length ? '' : '<p class="text-muted">No recent matches</p>';
         
         matches.slice(0, AuthManager.RECENT_MATCHES_LIMIT).forEach(match => {
             const matchElement = document.createElement('div');
-            matchElement.className = 'mb-2 p-2 bg-dark rounded match-history-item';
+            matchElement.className = 'mb-3 p-3 bg-dark rounded match-history-item';
+            matchElement.style.backgroundColor = '#2b3035';
+            matchElement.style.border = '1px solid rgba(255, 255, 255, 0.1)';
             
             const winner = match.winner_name;
-            const player1Class = match.player1_name === winner ? 'text-success' : '';
-            const player2Class = match.player2_name === winner ? 'text-success' : '';
+            const isPlayer1Winner = match.player1_name === winner;
+            const player1Class = isPlayer1Winner ? 'text-success' : '';
+            const player2Class = match.player2_name === winner ? 'text-danger' : '';
+            const winnerClass = isPlayer1Winner ? 'text-success' : 'text-danger';
+            
+            const date = new Date(match.end_time || match.start_time);
+            const formattedDate = date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
             
             matchElement.innerHTML = `
-                <div>
-                    <span class="${player1Class}">
-                        ${match.player1_name}
-                    </span> 
-                    vs 
-                    <span class="${player2Class}">
-                        ${match.player2_name}
-                    </span>
-                    <div>Score: ${match.player1_score} - ${match.player2_score}</div>
-                    <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
-                    ${winner ? `<div class="mt-1"><small class="text-success">Winner: ${winner}</small></div>` : ''}
+                <div class="d-flex flex-column">
+                    <div class="text-center mb-2">
+                        <div class="match-players mb-1">
+                            <span class="fw-bold ${player1Class}">
+                                ${match.player1_name}
+                            </span>
+                            <span class="mx-2 text-light">vs</span>
+                            <span class="fw-bold ${player2Class}">
+                                ${match.player2_name}
+                            </span>
+                        </div>
+                        <div class="match-score">
+                            Score: <span class="fw-bold">${match.player1_score} - ${match.player2_score}</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-light-50" style="color: #adb5bd !important;">
+                            ${formattedDate}
+                        </small>
+                        ${winner ? `
+                            <small class="${winnerClass}">
+                                Winner: ${winner}
+                            </small>
+                        ` : ''}
+                    </div>
                 </div>
             `;
 
