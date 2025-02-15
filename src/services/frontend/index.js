@@ -1732,19 +1732,18 @@ class MatchManager {
             matchElement.className = 'mb-2 p-2 bg-dark rounded match-history-item';
             
             const winner = match.winner_name;
-            const winnerClass = match.player1_name === winner ? 'text-success' : 'text-danger';
+            const player1Class = match.player1_name === winner ? 'text-success' : '';
+            const player2Class = match.player2_name === winner ? 'text-success' : '';
             
             matchElement.innerHTML = `
                 <div>
-                    <strong class="player1-name ${match.player1_name === winner ? winnerClass : ''}" 
-                            data-user-id="${match.player1_id}">
+                    <span class="${player1Class}">
                         ${match.player1_name}
-                    </strong> 
+                    </span> 
                     vs 
-                    <strong class="player2-name ${match.player2_name === winner ? winnerClass : ''}"
-                            data-user-id="${match.player2_id}">
+                    <span class="${player2Class}">
                         ${match.player2_name}
-                    </strong>
+                    </span>
                     <div>Score: ${match.player1_score} - ${match.player2_score}</div>
                     <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
                     ${winner ? `<div class="mt-1"><small class="text-success">Winner: ${winner}</small></div>` : ''}
@@ -1753,9 +1752,6 @@ class MatchManager {
 
             container.appendChild(matchElement);
         });
-
-        // Make usernames clickable
-        UIManager.applyUsernameClickability();
     }
 
     static async initializeGame(mode, opponent = null) {
