@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nautilus Pong Game</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/assets/css/chat.css">
@@ -143,6 +144,198 @@
         #modal-recent-matches .text-muted {
             color: #6c757d !important;
         }
+
+        .game-title {
+            font-weight: 800;
+            text-transform: uppercase;
+            background: linear-gradient(to right, #00bcd4, #2196f3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+            letter-spacing: 2px;
+        }
+
+        .game-title::after {
+            content: attr(data-text);
+            position: absolute;
+            left: 0;
+            text-shadow: 2px 2px 15px rgba(33, 150, 243, 0.4);
+            -webkit-text-fill-color: transparent;
+            z-index: -1;
+        }
+
+        .navbar-brand {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-brand:hover {
+            transform: scale(1.02);
+        }
+
+        .navbar-brand img {
+            transition: transform 0.3s ease;
+            filter: brightness(1.1);
+        }
+
+        .navbar-brand:hover img {
+            transform: scale(1.05);
+        }
+
+        /* Add these new styles */
+        .navbar {
+            background: linear-gradient(to right, #1a237e, #0d47a1) !important;
+            box-shadow: 0 2px 15px rgba(33, 150, 243, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar .btn-outline-light {
+            border-color: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .navbar .btn-outline-light:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .navbar .btn-danger {
+            background: linear-gradient(to right, #ff4081, #e91e63);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .navbar .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
+        }
+
+        /* Update card styles */
+        .card {
+            background: linear-gradient(145deg, #1e2a3a, #2a3846) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Game option cards */
+        .game-option-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none !important;
+        }
+
+        .game-option-card.bg-success {
+            background: linear-gradient(145deg, #2e7d32, #43a047) !important;
+        }
+
+        .game-option-card.bg-warning {
+            background: linear-gradient(145deg, #f57c00, #ff9800) !important;
+        }
+
+        .game-option-card.bg-info {
+            background: linear-gradient(145deg, #0288d1, #03a9f4) !important;
+        }
+
+        .game-option-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .game-option-card .btn-light {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .game-option-card .btn-light:hover {
+            background: #ffffff;
+            transform: scale(1.05);
+        }
+
+        /* Update form controls */
+        .form-control {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .form-control:focus {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-color: #2196f3;
+            color: white;
+            box-shadow: 0 0 0 0.25rem rgba(33, 150, 243, 0.25);
+        }
+
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Update buttons */
+        .btn-primary {
+            background: linear-gradient(to right, #1976d2, #2196f3);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(to right, #1565c0, #1976d2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(to right, #455a64, #607d8b);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(to right, #37474f, #455a64);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(96, 125, 139, 0.3);
+        }
+
+        /* Match history styles */
+        .match-history-item {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .match-history-item:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+            transform: translateY(-2px);
+        }
+
+        /* Profile section styles */
+        #user-profile {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 15px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+
+        #user-profile:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Modal styles */
+        .modal-content {
+            background: linear-gradient(145deg, #1e2a3a, #2a3846) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -152,7 +345,7 @@
                 <div class="col-md-6 col-lg-4">
                     <div class="card bg-secondary text-white">
                         <div class="card-body">
-                            <h2 class="card-title text-center mb-4">Nautilus Pong Game</h2>
+                            <h2 class="card-title text-center mb-4 game-title fw-bold" data-text="Nautilus Pong">Nautilus Pong</h2>
                             <form id="login-form">
                                 <div class="mb-3">
                                     <input type="text" class="form-control" placeholder="Username" required>
@@ -214,9 +407,15 @@
     </div>
 
     <div id="main-page" class="page">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <nav class="navbar navbar-expand-lg navbar-dark">
             <div class="container">
-                <a class="navbar-brand" href="#">Nautilus Pong</a>
+                <a class="navbar-brand d-flex align-items-center" href="#">
+                    <img src="/nautilus.png" 
+                         alt="Nautilus Logo" 
+                         class="me-2" 
+                         style="height: 50px; width: auto;">
+                    <span class="game-title fw-bold" data-text="Nautilus Pong">Nautilus Pong</span>
+                </a>
                 <div class="ms-auto d-flex align-items-center">
                     <!-- Users List Button -->
                     <button class="btn btn-outline-light me-2" id="show-users-btn">
