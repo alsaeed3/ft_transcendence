@@ -414,21 +414,18 @@ class UIManager {
     }
 
     static async loadUpdateProfilePage() {
-        this.showPage(this.pages.updateProfile);
         try {
             const profile = await ProfileManager.fetchUserProfile();
-            document.getElementById('update-username').value = profile.username;
-            document.getElementById('update-email').value = profile.email;
-
-            // Add back button handler
-            document.getElementById('back-to-main')?.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.showPage(this.pages.main);
-            });
-
+            if (profile) {
+                // Pre-fill the form with current values
+                document.getElementById('update-username').value = profile.username || '';
+                document.getElementById('update-email').value = profile.email || '';
+                // Don't pre-fill password
+                document.getElementById('update-password').value = '';
+            }
         } catch (error) {
-            console.error('Error loading profile:', error);
-            this.showToast('Failed to load profile data', 'danger');
+            console.error('Error loading profile page:', error);
+            UIManager.showToast('Failed to load profile data', 'danger');
         }
     }
 
@@ -1433,56 +1430,99 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
-            // Check if there's a file to upload
             const hasFile = formData.get('avatar') && formData.get('avatar').size > 0;
-            
-            // Create the data object from form inputs
-            const data = {
-                username: formData.get('username'),
-                email: formData.get('email')
-            };
+            let requestData;
+            let headers = {};
 
-            // Only add password if it's not empty
-            const password = formData.get('password');
-            if (password) {
-                data.password = password;
-            }
-
-            // Remove undefined or empty string values
-            Object.keys(data).forEach(key => {
-                if (!data[key]) {
-                    delete data[key];
-                }
-            });
-            
             if (hasFile) {
-                // Use FormData for file uploads
-                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
-                    method: 'PUT',
-                    // Don't set Content-Type header - browser will set it with boundary
-                    body: formData
-                });
-
-                const responseData = await response.json();
-                if (!response.ok) {
-                    throw new Error(responseData.detail || responseData.avatar?.[0] || 'Profile update failed');
-                }
+                requestData = formData;
             } else {
-                // Regular JSON request for non-file updates
-                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const jsonData = {};
+                const username = formData.get('username');
+                const email = formData.get('email');
+                const password = formData.get('password');
+
+                // Get current user data for required fields
+                const currentUser = AuthManager.currentUser;
+
+                // Include current values if fields are empty
+                if (username && username.trim()) {
+                    jsonData.username = username.trim();
+                } else if (currentUser?.username) {
+                    jsonData.username = currentUser.username;
+                }
+
+                if (email && email.trim()) {
+                    jsonData.email = email.trim().toLowerCase();
+                } else if (currentUser?.email) {
+                    jsonData.email = currentUser.email;
+                }
+
+                if (password && password.trim()) {
+                    jsonData.password = password.trim();
+                }
+
+                // Log the data (excluding password)
+                console.log('Request data:', { 
+                    ...jsonData, 
+                    password: jsonData.password ? '[REDACTED]' : null,
+                    currentUsername: currentUser?.username,
+                    currentEmail: currentUser?.email
                 });
 
-                const responseData = await response.json();
-                if (!response.ok) {
-                    throw new Error(responseData.detail || 'Profile update failed');
+                if (Object.keys(jsonData).length === 0) {
+                    throw new Error('No changes to update');
                 }
+
+                requestData = JSON.stringify(jsonData);
+                headers['Content-Type'] = 'application/json';
             }
 
+            const response = await AuthManager.fetchWithAuth(
+                `${AuthManager.API_BASE}users/profile/`,
+                {
+                    method: 'PUT',
+                    headers,
+                    body: requestData
+                }
+            );
+
+            const responseData = await response.json();
+            console.log('Response status:', response.status);
+            console.log('Response data:', responseData);
+
+            if (!response.ok) {
+                let errorMessage = 'Profile update failed';
+                
+                if (responseData.detail) {
+                    errorMessage = responseData.detail;
+                } else if (responseData.username) {
+                    errorMessage = `Username: ${responseData.username.join(', ')}`;
+                } else if (responseData.email) {
+                    errorMessage = `Email: ${responseData.email.join(', ')}`;
+                } else if (responseData.password) {
+                    errorMessage = `Password: ${responseData.password.join(', ')}`;
+                } else if (responseData.avatar) {
+                    errorMessage = `Avatar: ${responseData.avatar.join(', ')}`;
+                }
+                
+                throw new Error(errorMessage);
+            }
+
+            // Update current user data
+            if (responseData.user) {
+                AuthManager.currentUser = responseData.user;
+                localStorage.setItem('currentUser', JSON.stringify(responseData.user));
+            }
+
+            // Clear form and show success message
+            document.getElementById('update-profile-form').reset();
             UIManager.showToast('Profile updated successfully!', 'success');
+
+            // Reload main page and switch back
             await UIManager.loadMainPage();
+            UIManager.showPage(UIManager.pages.main);
+
         } catch (error) {
             console.error('Profile update error:', error);
             UIManager.showToast(error.message || 'Failed to update profile', 'danger');
@@ -1851,17 +1891,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-link').addEventListener('click', UIManager.toggleForms);
 
     // Profile listeners
-    document.getElementById('update-profile-form').addEventListener('submit', (e) => {
+    document.getElementById('update-profile-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // Log form data before submission
-        const formData = new FormData(e.target);
-        console.log('Form data before submission:');
-        for (let [key, value] of formData.entries()) {
-            console.log(`${key}: ${value}`);
+        try {
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            // Log the form data before submission
+            console.log('Submitting form data:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${key === 'password' ? '[REDACTED]' : value}`);
+            }
+            
+            await ProfileManager.updateProfile(formData);
+        } catch (error) {
+            console.error('Form submission error:', error);
+            UIManager.showToast('Failed to submit form', 'danger');
         }
-        
-        ProfileManager.updateProfile(formData);
     });
 
     // Auth related listeners
