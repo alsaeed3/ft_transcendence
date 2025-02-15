@@ -481,59 +481,52 @@ class UIManager {
             if (!response.ok) throw new Error('Failed to fetch user profile');
             const profile = await response.json();
 
-            // Fetch recent matches
             const matchesResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/history/${userId}/`);
             if (!matchesResponse.ok) throw new Error('Failed to fetch match history');
             const matches = await matchesResponse.json();
-            
-            // Update modal content
-            modalBody.innerHTML = `
-                <div class="text-center mb-3">
-                    <img id="modal-user-avatar" src="${profile.avatar_url || '/media/avatars/default.svg'}" 
-                         class="rounded-circle" style="width: 100px; height: 100px;"
+
+            modalElement.querySelector('.modal-body').innerHTML = `
+                <div class="text-center mb-4">
+                    <img id="modal-user-avatar" 
+                         src="${profile.avatar_url || '/media/avatars/default.svg'}" 
+                         alt="User Avatar" 
+                         class="rounded-circle mb-3" 
+                         style="width: 100px; height: 100px; object-fit: cover;"
                          onerror="this.src='/media/avatars/default.svg'">
-                    <h4 id="modal-username" class="mt-2">${profile.username}</h4>
+                    <h4 id="modal-username" class="mb-3">${profile.username}</h4>
                 </div>
-                <div class="row text-center mb-3">
+                <div class="row">
                     <div class="col-6">
-                        <p class="mb-0"><strong>Match Wins</strong></p>
-                        <p id="modal-match-wins">${profile.match_wins || 0}</p>
+                        <h6 class="text-muted">Match Statistics</h6>
+                        <p>Wins: <span id="modal-match-wins">${profile.match_wins || 0}</span></p>
+                        <p>Total: <span id="modal-total-matches">${profile.total_matches || 0}</span></p>
                     </div>
                     <div class="col-6">
-                        <p class="mb-0"><strong>Total Matches</strong></p>
-                        <p id="modal-total-matches">${profile.total_matches || 0}</p>
-                    </div>
-                    <div class="col-6">
-                        <p class="mb-0"><strong>Tournament Wins</strong></p>
-                        <p id="modal-tourney-wins">${profile.tourney_wins || 0}</p>
-                    </div>
-                    <div class="col-6">
-                        <p class="mb-0"><strong>Total Tournaments</strong></p>
-                        <p id="modal-total-tourneys">${profile.total_tourneys || 0}</p>
+                        <h6 class="text-muted">Tournament Statistics</h6>
+                        <p>Wins: <span id="modal-tourney-wins">${profile.tourney_wins || 0}</span></p>
+                        <p>Total: <span id="modal-total-tourneys">${profile.total_tourneys || 0}</span></p>
                     </div>
                 </div>
-                <div class="recent-matches">
-                    <h5>Recent Matches</h5>
-                    <div id="modal-recent-matches">
-                        ${matches.slice(0, 5).map(match => `
+                <div class="mt-4">
+                    <h6 class="text-muted mb-3">Recent Matches</h6>
+                    <div id="modal-recent-matches" class="border-top border-secondary pt-3">
+                        ${matches.length ? matches.slice(0, 5).map(match => `
                             <div class="match-item border-bottom py-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="clickable-username ${match.winner_name === match.player1_name ? 'text-success' : ''}"
-                                          data-user-id="${match.player1_id}">
-                                        ${match.player1_name}
-                                    </span>
-                                    <span>vs</span>
-                                    <span class="clickable-username ${match.winner_name === match.player2_name ? 'text-success' : ''}"
-                                          data-user-id="${match.player2_id}">
-                                        ${match.player2_name}
-                                    </span>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="match-players">
+                                        <span class="player-name ${match.winner_name === match.player1_name ? 'text-success' : ''}">${match.player1_name}</span>
+                                        <span class="mx-2">vs</span>
+                                        <span class="player-name ${match.winner_name === match.player2_name ? 'text-success' : ''}">${match.player2_name}</span>
+                                    </div>
+                                    <div class="match-score ms-3">
+                                        ${match.player1_score} - ${match.player2_score}
+                                    </div>
                                 </div>
-                                <div class="text-center">
-                                    Score: ${match.player1_score} - ${match.player2_score}
+                                <div class="match-time">
+                                    <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
                                 </div>
-                                <small class="text-muted">${new Date(match.end_time || match.start_time).toLocaleString()}</small>
                             </div>
-                        `).join('') || '<p class="text-muted">No recent matches</p>'}
+                        `).join('') : '<p class="text-muted">No recent matches</p>'}
                     </div>
                 </div>
             `;
@@ -542,26 +535,17 @@ class UIManager {
             const chatBtn = modalElement.querySelector('#modal-chat-btn');
             if (chatBtn) {
                 chatBtn.onclick = () => {
-                    modal.hide(); // Use hide() instead of dispose()
+                    modal.hide();
                     ChatManager.startChat(profile.id, profile.username);
                 };
             }
-
-            // Make usernames in recent matches clickable
-            modalElement.querySelectorAll('.clickable-username').forEach(el => {
-                const userId = el.dataset.userId;
-                const username = el.textContent.trim();
-                if (userId) {
-                    this.makeUsernameClickable(el, userId, username);
-                }
-            });
 
         } catch (error) {
             console.error('Error fetching user profile:', error);
             UIManager.showToast('Failed to load user profile', 'danger');
             const modalInstance = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
             if (modalInstance) {
-                modalInstance.dispose();
+                modalInstance.hide();
             }
         }
     }
@@ -757,6 +741,7 @@ class ChatManager {
     static cleanup() {
         clearTimeout(this.reconnectTimeout);
         this.reconnectAttempts = 0;
+        this.currentChatPartner = null; // Add this line to clear currentChatPartner
         
         if (this.statusSocket) {
             this.statusSocket.close();
@@ -806,7 +791,14 @@ class ChatManager {
         });
     }
 
-    static startChat(userId, username) {
+    static async startChat(userId, username) {
+        // Add null checks at the start
+        if (!userId || !username) {
+            console.error('Invalid user data for chat');
+            UIManager.showToast('Unable to start chat: Invalid user data', 'danger');
+            return;
+        }
+
         // Check if user is blocked
         const userRow = document.querySelector(`[data-user-id="${userId}"]`);
         if (userRow?.classList.contains('blocked-user')) {
@@ -815,6 +807,14 @@ class ChatManager {
         }
         
         this.currentChatPartner = { id: userId, username };
+        
+        // Reset reconnection attempts when starting a new chat
+        this.reconnectAttempts = 0;
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
         const chatContainer = document.getElementById('chat-container');
         const chatHeader = document.getElementById('chat-header');
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
@@ -917,11 +917,21 @@ class ChatManager {
     }
 
     static handleChatClose() {
-        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+        if (this.currentChatPartner && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
             this.reconnectTimeout = setTimeout(() => {
                 this.reconnectAttempts++;
-                this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
+                if (this.currentChatPartner) { // Double check in case it was cleared during timeout
+                    this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
+                }
             }, 5000);
+        } else {
+            // Reset reconnection attempts if we're not trying to reconnect
+            this.reconnectAttempts = 0;
+            this.currentChatPartner = null;
+            if (this.reconnectTimeout) {
+                clearTimeout(this.reconnectTimeout);
+                this.reconnectTimeout = null;
+            }
         }
     }
 
@@ -1029,6 +1039,21 @@ class ChatManager {
                 }
             }
         }
+    }
+
+    static closeChat() {
+        if (this.chatSocket) {
+            this.chatSocket.close();
+            this.chatSocket = null;
+        }
+        // Reset chat-related state
+        this.currentChatPartner = null;
+        this.reconnectAttempts = 0;
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+        document.getElementById('chat-container').style.display = 'none';
     }
 }
 
@@ -2314,14 +2339,9 @@ function createChatMessage(message) {
     avatarContainer.className = 'avatar-container';
     
     const avatarImg = document.createElement('img');
-    avatarImg.className = 'avatar profile-clickable';
+    avatarImg.className = 'avatar';
     avatarImg.setAttribute('data-user-id', message.sender_id);
     avatarImg.alt = senderName;
-    
-    // Add click handler to avatar
-    avatarImg.addEventListener('click', () => {
-        UIManager.showUserProfile(message.sender_id);
-    });
     
     let retryCount = 0;
     const maxRetries = 2;
@@ -2348,24 +2368,25 @@ function createChatMessage(message) {
     
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    messageContent.innerHTML = `
-        <div class="message-header clickable-username" 
-             data-user-id="${message.sender_id}">
-            ${Utils.escapeHtml(senderName)}
-        </div>
+    
+    // Create username element with clickable functionality
+    const usernameDiv = document.createElement('div');
+    usernameDiv.className = 'message-header';
+    usernameDiv.textContent = senderName;
+    
+    // Make username clickable if it's not the current user
+    if (!isSentByMe) {
+        UIManager.makeUsernameClickable(usernameDiv, message.sender_id, senderName);
+    }
+    
+    messageContent.appendChild(usernameDiv);
+    messageContent.innerHTML += `
         <div class="message-bubble">${Utils.escapeHtml(message.content)}</div>
         <div class="message-meta">
             <span class="timestamp">${timeStr}</span>
             <span class="date">${dateStr}</span>
         </div>
     `;
-    
-    // Make username clickable
-    UIManager.makeUsernameClickable(
-        messageContent.querySelector('.message-header'),
-        message.sender_id,
-        senderName
-    );
     
     // Always add avatar first, then message content
     messageWrapper.appendChild(avatarContainer);
