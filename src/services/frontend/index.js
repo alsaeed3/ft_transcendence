@@ -1501,6 +1501,31 @@ class UserManager {
         document.getElementById('show-users-btn')?.addEventListener('click', async () => {
             await this.loadUsersList();
             this.usersModal.show();
+
+            // Request status update for all users when modal is opened
+            const userIds = Array.from(document.querySelectorAll('#users-table-body [data-user-status]'))
+                .map(el => el.getAttribute('data-user-status'));
+            
+            if (userIds.length > 0 && ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
+                ChatManager.statusSocket.send(JSON.stringify({
+                    type: 'get_status',
+                    user_ids: userIds.map(id => parseInt(id))
+                }));
+            }
+        });
+
+        // Handle modal shown event to update statuses
+        document.getElementById('usersListModal')?.addEventListener('shown.bs.modal', () => {
+            // Update all status badges based on current status information
+            document.querySelectorAll('#users-table-body [data-user-status]').forEach(badge => {
+                const userId = badge.getAttribute('data-user-status');
+                const userRow = document.querySelector(`#users-table-body tr[data-user-id="${userId}"]`);
+                if (userRow) {
+                    const isOnline = document.querySelector(`[data-user-status="${userId}"].bg-success`) !== null;
+                    badge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+                    badge.textContent = isOnline ? 'Online' : 'Offline';
+                }
+            });
         });
 
         // Handle modal cleanup
@@ -1534,6 +1559,10 @@ class UserManager {
             users.forEach(user => {
                 if (user.id === AuthManager.currentUser?.id) return;
                 
+                // Check if user is online (by checking existing status badges)
+                const existingStatus = document.querySelector(`[data-user-status="${user.id}"].bg-success`);
+                const isOnline = existingStatus !== null;
+                
                 const row = document.createElement('tr');
                 row.setAttribute('data-user-id', user.id);
                 if (user.is_blocked) {
@@ -1556,10 +1585,10 @@ class UserManager {
                         </button>
                     </td>
                     <td>
-                        <span class="badge bg-secondary" 
+                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
                               data-user-status="${user.id}"
                               data-user-name="${Utils.escapeHtml(user.username)}">
-                            Offline
+                            ${isOnline ? 'Online' : 'Offline'}
                         </span>
                     </td>
                 `;
@@ -1572,6 +1601,7 @@ class UserManager {
                 const blockBtn = row.querySelector('.block-btn');
 
                 chatBtn.addEventListener('click', () => {
+                    this.usersModal.hide();
                     ChatManager.startChat(user.id, user.username);
                 });
 
@@ -1579,11 +1609,11 @@ class UserManager {
                     const isCurrentlyBlocked = user.is_blocked;
                     if (isCurrentlyBlocked) {
                         ChatManager.unblockUser(user.id).then(() => {
-                            user.is_blocked = false;  // Update the user state
+                            user.is_blocked = false;
                         });
                     } else {
                         ChatManager.blockUser(user.id).then(() => {
-                            user.is_blocked = true;  // Update the user state
+                            user.is_blocked = true;
                         });
                     }
                 });
