@@ -639,6 +639,7 @@ class ChatManager {
     static currentChatPartner = null;
     static reconnectAttempts = 0;
     static reconnectTimeout = null;
+    static MAX_RECONNECT_ATTEMPTS = 5;
     static blockedUsers = new Set();
 
     static initStatusWebSocket() {
@@ -916,7 +917,7 @@ class ChatManager {
     }
 
     static handleChatClose() {
-        if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
             this.reconnectTimeout = setTimeout(() => {
                 this.reconnectAttempts++;
                 this.startChat(this.currentChatPartner.id, this.currentChatPartner.username);
