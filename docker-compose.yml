@@ -1,6 +1,6 @@
 services:
   nginx:
-    build: ./services/nginx
+    build: ./src/services/nginx
     ports:
       - "80:80"
       - "443:443"
@@ -9,8 +9,8 @@ services:
     networks:
       - main-network
     volumes:
-      - ./services/frontend:/usr/share/nginx/html
-      - ./services/frontend/src/assets:/usr/share/nginx/html/assets
+      - ./src/services/frontend:/usr/share/nginx/html
+      - ./src/services/frontend/src/assets:/usr/share/nginx/html/assets
       - static_volume:/usr/share/nginx/static
       - media_volume:/usr/share/nginx/media
 
@@ -25,7 +25,7 @@ services:
       - redis_data:/data
 
   backend:
-    build: ./services/backend
+    build: ./src/services/backend
     expose:
       - "8000"  # Internal only
     depends_on:
