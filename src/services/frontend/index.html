@@ -218,6 +218,10 @@
             <div class="container">
                 <a class="navbar-brand" href="#">Pong</a>
                 <div class="ms-auto d-flex align-items-center">
+                    <!-- Users List Button -->
+                    <button class="btn btn-outline-light me-3" id="show-users-btn">
+                        <i class="bi bi-people-fill"></i> Users
+                    </button>
                     <!-- User Profile -->
                     <div id="user-profile" class="me-3" style="cursor: pointer;">
                         <div class="d-flex align-items-center">
@@ -396,19 +400,32 @@
         </div>
     </div>
 
-    <div id="users-list">
-        <table class="table table-dark table-hover">
-            <thead>
-                <tr>
-                    <th scope="col">Username</th>
-                    <th scope="col">Actions</th>
-                    <th scope="col">Status</th>
-                </tr>
-            </thead>
-            <tbody id="users-table-body">
-                <!-- Users will be populated here dynamically -->
-            </tbody>
-        </table>
+    <!-- Users List Modal -->
+    <div class="modal fade" id="usersListModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Users List</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Username</th>
+                                    <th scope="col">Actions</th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <!-- Users will be populated here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Add this after the users modal -->

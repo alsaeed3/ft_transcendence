@@ -1491,6 +1491,30 @@ class ProfileManager {
 }
 
 class UserManager {
+    static usersModal = null;
+
+    static initializeEventListeners() {
+        // Initialize the modal
+        this.usersModal = new bootstrap.Modal(document.getElementById('usersListModal'));
+        
+        // Show users list button handler
+        document.getElementById('show-users-btn')?.addEventListener('click', async () => {
+            await this.loadUsersList();
+            this.usersModal.show();
+        });
+
+        // Handle modal cleanup
+        document.getElementById('usersListModal')?.addEventListener('hidden.bs.modal', () => {
+            document.body.classList.remove('modal-open');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        });
+    }
+
     static async loadUsersList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
@@ -1882,9 +1906,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
             
-            // Hide main page and users list
+            // Hide main page
             document.getElementById('main-page').classList.remove('active-page');
-            document.getElementById('users-list').style.display = 'none';  // Hide users list
             
             // Create and show setup page
             const setupDiv = document.createElement('div');
@@ -1927,7 +1950,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelBtn.addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
-                document.getElementById('users-list').style.display = '';  // Show users list
             });
     
         } catch (error) {
@@ -1946,9 +1968,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/pong.html');
             const html = await response.text();
             
-            // Hide main page and users list
+            // Hide main page
             document.getElementById('main-page').classList.remove('active-page');
-            document.getElementById('users-list').style.display = 'none';
             
             // Create and show game page
             const gameDiv = document.createElement('div');
@@ -1980,9 +2001,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/src/assets/components/tournament-setup.html');
             const html = await response.text();
             
-            // Hide main page and users list
+            // Hide main page
             document.getElementById('main-page').classList.remove('active-page');
-            document.getElementById('users-list').style.display = 'none';  // Add this line
             
             const setupDiv = document.createElement('div');
             setupDiv.id = 'tournament-setup-page';
@@ -2088,7 +2108,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancelBtn').addEventListener('click', () => {
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
-                document.getElementById('users-list').style.display = '';  // Add this line
             });
     
             document.addEventListener('input', (e) => {
@@ -2142,6 +2161,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.search.includes('code=')) {
         handleOAuthCallback();
     }
+
+    // Initialize UserManager event listeners
+    UserManager.initializeEventListeners();
 });
 
 // Add this function to handle URL parameters
