@@ -568,7 +568,17 @@ class UIManager {
             e.preventDefault();
             e.stopPropagation();
 
-            // Close any existing modal before showing the new one
+            // Get the friends list modal element
+            const friendsListModal = document.getElementById('friendsListModal');
+            
+            // Increase the z-index of the user profile modal
+            const userProfileModal = document.getElementById('userProfileModal');
+            if (userProfileModal) {
+                // Set a higher z-index than the friends list modal
+                userProfileModal.style.zIndex = '1060';
+            }
+
+            // Close any existing profile modal before showing the new one
             const existingModal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
             if (existingModal) {
                 existingModal.hide();
@@ -576,6 +586,11 @@ class UIManager {
             }
 
             this.showUserProfile(userId);
+
+            // Reset z-index when the profile modal is hidden
+            userProfileModal.addEventListener('hidden.bs.modal', () => {
+                userProfileModal.style.zIndex = '';
+            }, { once: true });
         });
     }
 
