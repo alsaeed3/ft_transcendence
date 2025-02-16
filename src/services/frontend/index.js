@@ -384,28 +384,27 @@ class UIManager {
     }
 
     static showLoginForm() {
-        // Ensure both 2FA and register forms are hidden
+        // Clear temporary storage first
+        sessionStorage.removeItem('tempUserEmail');
+        sessionStorage.removeItem('tempUsername');
+        sessionStorage.removeItem('tempPassword');
+
+        // Hide all forms
         document.getElementById('2fa-form')?.classList.add('d-none');
         document.getElementById('register-form')?.classList.add('d-none');
         
-        // Show login form
+        // Show and reset login form
         const loginForm = document.getElementById('login-form');
         if (loginForm) {
             loginForm.classList.remove('d-none');
-            // Clear any inputs
-            loginForm.reset();
+            loginForm.reset(); // Clear the form fields
         }
 
-        // Clear OTP timer if exists
+        // Clear OTP timer
         if (AuthManager.currentOTPTimer) {
             clearInterval(AuthManager.currentOTPTimer);
             AuthManager.currentOTPTimer = null;
         }
-
-        // Clear any temporary storage
-        sessionStorage.removeItem('tempUserEmail');
-        sessionStorage.removeItem('tempUsername');
-        sessionStorage.removeItem('tempPassword');
     }
 
     static showToast(message, type = 'info') {
@@ -2034,9 +2033,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToLoginBtn = document.getElementById('back-to-login');
     if (backToLoginBtn) {
         backToLoginBtn.addEventListener('click', () => {
-            document.getElementById('2fa-form').classList.add('d-none');
-            document.getElementById('login-form').classList.remove('d-none');
-            sessionStorage.removeItem('tempUserEmail');
+            UIManager.showLoginForm(); // Use the updated method
         });
     }
 

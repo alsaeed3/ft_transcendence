@@ -243,6 +243,5 @@ def ft_oauth_callback(request):
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Username already exists")
     except Exception as e:
-        print(f"OAuth error: {str(e)}")  
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Authentication failed")

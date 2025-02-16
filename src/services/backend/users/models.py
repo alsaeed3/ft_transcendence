@@ -25,7 +25,6 @@ class User(AbstractUser):
     tourney_wins = models.IntegerField(default=0)
     total_matches = models.IntegerField(default=0)
     total_tourneys = models.IntegerField(default=0)
-
     email_otp = models.CharField(max_length=6, null=True, blank=True) # 2FA
     otp_created_at = models.DateTimeField(null=True, blank=True) #`2FA`
 
