@@ -221,20 +221,30 @@ class AuthManager {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Invalid or expired OTP');
+                // Show remaining attempts if available
+                if (data.remaining_attempts !== undefined) {
+                    if (data.remaining_attempts === 0) {
+                        UIManager.showToast('Too many failed attempts. Please wait 5 minutes.', 'danger');
+                        // Optionally return to login form
+                        UIManager.showLoginForm();
+                    } else {
+                        UIManager.showToast(`Invalid code. ${data.remaining_attempts} attempts remaining.`, 'warning');
+                    }
+                } else {
+                    UIManager.showToast(data.error || 'Invalid or expired OTP', 'danger');
+                }
+                return;
             }
 
-            // Clear temporary storage before processing auth
+            // Success - clear storage and process auth
             sessionStorage.removeItem('tempUserEmail');
             sessionStorage.removeItem('tempUsername');
             sessionStorage.removeItem('tempPassword');
-
             await this.processSuccessfulAuth(data);
+
         } catch (error) {
             console.error('2FA verification error:', error);
             UIManager.showToast(error.message, 'danger');
-            // On error, return to login form
-            UIManager.showLoginForm();
         }
     }
 
@@ -294,13 +304,12 @@ class AuthManager {
         } finally {
             ChatManager.cleanup();
             localStorage.clear();
-            sessionStorage.removeItem('tempUserEmail');
-            sessionStorage.removeItem('tempUsername');
-            sessionStorage.removeItem('tempPassword');
+            sessionStorage.clear(); // Clear all session storage
             this.accessToken = null;
             this.refreshToken = null;
             this.currentUser = null;
-            UIManager.showPage(UIManager.pages.landing);
+            UIManager.showLoginForm(); // Show login form first
+            UIManager.showPage(UIManager.pages.landing); // Then show landing page
         }
     }
 
@@ -375,14 +384,28 @@ class UIManager {
     }
 
     static showLoginForm() {
-        document.getElementById('2fa-form').classList.add('d-none');
-        document.getElementById('login-form').classList.remove('d-none');
-        document.getElementById('register-form').classList.add('d-none');
+        // Ensure both 2FA and register forms are hidden
+        document.getElementById('2fa-form')?.classList.add('d-none');
+        document.getElementById('register-form')?.classList.add('d-none');
+        
+        // Show login form
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.classList.remove('d-none');
+            // Clear any inputs
+            loginForm.reset();
+        }
+
+        // Clear OTP timer if exists
         if (AuthManager.currentOTPTimer) {
             clearInterval(AuthManager.currentOTPTimer);
             AuthManager.currentOTPTimer = null;
         }
+
+        // Clear any temporary storage
         sessionStorage.removeItem('tempUserEmail');
+        sessionStorage.removeItem('tempUsername');
+        sessionStorage.removeItem('tempPassword');
     }
 
     static showToast(message, type = 'info') {
@@ -482,6 +505,34 @@ class UIManager {
                             2FA ${profile.is_2fa_enabled ? 'Enabled' : 'Disabled'}
                         </div>
                     `;
+                }
+
+                // Update 2FA section based on authentication type
+                const twoFASection = document.getElementById('2fa-section');
+                const twoFAStatusElement = document.getElementById('2fa-status');
+                const twoFAForm = document.getElementById('2fa-toggle-form');
+
+                if (profile.is_42_auth) {
+                    // For 42 authenticated users - simpler message
+                    twoFAStatus.innerHTML = `
+                        <div class="alert alert-info text-center">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Your 2FA settings are managed by your 42 School account
+                        </div>
+                    `;
+                    if (twoFAForm) {
+                        twoFAForm.style.display = 'none';
+                    }
+                } else {
+                    // For regular users
+                    twoFAStatus.innerHTML = `
+                        <div class="alert ${profile.is_2fa_enabled ? 'alert-success' : 'alert-danger'} text-center">
+                            2FA is currently ${profile.is_2fa_enabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                    `;
+                    if (twoFAForm) {
+                        twoFAForm.style.display = 'block';
+                    }
                 }
             }
         } catch (error) {
@@ -1955,12 +2006,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (twoFAForm) {
         twoFAForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const otp = document.getElementById('otp-input').value.trim();
+            const otpInput = document.getElementById('otp-input');
+            const otp = otpInput.value.trim();
+            
             if (otp.length !== 6) {
-                alert('Please enter the 6-digit verification code.');
+                UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
                 return;
             }
-            await verify2FA(otp);
+
+            // Disable the form while verifying
+            const submitBtn = twoFAForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Verifying...';
+
+            try {
+                await AuthManager.verify2FA(otp);
+            } finally {
+                // Re-enable the form
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Verify';
+                otpInput.value = ''; // Clear input
+            }
         });
     }
 

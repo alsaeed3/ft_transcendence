@@ -56,12 +56,24 @@ class User(AbstractUser):
         return self.email_otp
 
     def is_otp_valid(self, otp):
+        """Simple OTP validation without rate limiting"""
+        # Check if OTP exists
         if not self.email_otp or not self.otp_created_at:
             return False
+
+        # Check if OTP matches
         if self.email_otp != otp:
             return False
-        if timezone.now() > self.otp_created_at + timedelta(minutes=5):
+
+        # Check if OTP is expired (older than 5 minutes)
+        time_now = timezone.now()
+        if time_now > self.otp_created_at + timedelta(minutes=5):
             return False
+
+        # OTP is valid - clear it
+        self.email_otp = None
+        self.otp_created_at = None
+        self.save()
         return True
 
 class BlockedUser(models.Model):

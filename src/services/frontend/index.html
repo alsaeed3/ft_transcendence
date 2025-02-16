@@ -626,14 +626,18 @@
                             </form>
 
                             <!-- Update the 2FA Section -->
-                            <div class="border-top pt-4 mb-4">
+                            <div id="2fa-section" class="border-top pt-4 mb-4">
                                 <h4 class="text-center mb-3">Two-Factor Authentication</h4>
                                 <div id="2fa-status" class="mb-3">
                                     <!-- 2FA status will be inserted here by JavaScript -->
                                 </div>
                                 <form id="2fa-toggle-form">
                                     <div class="mb-3">
-                                        <input type="password" id="2fa-password" class="form-control" placeholder="Confirm Password" required>
+                                        <input type="password" 
+                                               id="2fa-password" 
+                                               class="form-control" 
+                                               placeholder="Confirm Password" 
+                                               required>
                                     </div>
                                     <button type="submit" class="btn btn-warning w-100">Enable/Disable 2FA</button>
                                 </form>
