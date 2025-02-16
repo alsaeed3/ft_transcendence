@@ -749,11 +749,8 @@ class ChatManager {
             
             this.statusSocket.onopen = () => {
                 console.log('Status WebSocket connected');
-                // Reset all users to offline initially
-                document.querySelectorAll('[data-user-status]').forEach(badge => {
-                    badge.className = 'badge bg-secondary';
-                    badge.textContent = 'Offline';
-                });
+                // Request initial status immediately after connection
+                this.statusSocket.send(JSON.stringify({ type: 'get_status' }));
             };
             
             this.statusSocket.onmessage = (event) => {
@@ -762,18 +759,19 @@ class ChatManager {
                     console.log('Status WebSocket message:', data);
                     
                     if (data.type === 'initial_status') {
-                        // Reset all users to offline first
-                        document.querySelectorAll('[data-user-status]').forEach(badge => {
-                            badge.className = 'badge bg-secondary';
-                            badge.textContent = 'Offline';
-                        });
-                        
-                        // Update all online users
-                        data.online_users.forEach(userId => {
-                            this.updateUserStatus(userId, true);
+                        // Update all users' status based on the initial status list
+                        const statusBadges = document.querySelectorAll('[data-user-status]');
+                        statusBadges.forEach(badge => {
+                            const userId = badge.getAttribute('data-user-status');
+                            const isOnline = data.online_users.includes(parseInt(userId));
+                            this.updateStatusBadge(badge, isOnline);
                         });
                     } else if (data.type === 'status_update') {
-                        this.updateUserStatus(data.user_id, data.online_status);
+                        // Update individual user status
+                        const badges = document.querySelectorAll(`[data-user-status="${data.user_id}"]`);
+                        badges.forEach(badge => {
+                            this.updateStatusBadge(badge, data.online_status);
+                        });
                     }
                 } catch (error) {
                     console.error('Error handling WebSocket message:', error);
@@ -798,37 +796,19 @@ class ChatManager {
         }
     }
 
+    static updateStatusBadge(badge, isOnline) {
+        if (badge) {
+            badge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+            badge.textContent = isOnline ? 'Online' : 'Offline';
+        }
+    }
+
     static updateUserStatus(userId, isOnline) {
         console.log('Updating status:', userId, isOnline);
         
         // Update all status badges for this user
         const statusBadges = document.querySelectorAll(`[data-user-status="${userId}"]`);
-        statusBadges.forEach(statusBadge => {
-            if (statusBadge) {
-                // Check if this is in the friends list modal (has different styling)
-                const isInFriendsList = statusBadge.closest('#friendsListModal') !== null;
-                
-                if (isInFriendsList) {
-                    // For friends list modal
-                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
-                    statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
-                } else {
-                    // For main users list
-                    statusBadge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
-                    statusBadge.textContent = isOnline ? 'Online' : 'Offline';
-                }
-            }
-        });
-
-        // Update friend list status in modal
-        const friendRow = document.querySelector(`#friend-list-body tr[data-user-id="${userId}"]`);
-        if (friendRow) {
-            const statusBadge = friendRow.querySelector(`[data-user-status="${userId}"]`);
-            if (statusBadge) {
-                statusBadge.textContent = isOnline ? 'Online' : 'Offline';
-                statusBadge.className = isOnline ? 'badge bg-success' : 'badge bg-secondary';
-            }
-        }
+        statusBadges.forEach(badge => this.updateStatusBadge(badge, isOnline));
 
         // Update chat header if this is the current chat partner
         if (this.currentChatPartner && this.currentChatPartner.id === userId) {
@@ -1719,6 +1699,15 @@ class UserManager {
 
     static async loadUsersList() {
         try {
+            // First get the current online users from any existing status badges
+            const onlineUsers = new Set();
+            document.querySelectorAll('[data-user-status].bg-success').forEach(badge => {
+                const userId = parseInt(badge.getAttribute('data-user-status'));
+                if (!isNaN(userId)) {
+                    onlineUsers.add(userId);
+                }
+            });
+
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
             if (!response.ok) throw new Error('Failed to fetch users');
             const users = await response.json();
@@ -1728,6 +1717,7 @@ class UserManager {
 
             users.forEach(user => {
                 if (user.id !== AuthManager.currentUser.id) {
+                    const isOnline = onlineUsers.has(user.id);
                     const row = document.createElement('tr');
                     row.setAttribute('data-user-id', user.id);
                     row.innerHTML = `
@@ -1744,11 +1734,11 @@ class UserManager {
                             </div>
                         </td>
                         <td>
-                            <span class="badge bg-secondary" 
+                            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
                                   data-user-status="${user.id}"
                                   data-user-name="${user.username}">
-                                Offline
-                            </span>
+                                ${isOnline ? 'Online' : 'Offline'}
+                        </span>
                         </td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-primary me-1 chat-btn" 
@@ -1790,9 +1780,12 @@ class UserManager {
                 }
             });
 
-            // Update online status for all users
+            // Request status update for all users after list is created
             if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
-                ChatManager.statusSocket.send(JSON.stringify({ type: 'get_status' }));
+                ChatManager.statusSocket.send(JSON.stringify({
+                    type: 'get_status',
+                    user_ids: users.map(user => user.id)
+                }));
             }
 
         } catch (error) {
