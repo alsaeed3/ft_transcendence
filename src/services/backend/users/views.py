@@ -46,7 +46,7 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserSerializer(request.user, context={'request': request})
         return Response(serializer.data)
 
 class UserListView(generics.ListAPIView):
@@ -120,20 +120,20 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 class UserLogoutView(APIView):
     def post(self, request):
         try:
-            refresh_token = request.data['refresh']
-            # access_token = request.data['access']
-
-            # Blacklist the refresh token
-            refresh_token = RefreshToken(refresh_token)
-            refresh_token.blacklist()
-
-            # Blacklist the access token (optional)
-            # access_token = AccessToken(access_token)
-            # access_token.blacklist()
-
-            return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
+            refresh_token = request.COOKIES.get('refresh_token')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            
+            response = Response({'message': 'Logged out successfully'})
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
+            return response
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class ProfileDetail(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer

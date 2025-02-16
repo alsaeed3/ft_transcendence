@@ -15,6 +15,8 @@ import os
 from django.core.mail import send_mail # 2FA
 from django.db import IntegrityError
 from django.conf import settings
+from rest_framework_simplejwt.views import TokenRefreshView as BaseTokenRefreshView
+from rest_framework.permissions import IsAuthenticated
 
 User = get_user_model()
 
@@ -42,10 +44,15 @@ class UserRegistrationView(APIView):
 class UserLogoutView(APIView):
     def post(self, request):
         try:
-            refresh_token = request.data['refresh']
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
+            refresh_token = request.COOKIES.get('refresh_token')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            
+            response = Response({'message': 'Logged out successfully'})
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
+            return response
         except Exception as e:
             return Response(
                 {'error': str(e)}, 
@@ -61,41 +68,63 @@ class TwoFactorLoginView(APIView):
         username = request.data.get('username')
         password = request.data.get('password')
         
-        # 1. Check if user exists
         try:
             user = User.objects.get(username=username)
+            if user.is_42_auth:
+                return Response({'error': 'Use 42 OAuth login'}, status=400)
+
+            authenticated_user = authenticate(username=username, password=password)
+            if not authenticated_user:
+                return Response({'error': 'Invalid credentials'}, status=401)
+
+            if user.is_2fa_enabled:
+                otp = user.generate_otp()
+                subject = 'Your Security Code'
+                message = f'OTP: {otp}'
+                try:
+                    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+                except Exception as e:
+                    return Response({'error': 'Failed to send OTP'}, status=500)
+                return Response({
+                    '2fa_required': True,
+                    'user': AuthUserSerializer(user).data
+                }, status=202)
+
+            # Generate tokens and set cookies
+            refresh = RefreshToken.for_user(user)
+            response = Response({
+                'message': 'Login successful',
+                'user': AuthUserSerializer(user).data
+            })
+
+            response.set_cookie(
+                settings.SIMPLE_JWT['AUTH_COOKIE'],
+                str(refresh.access_token),
+                httponly=True,
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                max_age=60 * 60,
+                path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
+                domain=settings.SIMPLE_JWT['AUTH_COOKIE_DOMAIN']
+            )
+            
+            response.set_cookie(
+                settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
+                str(refresh),
+                httponly=True,
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                max_age=60 * 60 * 24 * 7,
+                path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
+                domain=settings.SIMPLE_JWT['AUTH_COOKIE_DOMAIN']
+            )
+            
+            return response
+
         except User.DoesNotExist:
             return Response({'error': 'Invalid credentials'}, status=401)
-
-        # 2. Block OAuth users
-        if user.is_42_auth:
-            return Response({'error': 'Use 42 OAuth login'}, status=400)
-
-        # 4. Authenticate
-        authenticated_user = authenticate(username=username, password=password)
-        if not authenticated_user:
-            return Response({'error': 'Invalid credentials'}, status=401)
-
-        # 5. Handle 2FA
-        if user.is_2fa_enabled:
-            otp = user.generate_otp()
-            subject = 'Your Security Code'
-            message = f'OTP: {otp}'
-            try:
-                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
-            except Exception as e:
-                return Response({'error': 'Failed to send OTP'}, status=500)
-            return Response({
-                '2fa_required': True,  # Changed from is_2fa_enabled to 2fa_required
-                'user': AuthUserSerializer(user).data
-            }, status=202)
-        # 6. Return tokens
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'user': AuthUserSerializer(user).data
-        })
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
 
 
 class TwoFactorVerifyView(APIView):
@@ -113,11 +142,33 @@ class TwoFactorVerifyView(APIView):
 
         if user.is_otp_valid(serializer.validated_data['otp']):
             refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
+            response = Response({
+                'message': 'Verification successful',
                 'user': AuthUserSerializer(user).data
             })
+            
+            response.set_cookie(
+                'access_token',
+                str(refresh.access_token),
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=60 * 60,
+                path='/'
+            )
+            
+            response.set_cookie(
+                'refresh_token',
+                str(refresh),
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=60 * 60 * 24 * 7,
+                path='/'
+            )
+            
+            return response
+            
         return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -229,19 +280,117 @@ def ft_oauth_callback(request):
             user.set_unusable_password()
             user.save()
 
-        # Generate tokens and redirect with params
+        # Generate tokens and set cookies
         refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)  # Get access token
-        refresh_token = str(refresh)              # Get refresh token
-
         frontend_url = "https://localhost"
-        return redirect(
-            f"{frontend_url}/?access_token={access_token}&refresh_token={refresh_token}"
+        response = redirect(frontend_url)
+        
+        # Set cookies
+        response.set_cookie(
+            'access_token',
+            str(refresh.access_token),
+            httponly=True,
+            secure=True,
+            samesite='Lax',
+            max_age=60 * 60,  # 1 hour
+            path='/'
         )
+        
+        response.set_cookie(
+            'refresh_token',
+            str(refresh),
+            httponly=True,
+            secure=True,
+            samesite='Lax',
+            max_age=60 * 60 * 24 * 7,  # 7 days
+            path='/'
+        )
+        
+        return response
 
-    except IntegrityError:
-        frontend_url = "https://localhost"
-        return redirect(f"{frontend_url}/?auth_error=Username already exists")
     except Exception as e:
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Authentication failed")
+
+class LoginView(APIView):
+    def post(self, request):
+        # ... existing authentication logic ...
+        
+        # Instead of returning tokens in response body, set them as HttpOnly cookies
+        response = Response({
+            'message': 'Login successful',
+            'user': user_data
+        })
+        
+        # Set access token cookie
+        response.set_cookie(
+            'access_token',
+            access_token,
+            httponly=True,
+            secure=True,  # Only sends cookie over HTTPS
+            samesite='Lax',
+            max_age=60 * 60,  # 1 hour
+            path='/'
+        )
+        
+        # Set refresh token cookie
+        response.set_cookie(
+            'refresh_token',
+            refresh_token,
+            httponly=True,
+            secure=True,
+            samesite='Lax',
+            max_age=60 * 60 * 24 * 7,  # 7 days
+            path='/'
+        )
+        
+        return response
+
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({'message': 'Logout successful'})
+        
+        # Delete cookies on logout
+        response.delete_cookie('access_token')
+        response.delete_cookie('refresh_token')
+        
+        return response
+
+class TokenRefreshView(BaseTokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
+        if not refresh_token:
+            return Response({'error': 'No refresh token cookie'}, status=401)
+            
+        # Create a mutable copy of the request data
+        request.data._mutable = True
+        request.data['refresh'] = refresh_token
+        
+        try:
+            response = super().post(request, *args, **kwargs)
+            
+            if response.status_code == 200:
+                response.set_cookie(
+                    settings.SIMPLE_JWT['AUTH_COOKIE'],
+                    response.data['access'],
+                    httponly=True,
+                    secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                    samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                    max_age=60 * 60,
+                    path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
+                    domain=settings.SIMPLE_JWT['AUTH_COOKIE_DOMAIN']
+                )
+                
+                # Remove tokens from response body
+                response.data = {'message': 'Token refresh successful'}
+            
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = AuthUserSerializer(request.user)
+        return Response(serializer.data)

@@ -5,8 +5,6 @@ class AuthManager {
     static RECENT_MATCHES_LIMIT = 3;
     static TOKEN_REFRESH_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
     static currentOTPTimer = null; // For tracking OTP timer
-    static accessToken = localStorage.getItem('accessToken');
-    static refreshToken = localStorage.getItem('refreshToken');
     static currentUser = null;
 
     static {
@@ -22,82 +20,38 @@ class AuthManager {
         }
     }
 
-    static async refreshAccessToken() {
-        try {
-            // Check if we have a valid token that doesn't need refresh yet
-            if (this.accessToken && this.refreshToken) {
-                const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
-                const timeUntilExpiry = payload.exp * 1000 - Date.now();
-                
-                if (timeUntilExpiry > this.TOKEN_REFRESH_THRESHOLD) {
-                    return this.accessToken;
-                }
-            }
-    
-            if (!this.refreshToken) {
-                throw new Error("No refresh token available");
-            }
-    
-            const response = await fetch(`${AuthManager.API_BASE}token/refresh/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: this.refreshToken })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("Token refresh response error:", errorData);
-                throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
-            }
-            
-            const data = await response.json();
-            this.accessToken = data.access;
-            localStorage.setItem('accessToken', this.accessToken);
-            return this.accessToken;
-        } catch (error) {
-            console.error('Token refresh failed:', error);
-            localStorage.clear();
-            UIManager.showPage(UIManager.pages.landing);
-            throw error;
-        }
-    }
-
     static async fetchWithAuth(url, options = {}) {
         try {
-            if (!this.accessToken) {
-                throw new Error('No access token available');
-            }
-    
-            let response = await fetch(url, {
+            const response = await fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
-                    'Authorization': `Bearer ${this.accessToken}`
-                }
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
             });
-    
+
             if (response.status === 401) {
                 try {
-                    const newToken = await this.refreshAccessToken();
-                    response = await fetch(url, {
-                        ...options,
-                        headers: {
-                            ...options.headers,
-                            'Authorization': `Bearer ${newToken}`
-                        }
+                    const refreshResponse = await fetch(`${this.API_BASE}auth/refresh/`, {
+                        method: 'POST',
+                        credentials: 'include'
                     });
+
+                    if (refreshResponse.ok) {
+                        // Token has been refreshed in cookies, retry original request
+                        return this.fetchWithAuth(url, options);
+                    } else {
+                        // Refresh failed, logout and redirect
+                        await this.logout();
+                        throw new Error('Session expired. Please login again.');
+                    }
                 } catch (error) {
-                    console.error('Token refresh failed:', error);
-                    this.logout();
+                    await this.logout();
                     throw new Error('Session expired. Please login again.');
                 }
             }
 
-            if (response.status === 502) {
-                console.error('Backend server error (502)');
-                throw new Error('Server temporarily unavailable. Please try again later.');
-            }
-    
             return response;
         } catch (error) {
             console.error('Fetch error:', error);
@@ -110,42 +64,32 @@ class AuthManager {
             const response = await fetch(`${this.API_BASE}auth/login/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ username, password })
             });
             
             const data = await response.json();
 
             if (!response.ok) {
-                UIManager.showToast(data.error || 'Login failed', 'danger');
-                return;
+                throw new Error(data.error || 'Login failed');
             }
 
-            // Check for 2FA requirement (changed from is_2fa_enabled to 2fa_required)
+            // Check for 2FA requirement
             if (data['2fa_required']) {
                 sessionStorage.setItem('tempUsername', username);
-                if (data.is_2fa_enabled) {
-                    sessionStorage.setItem('tempUsername', username);
-                    sessionStorage.setItem('tempPassword', password);
-                    sessionStorage.setItem('tempUserEmail', data.user.email);
-                    
-                    document.getElementById('login-form').classList.add('d-none');
-                    document.getElementById('2fa-form').classList.remove('d-none');
-                    
-                    AuthManager.startOTPTimer();
-                    return;
-                }
                 sessionStorage.setItem('tempPassword', password);
                 sessionStorage.setItem('tempUserEmail', data.user.email);
                 
                 document.getElementById('login-form').classList.add('d-none');
                 document.getElementById('2fa-form').classList.remove('d-none');
                 
-                AuthManager.startOTPTimer();
+                this.startOTPTimer();
                 return;
             }
 
             await this.processSuccessfulAuth(data);
         } catch (error) {
+            console.error('Login error:', error);
             UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
@@ -249,67 +193,43 @@ class AuthManager {
     }
 
     static async processSuccessfulAuth(data) {
-        // Check the structure of data
-        console.log('Auth data received:', data);  // Debug log
-        
-        // Handle both standard login and OAuth flows
-        const access = data.access || data.access_token;
-        const refresh = data.refresh || data.refresh_token;
-        
-        if (!access || !refresh) {
-            console.error('Invalid auth data:', data);  // Debug log
-            throw new Error('Invalid authentication response');
-        }
-        
-        this.accessToken = data.access;
-        this.refreshToken = data.refresh;
-        
-        // Ensure we have the complete user object with ID
-        if (!data.user || !data.user.id) {
-            // Fetch user profile if not provided in auth response
-            const profileResponse = await this.fetchWithAuth(`${this.API_BASE}users/me/`);
-            if (!profileResponse.ok) {
-                throw new Error('Failed to fetch user profile');
-            }
-            this.currentUser = await profileResponse.json();
-        } else {
+        try {
+            // Store only user data, no tokens since we're using cookies
             this.currentUser = data.user;
+            localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+
+            // Clear temporary storage
+            sessionStorage.removeItem('tempUsername');
+            sessionStorage.removeItem('tempPassword');
+            sessionStorage.removeItem('tempUserEmail');
+            
+            UIManager.showPage(UIManager.pages.main);
+            await UIManager.loadMainPage();
+        } catch (error) {
+            console.error('Error processing authentication:', error);
+            UIManager.showToast('Authentication failed', 'danger');
         }
-
-        // Store tokens and user data
-        localStorage.setItem('accessToken', this.accessToken);
-        localStorage.setItem('refreshToken', this.refreshToken);
-        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-
-        // Clear temporary storage
-        sessionStorage.removeItem('tempUsername');
-        sessionStorage.removeItem('tempPassword');
-        sessionStorage.removeItem('tempUserEmail');
-        
-        UIManager.showPage(UIManager.pages.main);
-        await UIManager.loadMainPage();
     }
 
     static async logout() {
         try {
-            if (this.accessToken && this.refreshToken) {
-                await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh: this.refreshToken })
-                });
+            const response = await fetch(`${this.API_BASE}auth/logout/`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                console.error('Logout failed:', response.status);
             }
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
             ChatManager.cleanup();
             localStorage.clear();
-            sessionStorage.clear(); // Clear all session storage
-            this.accessToken = null;
-            this.refreshToken = null;
+            sessionStorage.clear();
             this.currentUser = null;
-            UIManager.showLoginForm(); // Show login form first
-            UIManager.showPage(UIManager.pages.landing); // Then show landing page
+            UIManager.showLoginForm();
+            UIManager.showPage(UIManager.pages.landing);
         }
     }
 
