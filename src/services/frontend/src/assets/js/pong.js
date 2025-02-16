@@ -308,6 +308,8 @@ function initGame(mode = 'AI') {
             if (userResponse.ok) {
                 const userData = await userResponse.json();
                 const updateData = {
+                    username: userData.username,
+                    email: userData.email,
                     match_wins: userData.match_wins + (playerScore > computerScore ? 1 : 0),
                     total_matches: userData.total_matches + 1
                 };
