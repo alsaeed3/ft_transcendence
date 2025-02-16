@@ -25,7 +25,6 @@ class User(AbstractUser):
     tourney_wins = models.IntegerField(default=0)
     total_matches = models.IntegerField(default=0)
     total_tourneys = models.IntegerField(default=0)
-
     email_otp = models.CharField(max_length=6, null=True, blank=True) # 2FA
     otp_created_at = models.DateTimeField(null=True, blank=True) #`2FA`
 
@@ -56,12 +55,24 @@ class User(AbstractUser):
         return self.email_otp
 
     def is_otp_valid(self, otp):
+        """Simple OTP validation without rate limiting"""
+        # Check if OTP exists
         if not self.email_otp or not self.otp_created_at:
             return False
+
+        # Check if OTP matches
         if self.email_otp != otp:
             return False
-        if timezone.now() > self.otp_created_at + timedelta(minutes=5):
+
+        # Check if OTP is expired (older than 5 minutes)
+        time_now = timezone.now()
+        if time_now > self.otp_created_at + timedelta(minutes=5):
             return False
+
+        # OTP is valid - clear it
+        self.email_otp = None
+        self.otp_created_at = None
+        self.save()
         return True
 
 class BlockedUser(models.Model):

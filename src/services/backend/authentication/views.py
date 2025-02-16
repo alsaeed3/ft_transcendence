@@ -213,11 +213,8 @@ def ft_oauth_callback(request):
         except User.DoesNotExist:
             username = login_42
             if User.objects.filter(username=username).exists():
-                username = f"{username}_42"
-                # If even the _42 suffix exists, redirect with error
-                if User.objects.filter(username=username).exists():
-                    frontend_url = "https://localhost"
-                    return redirect(f"{frontend_url}/?auth_error=Username already exists")
+                frontend_url = "https://localhost"
+                return redirect(f"{frontend_url}/?auth_error=Username already exists")
 
             user = User.objects.create(
                 first_name=first_name,
@@ -246,6 +243,5 @@ def ft_oauth_callback(request):
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Username already exists")
     except Exception as e:
-        print(f"OAuth error: {str(e)}")  # Add logging
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Authentication failed")

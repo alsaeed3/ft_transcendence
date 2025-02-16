@@ -232,12 +232,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 FT_CLIENT_ID = get_env_variable('FT_CLIENT_ID')
 FT_CLIENT_SECRET = get_env_variable('FT_CLIENT_SECRET')
 FT_REDIRECT_URI = get_env_variable('FT_REDIRECT_URI')
-LOGIN_URL = '/login'
 FT_AUTH0_DOMAIN = get_env_variable('FT_AUTH0_DOMAIN') 
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.sendinblue.com')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.brevo.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
