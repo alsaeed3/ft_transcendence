@@ -88,13 +88,10 @@ function initGame(mode = 'AI') {
     let username = '';
     let player2Name = mode === 'PVP' ? sessionStorage.getItem('player2Name') : 'Computer';
 
-    // Remove the token check and replace with a proper auth check
+    // Update the checkAuth function to use AuthManager's fetchWithAuth
     async function checkAuth() {
         try {
-            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
-                credentials: 'include'
-            });
-            
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
             if (!response.ok) {
                 window.location.href = '/';
                 return false;
@@ -106,15 +103,10 @@ function initGame(mode = 'AI') {
         }
     }
 
-    // Update the fetchUsername function
+    // Update the fetchUsername function to use AuthManager's fetchWithAuth
     async function fetchUsername() {
         try {
-            const response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`);
             
             if (response.ok) {
                 const userData = await response.json();
@@ -276,12 +268,11 @@ function initGame(mode = 'AI') {
         }
     }
 
-    // Update saveMatchResult function
+    // Update saveMatchResult to use AuthManager's fetchWithAuth
     async function saveMatchResult(matchData) {
         try {
-            const response = await fetch(`${AuthManager.API_BASE}matches/`, {
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -289,10 +280,6 @@ function initGame(mode = 'AI') {
             });
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    window.location.href = '/';
-                    return;
-                }
                 throw new Error('Failed to save match result');
             }
 

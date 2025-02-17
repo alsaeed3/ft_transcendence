@@ -2458,8 +2458,6 @@ document.addEventListener('DOMContentLoaded', () => {
 const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     return {
-        accessToken: params.get('access_token'),
-        refreshToken: params.get('refresh_token'),
         authError: params.get('auth_error')
     };
 };
@@ -2467,21 +2465,10 @@ const getUrlParams = () => {
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
     const authError = new URLSearchParams(window.location.search).get('auth_error');
-    const accessToken = new URLSearchParams(window.location.search).get('access_token');
-    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
     
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
         UIManager.showPage(UIManager.pages.landing);
-    } else if (accessToken && refreshToken) {
-        // Store tokens and proceed to main page
-        AuthManager.accessToken = accessToken;
-        AuthManager.refreshToken = refreshToken;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        UIManager.showPage(UIManager.pages.main);
-        UIManager.loadMainPage();
     }
     
     // Clean up URL
@@ -2593,9 +2580,6 @@ function createChatMessage(message) {
     
     return messageWrapper;
 }
-
-// Make refreshAccessToken available globally
-// window.refreshAccessToken = refreshAccessToken;
 
 // Keep handleOAuthCallback function definition but move it before it's used
 const handleOAuthCallback = async () => {
