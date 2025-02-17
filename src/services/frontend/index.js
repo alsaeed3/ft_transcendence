@@ -1552,16 +1552,12 @@ class ProfileManager {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'PUT',
-                // Remove Content-Type header to let browser set it with boundary for FormData
                 headers: {},
-                // Don't stringify formData - send it directly
                 body: formData,
                 credentials: 'include'
             });
 
-            console.log('Response status:', response.status);
             const data = await response.json();
-            console.log('Response data:', data);
 
             if (!response.ok) {
                 throw new Error(data.detail || 'Failed to update profile');
@@ -1570,11 +1566,29 @@ class ProfileManager {
             // Update current user data
             AuthManager.currentUser = data;
 
+            // Update avatar displays immediately
+            const newAvatarUrl = data.avatar_url || '/media/avatars/default.svg';
+            
+            // Update profile avatar in navbar
+            const profileAvatar = document.getElementById('profile-avatar');
+            if (profileAvatar) {
+                profileAvatar.src = newAvatarUrl;
+            }
+
+            // Update current avatar in update profile form
+            const currentAvatar = document.getElementById('current-avatar');
+            if (currentAvatar) {
+                currentAvatar.src = newAvatarUrl;
+            }
+
             // Show success message
             UIManager.showToast('Profile updated successfully', 'success');
 
-            // Reload profile page to show updated data
-            await UIManager.loadUpdateProfilePage();
+            // Clear the file input
+            const fileInput = document.getElementById('update-avatar');
+            if (fileInput) {
+                fileInput.value = '';
+            }
 
             return data;
         } catch (error) {
