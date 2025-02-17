@@ -51,11 +51,40 @@ class AuthManager {
     static currentOTPTimer = null; // For tracking OTP timer
     static currentUser = null;
 
+    // Add a method to check if auth cookies exist
+    static hasAuthCookies() {
+        // Debug: Log all cookies
+        console.debug('Current cookies:', document.cookie);
+        
+        // If there are no cookies at all, return false
+        if (!document.cookie) {
+            return false;
+        }
+
+        // Check for any authentication-related cookie
+        // This includes Django's sessionid or any JWT tokens
+        const cookies = document.cookie.split(';').map(c => c.trim());
+        return cookies.some(cookie => 
+            cookie.startsWith('sessionid=') ||     // Django session cookie
+            cookie.includes('token')               // Any token-related cookie
+        );
+    }
+
     static async checkAuthenticationState() {
         try {
+            // Only make the API call if we have auth cookies
+            if (!this.hasAuthCookies()) {
+                UIManager.showPage(UIManager.pages.landing);
+                return false;
+            }
+
+            // Catch the fetch promise rejection to prevent console logging
             const response = await fetch(`${this.API_BASE}users/me/`, {
                 credentials: 'include'
-            });
+            }).catch(() => ({
+                ok: false,
+                status: 401
+            }));
             
             if (response.ok) {
                 this.currentUser = await response.json();
@@ -64,11 +93,18 @@ class AuthManager {
                     return true;
                 }
             }
-            // Only show landing if auth check fails
-            UIManager.showPage(UIManager.pages.landing);
-            return false;
+            // Silently handle 401 status - user is simply not authenticated
+            if (response.status === 401) {
+                UIManager.showPage(UIManager.pages.landing);
+                return false;
+            }
+            // Handle other error statuses
+            throw new Error(`Failed to check authentication: ${response.status}`);
         } catch (error) {
-            console.error('Error checking authentication state:', error);
+            // Only log error if it's not a 401
+            if (!error.message.includes('401')) {
+                console.error('Error checking authentication state:', error);
+            }
             UIManager.showPage(UIManager.pages.landing);
             return false;
         }
@@ -76,14 +112,13 @@ class AuthManager {
 
     static async fetchWithAuth(url, options = {}) {
         try {
-            // Check if we're sending FormData
+            // Remove cookie check
             const isFormData = options.body instanceof FormData;
             
             let response = await fetch(url, {
                 ...options,
                 credentials: 'include',
                 headers: {
-                    // Only set Content-Type if not FormData
                     ...(!isFormData && { 'Content-Type': 'application/json' }),
                     ...options.headers
                 }
@@ -150,10 +185,35 @@ class AuthManager {
 
             // Store user data
             this.currentUser = data.user;
-            
+
+            // Proceed directly to main page without cookie check
             UIManager.showPage(UIManager.pages.main);
-            await UIManager.loadMainPage();
+            
+            // Use the user data from login response instead of fetching profile
+            UIManager.updateProfileDisplay(data.user);
+            UIManager.loadUserStats(data.user);
+
+            // Load additional data in parallel
+            try {
+                await Promise.all([
+                    UserManager.loadUsersList(),
+                    FriendManager.updateFriendListUI(),
+                    this.fetchMatchHistory().then(matches => 
+                        MatchManager.displayMatchHistory(matches)
+                    )
+                ]);
+
+                // Initialize chat after data is loaded
+                ChatManager.initStatusWebSocket();
+                
+                // Apply username clickability after all content is loaded
+                UIManager.applyUsernameClickability();
+            } catch (error) {
+                console.error('Error loading additional data:', error);
+                // Continue even if some data failed to load
+            }
         } catch (error) {
+            console.error('Login error:', error);
             UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
@@ -2365,8 +2425,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize friend list
     FriendManager.initializeEventListeners();
-    // Remove accessToken check and rely on checkAuthenticationState
-    FriendManager.updateFriendListUI();
 
     // Initialize OAuth button handler
     const oauth42Btn = document.getElementById('oauth-42-btn');
@@ -2389,11 +2447,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add initializing state
     document.body.classList.add('initializing');
 
-    // Start auth check
+    // Start auth check and only load friend list if authenticated
     AuthManager.checkAuthenticationState()
         .then(isAuthenticated => {
             if (!isAuthenticated) {
                 UIManager.showPage(UIManager.pages.landing);
+            } else {
+                // Only update friend list if authenticated
+                FriendManager.updateFriendListUI();
             }
         })
         .catch(error => {
