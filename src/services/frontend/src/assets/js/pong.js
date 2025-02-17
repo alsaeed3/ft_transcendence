@@ -88,7 +88,7 @@ function initGame(mode = 'AI') {
     let username = '';
     let player2Name = mode === 'PVP' ? sessionStorage.getItem('player2Name') : 'Computer';
 
-    // Update the checkAuth function to use AuthManager's fetchWithAuth
+    // Update the checkAuth function
     async function checkAuth() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
@@ -103,7 +103,7 @@ function initGame(mode = 'AI') {
         }
     }
 
-    // Update the fetchUsername function to use AuthManager's fetchWithAuth
+    // Update the fetchUsername function
     async function fetchUsername() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`);

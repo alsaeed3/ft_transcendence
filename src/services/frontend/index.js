@@ -51,30 +51,10 @@ class AuthManager {
     static currentOTPTimer = null; // For tracking OTP timer
     static currentUser = null;
 
-    // Add a method to check if auth cookies exist
-    static hasAuthCookies() {
-        // Debug: Log all cookies
-        console.debug('Current cookies:', document.cookie);
-        
-        // If there are no cookies at all, return false
-        if (!document.cookie) {
-            return false;
-        }
-
-        // Check for any authentication-related cookie
-        // This includes Django's sessionid or any JWT tokens
-        const cookies = document.cookie.split(';').map(c => c.trim());
-        return cookies.some(cookie => 
-            cookie.startsWith('sessionid=') ||     // Django session cookie
-            cookie.includes('token')               // Any token-related cookie
-        );
-    }
-
     static async checkAuthenticationState() {
         try {
-            // Remove cookie check and directly try the API call
             const response = await fetch(`${this.API_BASE}users/me/`, {
-                credentials: 'include'
+                credentials: 'include'  // Important for sending cookies
             });
             
             if (response.ok) {
@@ -100,12 +80,11 @@ class AuthManager {
 
     static async fetchWithAuth(url, options = {}) {
         try {
-            // Remove cookie check
             const isFormData = options.body instanceof FormData;
             
             let response = await fetch(url, {
                 ...options,
-                credentials: 'include',
+                credentials: 'include',  // Important for sending cookies
                 headers: {
                     ...(!isFormData && { 'Content-Type': 'application/json' }),
                     ...options.headers
@@ -174,32 +153,9 @@ class AuthManager {
             // Store user data
             this.currentUser = data.user;
 
-            // Proceed directly to main page without cookie check
-            UIManager.showPage(UIManager.pages.main);
-            
-            // Use the user data from login response instead of fetching profile
-            UIManager.updateProfileDisplay(data.user);
-            UIManager.loadUserStats(data.user);
+            // Now check authentication state and load main page
+            await this.checkAuthenticationState();
 
-            // Load additional data in parallel
-            try {
-                await Promise.all([
-                    UserManager.loadUsersList(),
-                    FriendManager.updateFriendListUI(),
-                    this.fetchMatchHistory().then(matches => 
-                        MatchManager.displayMatchHistory(matches)
-                    )
-                ]);
-
-                // Initialize chat after data is loaded
-                ChatManager.initStatusWebSocket();
-                
-                // Apply username clickability after all content is loaded
-                UIManager.applyUsernameClickability();
-            } catch (error) {
-                console.error('Error loading additional data:', error);
-                // Continue even if some data failed to load
-            }
         } catch (error) {
             console.error('Login error:', error);
             UIManager.showToast(error.message || 'Login failed', 'danger');
@@ -2515,15 +2471,39 @@ const getUrlParams = () => {
 
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
+    // ... other event listeners ...
+
+    // Remove automatic auth check and replace with landing page display
     const authError = new URLSearchParams(window.location.search).get('auth_error');
     
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
+    }
+    
+    // Always start with landing page for non-authenticated paths
+    if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
         UIManager.showPage(UIManager.pages.landing);
     }
     
+    // Only check auth state after successful login or when accessing protected routes
+    if (window.location.pathname.startsWith('/protected/')) {
+        AuthManager.checkAuthenticationState()
+            .catch(error => {
+                console.error('Authentication check failed:', error);
+                UIManager.showPage(UIManager.pages.landing);
+            });
+    }
+
     // Clean up URL
     window.history.replaceState({}, document.title, '/');
+    
+    // Initialize managers
+    ChatManager.initializeEventListeners();
+    FriendManager.initializeEventListeners();
+    UserManager.initializeEventListeners();
+    
+    // Preload default avatar
+    Utils.preloadDefaultAvatar();
 });
 
 function createChatMessage(message) {
