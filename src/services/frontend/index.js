@@ -773,6 +773,37 @@ class UIManager {
         const matches = await AuthManager.fetchMatchHistory();
         MatchManager.displayMatchHistory(matches);
     }
+
+    // Add this to the UIManager class
+    static showGamePage(html) {
+        // Hide all existing pages first
+        Object.values(this.pages).forEach(p => {
+            if (p) {
+                p.style.display = 'none';
+                p.classList.remove('active-page');
+            }
+        });
+
+        // Remove any existing game page
+        const existingGamePage = document.getElementById('game-page');
+        if (existingGamePage) {
+            existingGamePage.remove();
+        }
+
+        // Create and show new game page
+        const gameDiv = document.createElement('div');
+        gameDiv.id = 'game-page';
+        gameDiv.className = 'page active-page';
+        gameDiv.style.height = '100vh';  // Ensure full height
+        gameDiv.style.display = 'block';
+        gameDiv.innerHTML = html;
+
+        // Insert the game page as the first child of the body
+        document.body.insertBefore(gameDiv, document.body.firstChild);
+
+        // Force reflow
+        gameDiv.offsetHeight;
+    }
 }
 
 class ChatManager {
@@ -2143,7 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('play-player-btn').addEventListener('click', async () => {
         try {
-            // Check authentication using /me endpoint
+            // Check authentication
             const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
                 credentials: 'include'
             });
@@ -2152,20 +2183,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/';
                 return;
             }
-    
+
             try {
                 const response = await fetch('/src/assets/components/player2-setup.html');
                 const html = await response.text();
                 
-                // Hide main page
-                document.getElementById('main-page').classList.remove('active-page');
-                
-                // Create and show setup page
-                const setupDiv = document.createElement('div');
-                setupDiv.id = 'setup-page';
-                setupDiv.classList.add('page', 'active-page');
-                setupDiv.innerHTML = html;
-                document.body.appendChild(setupDiv);
+                // Use the new showGamePage method
+                UIManager.showGamePage(html);
         
                 // Add event listeners after adding to DOM
                 const setupForm = document.getElementById('player2-setup-form');
@@ -2174,19 +2198,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const player2Name = document.getElementById('player2-name').value;
-                    sessionStorage.setItem('player2Name', player2Name);  // Store in sessionStorage
+                    sessionStorage.setItem('player2Name', player2Name);
         
                     // Load pong game
                     const pongResponse = await fetch('/src/assets/components/pong.html');
                     const html = await pongResponse.text();
         
-                    setupDiv.remove();
-        
-                    const gameDiv = document.createElement('div');
-                    gameDiv.id = 'game-page';
-                    gameDiv.classList.add('page', 'active-page');
-                    gameDiv.innerHTML = html;
-                    document.body.appendChild(gameDiv);
+                    // Use showGamePage again for the actual game
+                    UIManager.showGamePage(html);
         
                     // Initialize game after DOM is updated
                     setTimeout(() => {
@@ -2194,12 +2213,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             initGame('PVP');
                         }
                     }, 0);
+                });
         
-                    cancelBtn.addEventListener('click', () => {
-                        setupDiv.remove();
-                        document.getElementById('main-page').classList.add('active-page');
-                    });
-        
+                cancelBtn.addEventListener('click', () => {
+                    const gamePage = document.getElementById('game-page');
+                    if (gamePage) {
+                        gamePage.remove();
+                    }
+                    UIManager.showPage(UIManager.pages.main);
                 });
         
             } catch (error) {
@@ -2213,7 +2234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('play-ai-btn').addEventListener('click', async () => {
         try {
-            // Check authentication using /me endpoint
+            // Check authentication
             const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
                 credentials: 'include'
             });
@@ -2222,20 +2243,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/';
                 return;
             }
-    
+
             try {
                 const response = await fetch('/src/assets/components/pong.html');
                 const html = await response.text();
                 
-                // Hide main page
-                document.getElementById('main-page').classList.remove('active-page');
-                
-                // Create and show game page
-                const gameDiv = document.createElement('div');
-                gameDiv.id = 'game-page';
-                gameDiv.classList.add('page', 'active-page');
-                gameDiv.innerHTML = html;
-                document.body.appendChild(gameDiv);
+                // Use the new showGamePage method
+                UIManager.showGamePage(html);
         
                 requestAnimationFrame(() => {
                     if (typeof initGame === 'function') {
