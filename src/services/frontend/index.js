@@ -1676,6 +1676,43 @@ class ProfileManager {
             throw error;
         }
     }
+
+    static async updateUserStats(matchData) {
+        try {
+            // Get current user profile
+            const profile = await this.fetchUserProfile();
+            if (!profile) throw new Error('Could not fetch user profile');
+
+            // Calculate new stats
+            const isWinner = matchData.winner_name === profile.username;
+            const newStats = {
+                match_wins: profile.match_wins + (isWinner ? 1 : 0),
+                total_matches: profile.total_matches + 1
+            };
+
+            // Update profile with new stats
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newStats)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Stats update error details:', errorData);
+                throw new Error('Failed to update user stats');
+            }
+
+            // Update UI with new stats
+            const updatedProfile = await response.json();
+            UIManager.loadUserStats(updatedProfile);
+        } catch (error) {
+            console.error('Error updating user stats:', error);
+            UIManager.showToast('Failed to update player statistics', 'warning');
+        }
+    }
 }
 
 class UserManager {

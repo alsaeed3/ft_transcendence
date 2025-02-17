@@ -290,6 +290,9 @@ function initGame(mode = 'AI') {
                 sessionStorage.setItem(`match_${savedMatch.id}_type`, 'PVP');
             }
 
+            // Update user stats after saving match
+            await ProfileManager.updateUserStats(savedMatch);
+
             // Instead of redirecting, use UIManager to transition
             setTimeout(() => {
                 // Use a custom event to handle the transition

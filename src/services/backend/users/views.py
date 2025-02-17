@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework import generics, status, permissions
 from rest_framework.permissions import IsAuthenticated
 from .models import User, BlockedUser
-from .serializers import UserSerializer, MessageSerializer, UserUpdateSerializer
+from .serializers import UserSerializer, MessageSerializer, UserUpdateSerializer, UserStatsSerializer
 # from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -142,6 +142,14 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', True)  # Always allow partial updates
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 class UserProfileView(generics.RetrieveAPIView):
     queryset = User.objects.all()
@@ -354,4 +362,18 @@ class UserMeView(APIView):
 
     def get(self, request):
         serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+class UpdateUserStatsView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserStatsSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         return Response(serializer.data)

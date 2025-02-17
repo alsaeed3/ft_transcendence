@@ -66,19 +66,15 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.friends.count()
 
     def update(self, instance, validated_data):
-        # Remove password from validated data if it's empty
-        password = validated_data.pop('password', None)
-        
-        # Update other fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
-        # Update password if provided
-        if password:
-            instance.set_password(password)
-        
-        instance.save()
-        return instance
+        # Handle stats updates
+        if 'match_wins' in validated_data or 'total_matches' in validated_data:
+            instance.match_wins = validated_data.get('match_wins', instance.match_wins)
+            instance.total_matches = validated_data.get('total_matches', instance.total_matches)
+            instance.save()
+            return instance
+            
+        # Handle other updates
+        return super().update(instance, validated_data)
 
     def validate_email(self, value):
         # Case-insensitive email validation
@@ -119,3 +115,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         # Remove password from validated_data as we handle it in the view
         validated_data.pop('password', None)
         return super().update(instance, validated_data)
+
+class UserStatsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['match_wins', 'total_matches']
