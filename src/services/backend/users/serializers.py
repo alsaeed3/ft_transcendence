@@ -1,6 +1,7 @@
 from rest_framework import serializers
 # from django.contrib.auth.models import User
 from .models import Message, User
+from django.conf import settings
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_display_name = serializers.CharField(source='sender.username', read_only=True)
@@ -101,4 +102,20 @@ class UserSerializer(serializers.ModelSerializer):
         return data
 
     def get_avatar_url(self, obj):
-        return obj.get_avatar_url()
+        if obj.avatar and hasattr(obj.avatar, 'url'):
+            return obj.avatar.url
+        return settings.DEFAULT_AVATAR_URL
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False)
+    password = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(required=False)
+
+    class Meta:
+        model = User
+        fields = ['email', 'password', 'avatar']
+
+    def update(self, instance, validated_data):
+        # Remove password from validated_data as we handle it in the view
+        validated_data.pop('password', None)
+        return super().update(instance, validated_data)

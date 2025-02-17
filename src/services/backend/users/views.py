@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework import generics, status, permissions
 from rest_framework.permissions import IsAuthenticated
 from .models import User, BlockedUser
-from .serializers import UserSerializer, MessageSerializer
+from .serializers import UserSerializer, MessageSerializer, UserUpdateSerializer
 # from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -14,6 +14,7 @@ from .models import Message
 from django.db.models import Q, Case, When, BooleanField
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class BlockUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -321,3 +322,36 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'chat_message',
             'message': message_data
         }))
+
+class ProfileUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def put(self, request):
+        try:
+            user = request.user
+            serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+            
+            if serializer.is_valid():
+                # Handle password update
+                password = request.data.get('password')
+                if password:
+                    user.set_password(password)
+                
+                # Handle avatar update
+                avatar = request.FILES.get('avatar')
+                if avatar:
+                    user.avatar = avatar
+                
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=400)
+
+class UserMeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)

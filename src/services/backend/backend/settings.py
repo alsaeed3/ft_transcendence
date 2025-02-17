@@ -64,46 +64,50 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'authentication.authentication.CookieJWTAuthentication',
-    ],
+	'DEFAULT_AUTHENTICATION_CLASSES': (
+		'authentication.authentication.CookieJWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
 }
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': False,
-    'ALGORITHM': 'HS256',
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'JTI_CLAIM': 'jti',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-    'AUTH_COOKIE': 'access_token',
-    'AUTH_COOKIE_REFRESH': 'refresh_token',
-    'AUTH_COOKIE_DOMAIN': None,
-    'AUTH_COOKIE_SECURE': True,
-    'AUTH_COOKIE_HTTP_ONLY': True,
-    'AUTH_COOKIE_PATH': '/',
-    'AUTH_COOKIE_SAMESITE': 'Lax',
-}
-
-# Cookie settings
+# Add these JWT settings
 JWT_AUTH_COOKIE = 'access_token'
 JWT_AUTH_REFRESH_COOKIE = 'refresh_token'
 JWT_AUTH_COOKIE_SECURE = True
-JWT_AUTH_COOKIE_SAMESITE = 'Lax'
-JWT_AUTH_COOKIE_HTTP_ONLY = True
+JWT_AUTH_COOKIE_SAMESITE = 'Lax'  # Or 'Strict' for even more security
+JWT_AUTH_COOKIE_PATH = '/'
+JWT_AUTH_COOKIE_DOMAIN = None  # Set to your domain in production
+
+# Update SIMPLE_JWT settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+    
+    'AUTH_COOKIE': JWT_AUTH_COOKIE,  # Cookie name for access token
+    'AUTH_COOKIE_REFRESH': JWT_AUTH_REFRESH_COOKIE,  # Cookie name for refresh token
+    'AUTH_COOKIE_SECURE': JWT_AUTH_COOKIE_SECURE,
+    'AUTH_COOKIE_SAMESITE': JWT_AUTH_COOKIE_SAMESITE,
+    'AUTH_COOKIE_PATH': JWT_AUTH_COOKIE_PATH,
+    'AUTH_COOKIE_DOMAIN': JWT_AUTH_COOKIE_DOMAIN,
+    'AUTH_COOKIE_HTTP_ONLY': True,
+}
 
 CORS_ALLOW_ALL_ORIGINS = True  # For development only, configure properly for production
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "https://localhost"
+    "http://localhost",
+    "http://localhost:80",
+    "https://localhost",
+    "https://localhost:443",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
+    "https://api.intra.42.fr",
+    "ws://localhost",
+    "wss://localhost",
+    "ws://127.0.0.1",
+    "wss://127.0.0.1"
 ]
 
 CORS_ALLOW_CREDENTIALS = True

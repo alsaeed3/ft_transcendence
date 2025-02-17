@@ -36,8 +36,8 @@ services:
     networks:
       - main-network
     volumes:
-      - static_volume:/app/static
       - media_volume:/app/media
+      - static_volume:/app/static
 
   database:
     image: postgres:15-alpine

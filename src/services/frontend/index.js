@@ -1,55 +1,115 @@
+// First, update the style element
+const style = document.createElement('style');
+style.textContent = `
+    /* Initial state for all pages */
+    .page {
+        display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    }
+    
+    /* Active page state */
+    .active-page {
+        display: block !important;
+        opacity: 1;
+    }
+
+    /* Initial loading state */
+    body.initializing .page {
+        display: none !important;
+    }
+
+    /* Loading spinner */
+    .loading-spinner {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+    }
+
+    body.initializing .loading-spinner {
+        display: block;
+    }
+`;
+document.head.appendChild(style);
+
+// Add loading spinner to HTML
+document.body.insertAdjacentHTML('afterbegin', `
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+`);
+
 class AuthManager {
 
     static username;
     static API_BASE = 'https://localhost/api/';
     static RECENT_MATCHES_LIMIT = 3;
-    static TOKEN_REFRESH_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
     static currentOTPTimer = null; // For tracking OTP timer
     static currentUser = null;
 
-    static {
-        // Initialize currentUser from localStorage if available
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                this.currentUser = JSON.parse(storedUser);
-            } catch (e) {
-                console.error('Error parsing stored user data:', e);
-                localStorage.removeItem('currentUser');
+    static async checkAuthenticationState() {
+        try {
+            const response = await fetch(`${this.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.currentUser = await response.json();
+                if (this.currentUser?.id) {
+                    await UIManager.loadMainPage();
+                    return true;
+                }
             }
+            // Only show landing if auth check fails
+            UIManager.showPage(UIManager.pages.landing);
+            return false;
+        } catch (error) {
+            console.error('Error checking authentication state:', error);
+            UIManager.showPage(UIManager.pages.landing);
+            return false;
         }
     }
 
     static async fetchWithAuth(url, options = {}) {
         try {
-            const response = await fetch(url, {
+            // Check if we're sending FormData
+            const isFormData = options.body instanceof FormData;
+            
+            let response = await fetch(url, {
                 ...options,
+                credentials: 'include',
                 headers: {
-                    ...options.headers,
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include'
+                    // Only set Content-Type if not FormData
+                    ...(!isFormData && { 'Content-Type': 'application/json' }),
+                    ...options.headers
+                }
             });
 
             if (response.status === 401) {
-                try {
-                    const refreshResponse = await fetch(`${this.API_BASE}auth/refresh/`, {
-                        method: 'POST',
-                        credentials: 'include'
-                    });
+                // Try to refresh token using cookie-based endpoint
+                const refreshResponse = await fetch(`${this.API_BASE}auth/token/refresh/`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
 
-                    if (refreshResponse.ok) {
-                        // Token has been refreshed in cookies, retry original request
-                        return this.fetchWithAuth(url, options);
-                    } else {
-                        // Refresh failed, logout and redirect
-                        await this.logout();
-                        throw new Error('Session expired. Please login again.');
-                    }
-                } catch (error) {
-                    await this.logout();
+                if (!refreshResponse.ok) {
+                    this.logout();
                     throw new Error('Session expired. Please login again.');
                 }
+
+                // Retry original request
+                response = await fetch(url, {
+                    ...options,
+                    credentials: 'include',
+                    headers: {
+                        ...(!isFormData && { 'Content-Type': 'application/json' }),
+                        ...options.headers
+                    }
+                });
             }
 
             return response;
@@ -63,15 +123,16 @@ class AuthManager {
         try {
             const response = await fetch(`${this.API_BASE}auth/login/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
             
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
+                UIManager.showToast(data.error || 'Login failed', 'danger');
+                return;
             }
 
             // Check for 2FA requirement
@@ -87,9 +148,12 @@ class AuthManager {
                 return;
             }
 
-            await this.processSuccessfulAuth(data);
+            // Store user data
+            this.currentUser = data.user;
+            
+            UIManager.showPage(UIManager.pages.main);
+            await UIManager.loadMainPage();
         } catch (error) {
-            console.error('Login error:', error);
             UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
@@ -158,6 +222,7 @@ class AuthManager {
 
             const response = await fetch(`${this.API_BASE}auth/2fa/verify/`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, otp, username, password })
             });
@@ -165,11 +230,9 @@ class AuthManager {
             const data = await response.json();
 
             if (!response.ok) {
-                // Show remaining attempts if available
                 if (data.remaining_attempts !== undefined) {
                     if (data.remaining_attempts === 0) {
                         UIManager.showToast('Too many failed attempts. Please wait 5 minutes.', 'danger');
-                        // Optionally return to login form
                         UIManager.showLoginForm();
                     } else {
                         UIManager.showToast(`Invalid code. ${data.remaining_attempts} attempts remaining.`, 'warning');
@@ -180,11 +243,16 @@ class AuthManager {
                 return;
             }
 
-            // Success - clear storage and process auth
+            // Clear temporary storage
             sessionStorage.removeItem('tempUserEmail');
             sessionStorage.removeItem('tempUsername');
             sessionStorage.removeItem('tempPassword');
-            await this.processSuccessfulAuth(data);
+
+            // Store user data
+            this.currentUser = data.user;
+            
+            UIManager.showPage(UIManager.pages.main);
+            await UIManager.loadMainPage();
 
         } catch (error) {
             console.error('2FA verification error:', error);
@@ -192,40 +260,16 @@ class AuthManager {
         }
     }
 
-    static async processSuccessfulAuth(data) {
-        try {
-            // Store only user data, no tokens since we're using cookies
-            this.currentUser = data.user;
-            localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-
-            // Clear temporary storage
-            sessionStorage.removeItem('tempUsername');
-            sessionStorage.removeItem('tempPassword');
-            sessionStorage.removeItem('tempUserEmail');
-            
-            UIManager.showPage(UIManager.pages.main);
-            await UIManager.loadMainPage();
-        } catch (error) {
-            console.error('Error processing authentication:', error);
-            UIManager.showToast('Authentication failed', 'danger');
-        }
-    }
-
     static async logout() {
         try {
-            const response = await fetch(`${this.API_BASE}auth/logout/`, {
+            await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
                 method: 'POST',
                 credentials: 'include'
             });
-
-            if (!response.ok) {
-                console.error('Logout failed:', response.status);
-            }
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
             ChatManager.cleanup();
-            localStorage.clear();
             sessionStorage.clear();
             this.currentUser = null;
             UIManager.showLoginForm();
@@ -284,30 +328,6 @@ class AuthManager {
             return [];
         }
     }
-
-    static async checkAuthStatus() {
-        try {
-            const response = await fetch(`${this.API_BASE}users/me/`, {
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                const userData = await response.json();
-                this.currentUser = userData;
-                UIManager.showPage(UIManager.pages.main);
-                await UIManager.loadMainPage();
-            } else {
-                UIManager.showPage(UIManager.pages.landing);
-            }
-        } catch (error) {
-            console.error('Auth check failed:', error);
-            UIManager.showPage(UIManager.pages.landing);
-        }
-    }
-
-    static async initialize() {
-        await this.checkAuthStatus();
-    }
 }
 
 class UIManager {
@@ -318,8 +338,23 @@ class UIManager {
     };
 
     static showPage(page) {
-        Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
-        page.classList.add('active-page');
+        if (!page) return;
+        
+        // Hide all pages first
+        Object.values(this.pages).forEach(p => {
+            if (p) {
+                p.style.display = 'none';
+                p.classList.remove('active-page');
+            }
+        });
+        
+        // Show requested page with transition
+        requestAnimationFrame(() => {
+            page.style.display = 'block';
+            // Force reflow
+            page.offsetHeight;
+            page.classList.add('active-page');
+        });
     }
 
     static toggleForms() {
@@ -373,40 +408,39 @@ class UIManager {
     }
 
     static async loadMainPage() {
+        // Show main page immediately
         this.showPage(this.pages.main);
 
         try {
-            // Get user profile
             const profile = await ProfileManager.fetchUserProfile();
             if (profile) {
                 AuthManager.currentUser = profile;
-
-                // Update UI elements
                 this.updateProfileDisplay(profile);
-
-                // Load user stats
                 this.loadUserStats(profile);
 
-                // Load users list FIRST
-                await UserManager.loadUsersList();
+                // Load data in parallel
+                await Promise.all([
+                    UserManager.loadUsersList(),
+                    FriendManager.updateFriendListUI(),
+                    AuthManager.fetchMatchHistory().then(matches => 
+                        MatchManager.displayMatchHistory(matches)
+                    )
+                ]);
 
-                // Load friends list AFTER users list
-                await FriendManager.updateFriendListUI();
-
-                // THEN initialize chat status socket
+                // Initialize chat after data is loaded
                 ChatManager.initStatusWebSocket();
 
-                // Load match history
-                const matches = await AuthManager.fetchMatchHistory();
-                MatchManager.displayMatchHistory(matches);
+                // Apply username clickability after all content is loaded
+                this.applyUsernameClickability();
             }
         } catch (error) {
             console.error('Error loading main page:', error);
-            this.showToast('Failed to load user data', 'danger');
+            if (error.message.includes('401')) {
+                this.showPage(this.pages.landing);
+            } else {
+                this.showToast('Failed to load user data', 'danger');
+            }
         }
-
-        // After loading all components
-        this.applyUsernameClickability();
     }
 
     static loadUserStats(profile) {
@@ -684,6 +718,12 @@ class UIManager {
                 this.makeUsernameClickable(el, el.dataset.userId);
             }
         });
+    }
+
+    // Add loadMatchHistory method
+    static async loadMatchHistory() {
+        const matches = await AuthManager.fetchMatchHistory();
+        MatchManager.displayMatchHistory(matches);
     }
 }
 
@@ -1510,102 +1550,37 @@ class ProfileManager {
 
     static async updateProfile(formData) {
         try {
-            const hasFile = formData.get('avatar') && formData.get('avatar').size > 0;
-            let requestData;
-            let headers = {};
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/`, {
+                method: 'PUT',
+                // Remove Content-Type header to let browser set it with boundary for FormData
+                headers: {},
+                // Don't stringify formData - send it directly
+                body: formData,
+                credentials: 'include'
+            });
 
-            if (hasFile) {
-                requestData = formData;
-            } else {
-                const jsonData = {};
-                const username = formData.get('username');
-                const email = formData.get('email');
-                const password = formData.get('password');
-
-                // Get current user data for required fields
-                const currentUser = AuthManager.currentUser;
-
-                // Include current values if fields are empty
-                if (username && username.trim()) {
-                    jsonData.username = username.trim();
-                } else if (currentUser?.username) {
-                    jsonData.username = currentUser.username;
-                }
-
-                if (email && email.trim()) {
-                    jsonData.email = email.trim().toLowerCase();
-                } else if (currentUser?.email) {
-                    jsonData.email = currentUser.email;
-                }
-
-                if (password && password.trim()) {
-                    jsonData.password = password.trim();
-                }
-
-                // Log the data (excluding password)
-                console.log('Request data:', { 
-                    ...jsonData, 
-                    password: jsonData.password ? '[REDACTED]' : null,
-                    currentUsername: currentUser?.username,
-                    currentEmail: currentUser?.email
-                });
-
-                if (Object.keys(jsonData).length === 0) {
-                    throw new Error('No changes to update');
-                }
-
-                requestData = JSON.stringify(jsonData);
-                headers['Content-Type'] = 'application/json';
-            }
-
-            const response = await AuthManager.fetchWithAuth(
-                `${AuthManager.API_BASE}users/profile/`,
-                {
-                    method: 'PUT',
-                    headers,
-                    body: requestData
-                }
-            );
-
-            const responseData = await response.json();
             console.log('Response status:', response.status);
-            console.log('Response data:', responseData);
+            const data = await response.json();
+            console.log('Response data:', data);
 
             if (!response.ok) {
-                let errorMessage = 'Profile update failed';
-                
-                if (responseData.detail) {
-                    errorMessage = responseData.detail;
-                } else if (responseData.username) {
-                    errorMessage = `Username: ${responseData.username.join(', ')}`;
-                } else if (responseData.email) {
-                    errorMessage = `Email: ${responseData.email.join(', ')}`;
-                } else if (responseData.password) {
-                    errorMessage = `Password: ${responseData.password.join(', ')}`;
-                } else if (responseData.avatar) {
-                    errorMessage = `Avatar: ${responseData.avatar.join(', ')}`;
-                }
-                
-                throw new Error(errorMessage);
+                throw new Error(data.detail || 'Failed to update profile');
             }
 
             // Update current user data
-            if (responseData.user) {
-                AuthManager.currentUser = responseData.user;
-                localStorage.setItem('currentUser', JSON.stringify(responseData.user));
-            }
+            AuthManager.currentUser = data;
 
-            // Clear form and show success message
-            document.getElementById('update-profile-form').reset();
-            UIManager.showToast('Profile updated successfully!', 'success');
+            // Show success message
+            UIManager.showToast('Profile updated successfully', 'success');
 
-            // Reload main page and switch back
-            await UIManager.loadMainPage();
-            UIManager.showPage(UIManager.pages.main);
+            // Reload profile page to show updated data
+            await UIManager.loadUpdateProfilePage();
 
+            return data;
         } catch (error) {
             console.error('Profile update error:', error);
-            UIManager.showToast(error.message || 'Failed to update profile', 'danger');
+            UIManager.showToast(error.message, 'danger');
+            throw error;
         }
     }
 }
@@ -2025,12 +2000,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const form = e.target;
             const formData = new FormData(form);
             
-            // Log the form data before submission
-            console.log('Submitting form data:');
-            for (let [key, value] of formData.entries()) {
-                console.log(`${key}: ${key === 'password' ? '[REDACTED]' : value}`);
+            // Remove empty password from FormData
+            if (!formData.get('password')) {
+                formData.delete('password');
             }
             
+            // Remove empty avatar from FormData
+            if (!formData.get('avatar').size) {
+                formData.delete('avatar');
+            }
+
             await ProfileManager.updateProfile(formData);
         } catch (error) {
             console.error('Form submission error:', error);
@@ -2101,230 +2080,255 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('play-player-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-    
         try {
-            const response = await fetch('/src/assets/components/player2-setup.html');
-            const html = await response.text();
+            // Check authentication using /me endpoint
+            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
             
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            // Create and show setup page
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
+            if (!response.ok) {
+                window.location.href = '/';
+                return;
+            }
     
-            // Add event listeners after adding to DOM
-            const setupForm = document.getElementById('player2-setup-form');
-            const cancelBtn = document.getElementById('cancel-btn');
-    
-            setupForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const player2Name = document.getElementById('player2-name').value;
-                localStorage.setItem('player2Name', player2Name);
-    
-                // Load pong game
-                const pongResponse = await fetch('/src/assets/components/pong.html');
-                const pongHtml = await pongResponse.text();
+            try {
+                const response = await fetch('/src/assets/components/player2-setup.html');
+                const html = await response.text();
                 
-                // Remove setup page
-                setupDiv.remove();
+                // Hide main page
+                document.getElementById('main-page').classList.remove('active-page');
+                
+                // Create and show setup page
+                const setupDiv = document.createElement('div');
+                setupDiv.id = 'setup-page';
+                setupDiv.classList.add('page', 'active-page');
+                setupDiv.innerHTML = html;
+                document.body.appendChild(setupDiv);
+        
+                // Add event listeners after adding to DOM
+                const setupForm = document.getElementById('player2-setup-form');
+                const cancelBtn = document.getElementById('cancel-btn');
+        
+                setupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const player2Name = document.getElementById('player2-name').value;
+                    sessionStorage.setItem('player2Name', player2Name);  // Store in sessionStorage
+        
+                    // Load pong game
+                    const pongResponse = await fetch('/src/assets/components/pong.html');
+                    const html = await pongResponse.text();
+        
+                    setupDiv.remove();
+        
+                    const gameDiv = document.createElement('div');
+                    gameDiv.id = 'game-page';
+                    gameDiv.classList.add('page', 'active-page');
+                    gameDiv.innerHTML = html;
+                    document.body.appendChild(gameDiv);
+        
+                    // Initialize game after DOM is updated
+                    setTimeout(() => {
+                        if (typeof initGame === 'function') {
+                            initGame('PVP');
+                        }
+                    }, 0);
+        
+                    cancelBtn.addEventListener('click', () => {
+                        setupDiv.remove();
+                        document.getElementById('main-page').classList.add('active-page');
+                    });
+        
+                });
+        
+            } catch (error) {
+                console.error('Error loading setup page:', error);
+                UIManager.showToast('Failed to load the setup page', 'danger');
+            }
+        } catch (error) {
+            window.location.href = '/';
+        }
+    });
+    
+    document.getElementById('play-ai-btn').addEventListener('click', async () => {
+        try {
+            // Check authentication using /me endpoint
+            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                window.location.href = '/';
+                return;
+            }
+    
+            try {
+                const response = await fetch('/src/assets/components/pong.html');
+                const html = await response.text();
+                
+                // Hide main page
+                document.getElementById('main-page').classList.remove('active-page');
                 
                 // Create and show game page
                 const gameDiv = document.createElement('div');
                 gameDiv.id = 'game-page';
                 gameDiv.classList.add('page', 'active-page');
-                gameDiv.innerHTML = pongHtml;
+                gameDiv.innerHTML = html;
                 document.body.appendChild(gameDiv);
-    
-                // Initialize PvP game
+        
                 requestAnimationFrame(() => {
                     if (typeof initGame === 'function') {
-                        initGame('PVP');
+                        initGame();
                     }
                 });
-            });
-    
-            cancelBtn.addEventListener('click', () => {
-                setupDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
-    
+        
+            } catch (error) {
+                console.error('Error loading game:', error);
+                UIManager.showToast('Failed to load the game', 'danger');
+            }
         } catch (error) {
-            console.error('Error loading setup page:', error);
-            UIManager.showToast('Failed to load the setup page', 'danger');
-        }
-    });
-    
-    document.getElementById('play-ai-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
             window.location.href = '/';
-            return;
-        }
-    
-        try {
-            const response = await fetch('/src/assets/components/pong.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            // Create and show game page
-            const gameDiv = document.createElement('div');
-            gameDiv.id = 'game-page';
-            gameDiv.classList.add('page', 'active-page');
-            gameDiv.innerHTML = html;
-            document.body.appendChild(gameDiv);
-    
-            // Initialize game immediately after canvas is available
-            requestAnimationFrame(() => {
-                if (typeof initGame === 'function') {
-                    initGame();
-                }
-            }, 100);
-    
-        } catch (error) {
-            console.error('Error loading game:', error);
-            UIManager.showToast('Failed to load the game', 'danger');
         }
     });
     
     document.getElementById('create-tournament-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-    
         try {
-            const response = await fetch('/src/assets/components/tournament-setup.html');
-            const html = await response.text();
+            // Check authentication using /me endpoint
+            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
             
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'tournament-setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
-    
-            // Setup player selection
-            function selectPlayers(count) {
-                const inputsContainer = document.getElementById('playerInputs');
-                const buttons = document.querySelectorAll('.player-count-btn');
-                
-                buttons.forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
-                });
-                
-                inputsContainer.innerHTML = '';  // Clear existing fields
-                
-                // Add player input fields
-                for (let i = 2; i <= count; i++) {
-                    const div = document.createElement('div');
-                    div.className = 'mb-3';
-                    div.innerHTML = `
-                        <label for="player${i}" class="form-label">Player ${i} Nickname</label>
-                        <input type="text" class="form-control" id="player${i}" name="player${i}" required>
-                    `;
-                    inputsContainer.appendChild(div);
-                }
+            if (!response.ok) {
+                window.location.href = '/';
+                return;
             }
     
-            // Initialize with 4 players and setup event listeners
-            selectPlayers(4);
-            document.querySelectorAll('.player-count-btn').forEach(button => {
-                button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
-            });
-    
-            // Setup form validation and submission
-            const setupForm = document.getElementById('tournamentForm');
-            setupForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
+            try {
+                const response = await fetch('/src/assets/components/tournament-setup.html');
+                const html = await response.text();
                 
-                const inputs = [
-                    document.getElementById('currentPlayer'),
-                    ...document.querySelectorAll('#playerInputs input')
-                ];
-                const players = [];
-                let hasError = false;
-                const errorMessages = new Set();
-    
-                // Validate all inputs
-                inputs.forEach(input => {
-                    const nickname = input.value.trim();
+                // Hide main page
+                document.getElementById('main-page').classList.remove('active-page');
+                
+                const setupDiv = document.createElement('div');
+                setupDiv.id = 'tournament-setup-page';
+                setupDiv.classList.add('page', 'active-page');
+                setupDiv.innerHTML = html;
+                document.body.appendChild(setupDiv);
+        
+                // Setup player selection
+                function selectPlayers(count) {
+                    const inputsContainer = document.getElementById('playerInputs');
+                    const buttons = document.querySelectorAll('.player-count-btn');
                     
-                    if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
-                        hasError = true;
-                        input.classList.add('is-invalid');
-                        if (!nickname) errorMessages.add('All player nicknames are required');
-                        if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
-                        if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
-                        if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
+                    buttons.forEach(btn => {
+                        btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
+                    });
+                    
+                    inputsContainer.innerHTML = '';  // Clear existing fields
+                    
+                    // Add player input fields
+                    for (let i = 2; i <= count; i++) {
+                        const div = document.createElement('div');
+                        div.className = 'mb-3';
+                        div.innerHTML = `
+                            <label for="player${i}" class="form-label">Player ${i} Nickname</label>
+                            <input type="text" class="form-control" id="player${i}" name="player${i}" required>
+                        `;
+                        inputsContainer.appendChild(div);
+                    }
+                }
+        
+                // Initialize with 4 players and setup event listeners
+                selectPlayers(4);
+                document.querySelectorAll('.player-count-btn').forEach(button => {
+                    button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
+                });
+        
+                // Setup form validation and submission
+                const setupForm = document.getElementById('tournamentForm');
+                setupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const inputs = [
+                        document.getElementById('currentPlayer'),
+                        ...document.querySelectorAll('#playerInputs input')
+                    ];
+                    const players = [];
+                    let hasError = false;
+                    const errorMessages = new Set();
+        
+                    // Validate all inputs
+                    inputs.forEach(input => {
+                        const nickname = input.value.trim();
+                        
+                        if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
+                            hasError = true;
+                            input.classList.add('is-invalid');
+                            if (!nickname) errorMessages.add('All player nicknames are required');
+                            if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
+                            if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
+                            if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
+                            return;
+                        }
+                        
+                        input.classList.remove('is-invalid');
+                        players.push(nickname);
+                    });
+        
+                    if (hasError) {
+                        const alert = document.createElement('div');
+                        alert.className = 'alert alert-danger mt-3';
+                        alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+                        const existingAlert = document.querySelector('.alert');
+                        if (existingAlert) existingAlert.remove();
+                        setupForm.insertBefore(alert, setupForm.firstChild);
                         return;
                     }
-                    
-                    input.classList.remove('is-invalid');
-                    players.push(nickname);
+        
+                    // Update username and start tournament
+                    try {
+                        // Store player nicknames
+                        localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+                        
+                        // Load and show tournament game
+                        const pongResponse = await fetch('/src/assets/components/pong.html');
+                        setupDiv.remove();
+                        
+                        const gameDiv = document.createElement('div');
+                        gameDiv.id = 'game-page';
+                        gameDiv.classList.add('page', 'active-page');
+                        gameDiv.innerHTML = await pongResponse.text();
+                        document.body.appendChild(gameDiv);
+        
+                        requestAnimationFrame(() => {
+                            if (typeof initGame === 'function') initGame('TOURNAMENT');
+                        });
+                    } catch (error) {
+                        console.error('Error:', error);
+                        UIManager.showToast('Failed to start tournament', 'danger');
+                    }
                 });
-    
-                if (hasError) {
-                    const alert = document.createElement('div');
-                    alert.className = 'alert alert-danger mt-3';
-                    alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
-                    const existingAlert = document.querySelector('.alert');
-                    if (existingAlert) existingAlert.remove();
-                    setupForm.insertBefore(alert, setupForm.firstChild);
-                    return;
-                }
-    
-                // Update username and start tournament
-                try {
-                    // Store player nicknames
-                    localStorage.setItem('tournamentPlayers', JSON.stringify(players));
-                    
-                    // Load and show tournament game
-                    const pongResponse = await fetch('/src/assets/components/pong.html');
+        
+                // Setup cancel and input handlers
+                document.getElementById('cancelBtn').addEventListener('click', () => {
                     setupDiv.remove();
-                    
-                    const gameDiv = document.createElement('div');
-                    gameDiv.id = 'game-page';
-                    gameDiv.classList.add('page', 'active-page');
-                    gameDiv.innerHTML = await pongResponse.text();
-                    document.body.appendChild(gameDiv);
-    
-                    requestAnimationFrame(() => {
-                        if (typeof initGame === 'function') initGame('TOURNAMENT');
-                    });
-                } catch (error) {
-                    console.error('Error:', error);
-                    UIManager.showToast('Failed to start tournament', 'danger');
-                }
-            });
-    
-            // Setup cancel and input handlers
-            document.getElementById('cancelBtn').addEventListener('click', () => {
-                setupDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
-    
-            document.addEventListener('input', (e) => {
-                if (e.target.matches('#playerInputs input, #currentPlayer')) {
-                    e.target.classList.remove('is-invalid');
-                    const alert = document.querySelector('.alert');
-                    if (alert) alert.remove();
-                }
-            });
-    
+                    document.getElementById('main-page').classList.add('active-page');
+                });
+        
+                document.addEventListener('input', (e) => {
+                    if (e.target.matches('#playerInputs input, #currentPlayer')) {
+                        e.target.classList.remove('is-invalid');
+                        const alert = document.querySelector('.alert');
+                        if (alert) alert.remove();
+                    }
+                });
+        
+            } catch (error) {
+                console.error('Error loading tournament setup:', error);
+                UIManager.showToast('Failed to load the tournament setup', 'danger');
+            }
         } catch (error) {
-            console.error('Error loading tournament setup:', error);
-            UIManager.showToast('Failed to load the tournament setup', 'danger');
+            window.location.href = '/';
         }
     });
 
@@ -2347,16 +2351,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize friend list
     FriendManager.initializeEventListeners();
-    if (AuthManager.accessToken) {
-        FriendManager.updateFriendListUI();
-    }
+    // Remove accessToken check and rely on checkAuthenticationState
+    FriendManager.updateFriendListUI();
 
-    // Modify OAuth button handler
+    // Initialize OAuth button handler
     const oauth42Btn = document.getElementById('oauth-42-btn');
     if (oauth42Btn) {
         oauth42Btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // Store current URL before redirect
             sessionStorage.setItem('preAuthPath', window.location.pathname);
             window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
         });
@@ -2369,6 +2371,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize UserManager event listeners
     UserManager.initializeEventListeners();
+
+    // Add initializing state
+    document.body.classList.add('initializing');
+
+    // Start auth check
+    AuthManager.checkAuthenticationState()
+        .then(isAuthenticated => {
+            if (!isAuthenticated) {
+                UIManager.showPage(UIManager.pages.landing);
+            }
+        })
+        .catch(error => {
+            console.error('Authentication check failed:', error);
+            UIManager.showPage(UIManager.pages.landing);
+        })
+        .finally(() => {
+            document.body.classList.remove('initializing');
+        });
 });
 
 // Add this function to handle URL parameters
@@ -2384,17 +2404,21 @@ const getUrlParams = () => {
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
     const authError = new URLSearchParams(window.location.search).get('auth_error');
-    const code = new URLSearchParams(window.location.search).get('code');
+    const accessToken = new URLSearchParams(window.location.search).get('access_token');
+    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
     
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
         UIManager.showPage(UIManager.pages.landing);
-    } else if (code) {
-        // Handle OAuth callback
-        handleOAuthCallback(code);
-    } else {
-        // Check authentication status using cookies
-        AuthManager.initialize();
+    } else if (accessToken && refreshToken) {
+        // Store tokens and proceed to main page
+        AuthManager.accessToken = accessToken;
+        AuthManager.refreshToken = refreshToken;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        
+        UIManager.showPage(UIManager.pages.main);
+        UIManager.loadMainPage();
     }
     
     // Clean up URL
@@ -2511,46 +2535,27 @@ function createChatMessage(message) {
 // window.refreshAccessToken = refreshAccessToken;
 
 // Keep handleOAuthCallback function definition but move it before it's used
-const handleOAuthCallback = async (code) => {
-    try {
-        const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`, {
-            credentials: 'include'  // Important: include cookies
-        });
-        
-        if (response.ok) {
-            // Tokens are now in cookies, just proceed to main page
-            window.history.replaceState({}, document.title, '/');
-            UIManager.showPage(UIManager.pages.main);
-            await UIManager.loadMainPage();
-        } else {
-            throw new Error('OAuth authentication failed');
+const handleOAuthCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+        try {
+            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`, {
+                credentials: 'include'
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Clean up URL and redirect to main page
+                window.history.replaceState({}, document.title, '/');
+                await AuthManager.checkAuthenticationState();
+            } else {
+                throw new Error(data.error || 'OAuth authentication failed');
+            }
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            UIManager.showToast('Authentication failed. Please try again.', 'danger');
+            UIManager.showPage(UIManager.pages.landing);
         }
-    } catch (error) {
-        console.error('OAuth callback error:', error);
-        UIManager.showToast('Authentication failed. Please try again.', 'danger');
-        UIManager.showPage(UIManager.pages.landing);
     }
 };
-
-// Update initialization code
-if (AuthManager.accessToken) {
-    UIManager.loadMainPage();
-} else {
-    UIManager.showPage(UIManager.pages.landing);
-}
-
-// Add this to your existing styles or create a new style tag
-const style = document.createElement('style');
-style.textContent = `
-    .clickable-username {
-        cursor: pointer;
-        text-decoration: underline;
-        color: inherit;
-    }
-    
-    .clickable-username:hover {
-        opacity: 0.8;
-        text-decoration: none;
-    }
-`;
-document.head.appendChild(style);

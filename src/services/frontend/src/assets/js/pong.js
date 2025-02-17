@@ -86,16 +86,34 @@ function initGame(mode = 'AI') {
 
     // Add username variables
     let username = '';
-    let player2Name = mode === 'PVP' ? localStorage.getItem('player2Name') : 'Computer';
+    let player2Name = mode === 'PVP' ? sessionStorage.getItem('player2Name') : 'Computer';
 
-    // Fetch username at start
+    // Remove the token check and replace with a proper auth check
+    async function checkAuth() {
+        try {
+            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                window.location.href = '/';
+                return false;
+            }
+            return true;
+        } catch (error) {
+            window.location.href = '/';
+            return false;
+        }
+    }
+
+    // Update the fetchUsername function
     async function fetchUsername() {
         try {
-            const response = await fetch('/api/users/me/', {
+            const response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                credentials: 'include'
+                }
             });
             
             if (response.ok) {
@@ -103,7 +121,6 @@ function initGame(mode = 'AI') {
                 username = userData.username;
                 document.getElementById('rightPlayerName').textContent = username;
             } else {
-                // If not authenticated, redirect to login
                 window.location.href = '/';
             }
         } catch (error) {
@@ -112,10 +129,21 @@ function initGame(mode = 'AI') {
         }
     }
 
-    // Add this check before fetching:
-    if (mode !== 'TOURNAMENT') {
-        fetchUsername();
+    // Initialize the game
+    async function initialize() {
+        const isAuthenticated = await checkAuth();
+        if (!isAuthenticated) return;
+
+        if (mode !== 'TOURNAMENT') {
+            await fetchUsername();
+        }
+
+        // Start the game loop
+        requestAnimationFrame(gameLoop);
     }
+
+    // Call initialize instead of direct fetchUsername
+    initialize();
 
     function updateAI() {
         const currentTime = Date.now();
@@ -248,71 +276,45 @@ function initGame(mode = 'AI') {
         }
     }
 
+    // Update saveMatchResult function
     async function saveMatchResult(matchData) {
         try {
-            const response = await fetch('/api/matches/', {
+            const response = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify(matchData)
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                console.error('Match save error details:', errorData);
+                if (response.status === 401) {
+                    window.location.href = '/';
+                    return;
+                }
                 throw new Error('Failed to save match result');
             }
 
-            const userResponse = await fetch('/api/users/profile/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include'
-            });
-    
-            if (userResponse.ok) {
-                const userData = await userResponse.json();
-                const updateData = {
-                    match_wins: userData.match_wins + (playerScore > computerScore ? 1 : 0),
-                    total_matches: userData.total_matches + 1
-                };
-    
-                await fetch('/api/users/profile/', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify(updateData)
-                });
-            }
-
-            // Store player2 name with match ID
+            // Store match data in sessionStorage
             const savedMatch = await response.json();
             if (mode === 'PVP') {
-                const matchKey = `match_${savedMatch.id}_player2`;
-                localStorage.setItem(matchKey, player2Name);
-                
-                // Also store match type
-                const matchTypeKey = `match_${savedMatch.id}_type`;
-                localStorage.setItem(matchTypeKey, 'PVP');
+                sessionStorage.setItem(`match_${savedMatch.id}_player2`, player2Name);
+                sessionStorage.setItem(`match_${savedMatch.id}_type`, 'PVP');
             }
 
-            // Redirect only after successful save
+            // Instead of redirecting, use UIManager to transition
             setTimeout(() => {
-                window.location.href = '/';
+                // Use a custom event to handle the transition
+                const event = new CustomEvent('gameComplete', { 
+                    detail: { matchData: savedMatch } 
+                });
+                window.dispatchEvent(event);
             }, 3000);
 
         } catch (error) {
             console.error('Error saving match:', error);
-            if (error.message.includes('401')) {
-                setTimeout(() => {
-                    window.location.href = '/login';
-                }, 3000);
-            }
+            window.location.href = '/';
         }
     }
 
@@ -544,17 +546,15 @@ function initGame(mode = 'AI') {
     }
 
     function initTournament() {
-        tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
+        tournamentPlayers = JSON.parse(sessionStorage.getItem('tournamentPlayers') || '[]');
         tournamentBracket = [tournamentPlayers];
         currentMatchIndex = 0;
         currentRound = 0;
         matchNumber = 1;
         
-        // Initialize game state first
         updateGameInfo();
         resetMatch();
         
-        // Wait a short moment for textures to load, then show announcement
         setTimeout(() => {
             announceMatch();
         }, 100);
@@ -730,87 +730,3 @@ function initGame(mode = 'AI') {
 
 // Initialize when script loads
 document.addEventListener('DOMContentLoaded', initGame);
-
-// Update your API call function
-async function apiCall(endpoint, method = 'GET', data = null) {
-    try {
-        const options = {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include' // Important: include cookies
-        };
-
-        if (data) {
-            options.body = JSON.stringify(data);
-        }
-
-        const response = await fetch(endpoint, options);
-
-        if (response.status === 401) {
-            // Try to refresh token
-            const refreshResponse = await fetch('/api/auth/refresh/', {
-                method: 'POST',
-                credentials: 'include'
-            });
-
-            if (refreshResponse.ok) {
-                // Token has been refreshed in cookies, retry original request
-                return apiCall(endpoint, method, data);
-            } else {
-                // Refresh failed, redirect to login
-                window.location.href = '/login';
-                return;
-            }
-        }
-
-        return response;
-    } catch (error) {
-        console.error('API call failed:', error);
-        throw error;
-    }
-}
-
-// Update login function
-async function login(username, password) {
-    try {
-        const response = await fetch('/api/auth/login/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ username, password })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            // Tokens are now automatically stored in cookies
-            // Just handle the user data or redirect
-            return data;
-        } else {
-            throw new Error('Login failed');
-        }
-    } catch (error) {
-        console.error('Login error:', error);
-        throw error;
-    }
-}
-
-// Update logout function
-async function logout() {
-    try {
-        const response = await fetch('/api/auth/logout/', {
-            method: 'POST',
-            credentials: 'include'
-        });
-
-        if (response.ok) {
-            // Cookies will be automatically removed by the backend
-            window.location.href = '/login';
-        }
-    } catch (error) {
-        console.error('Logout error:', error);
-    }
-}

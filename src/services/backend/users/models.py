@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
+from django.conf import settings
 
 def user_avatar_path(instance, filename):
     # Generate path like: avatars/user_<id>/<filename>
@@ -45,7 +46,7 @@ class User(AbstractUser):
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
             return self.avatar.url
-        return '/media/avatars/default.svg'  # Consistent default path
+        return settings.DEFAULT_AVATAR_URL
 
     def generate_otp(self):
         import random
