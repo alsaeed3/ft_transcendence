@@ -72,19 +72,10 @@ class AuthManager {
 
     static async checkAuthenticationState() {
         try {
-            // Only make the API call if we have auth cookies
-            if (!this.hasAuthCookies()) {
-                UIManager.showPage(UIManager.pages.landing);
-                return false;
-            }
-
-            // Catch the fetch promise rejection to prevent console logging
+            // Remove cookie check and directly try the API call
             const response = await fetch(`${this.API_BASE}users/me/`, {
                 credentials: 'include'
-            }).catch(() => ({
-                ok: false,
-                status: 401
-            }));
+            });
             
             if (response.ok) {
                 this.currentUser = await response.json();
@@ -93,15 +84,12 @@ class AuthManager {
                     return true;
                 }
             }
-            // Silently handle 401 status - user is simply not authenticated
-            if (response.status === 401) {
-                UIManager.showPage(UIManager.pages.landing);
-                return false;
-            }
-            // Handle other error statuses
-            throw new Error(`Failed to check authentication: ${response.status}`);
+            
+            // Any non-200 response means we're not authenticated
+            UIManager.showPage(UIManager.pages.landing);
+            return false;
         } catch (error) {
-            // Only log error if it's not a 401
+            // Only log non-401 errors
             if (!error.message.includes('401')) {
                 console.error('Error checking authentication state:', error);
             }
