@@ -91,7 +91,7 @@ function initGame(mode = 'AI') {
     // Fetch username at start
     async function fetchUsername() {
         try {
-            const response = await fetch('/api/users/profile/', {
+            const response = await fetch('/api/users/me/', {
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -102,9 +102,13 @@ function initGame(mode = 'AI') {
                 const userData = await response.json();
                 username = userData.username;
                 document.getElementById('rightPlayerName').textContent = username;
+            } else {
+                // If not authenticated, redirect to login
+                window.location.href = '/';
             }
         } catch (error) {
             console.error('Error fetching username:', error);
+            window.location.href = '/';
         }
     }
 

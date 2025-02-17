@@ -284,6 +284,30 @@ class AuthManager {
             return [];
         }
     }
+
+    static async checkAuthStatus() {
+        try {
+            const response = await fetch(`${this.API_BASE}users/me/`, {
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const userData = await response.json();
+                this.currentUser = userData;
+                UIManager.showPage(UIManager.pages.main);
+                await UIManager.loadMainPage();
+            } else {
+                UIManager.showPage(UIManager.pages.landing);
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            UIManager.showPage(UIManager.pages.landing);
+        }
+    }
+
+    static async initialize() {
+        await this.checkAuthStatus();
+    }
 }
 
 class UIManager {
@@ -2360,21 +2384,17 @@ const getUrlParams = () => {
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
     const authError = new URLSearchParams(window.location.search).get('auth_error');
-    const accessToken = new URLSearchParams(window.location.search).get('access_token');
-    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
+    const code = new URLSearchParams(window.location.search).get('code');
     
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
         UIManager.showPage(UIManager.pages.landing);
-    } else if (accessToken && refreshToken) {
-        // Store tokens and proceed to main page
-        AuthManager.accessToken = accessToken;
-        AuthManager.refreshToken = refreshToken;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        UIManager.showPage(UIManager.pages.main);
-        UIManager.loadMainPage();
+    } else if (code) {
+        // Handle OAuth callback
+        handleOAuthCallback(code);
+    } else {
+        // Check authentication status using cookies
+        AuthManager.initialize();
     }
     
     // Clean up URL
@@ -2491,32 +2511,24 @@ function createChatMessage(message) {
 // window.refreshAccessToken = refreshAccessToken;
 
 // Keep handleOAuthCallback function definition but move it before it's used
-const handleOAuthCallback = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    if (code) {
-        try {
-            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
-            const data = await response.json();
-            if (response.ok) {
-                // Store tokens and redirect to main page
-                AuthManager.accessToken = data.access;
-                AuthManager.refreshToken = data.refresh;
-                localStorage.setItem('accessToken', AuthManager.accessToken);
-                localStorage.setItem('refreshToken', AuthManager.refreshToken);
-                
-                // Clean up URL and redirect to main page
-                window.history.replaceState({}, document.title, '/');
-                UIManager.showPage(UIManager.pages.main);
-                await UIManager.loadMainPage();
-            } else {
-                throw new Error(data.error || 'OAuth authentication failed');
-            }
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            UIManager.showToast('Authentication failed. Please try again.', 'danger');
-            UIManager.showPage(UIManager.pages.landing);
+const handleOAuthCallback = async (code) => {
+    try {
+        const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`, {
+            credentials: 'include'  // Important: include cookies
+        });
+        
+        if (response.ok) {
+            // Tokens are now in cookies, just proceed to main page
+            window.history.replaceState({}, document.title, '/');
+            UIManager.showPage(UIManager.pages.main);
+            await UIManager.loadMainPage();
+        } else {
+            throw new Error('OAuth authentication failed');
         }
+    } catch (error) {
+        console.error('OAuth callback error:', error);
+        UIManager.showToast('Authentication failed. Please try again.', 'danger');
+        UIManager.showPage(UIManager.pages.landing);
     }
 };
 
