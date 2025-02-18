@@ -632,6 +632,9 @@ function initGame(mode = 'AI') {
 
     function startNextTournamentMatch() {
         currentMatchIndex += 2;
+
+        paddle1Y = (canvas.height - paddleHeight) / 2;
+        paddle2Y = (canvas.height - paddleHeight) / 2;
         
         if (currentMatchIndex >= tournamentBracket[currentRound].length) {
             const winners = tournamentBracket[currentRound].filter(player => player !== null);
