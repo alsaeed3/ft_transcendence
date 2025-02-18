@@ -2425,6 +2425,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize UserManager event listeners
     UserManager.initializeEventListeners();
+
+    // Add this with the other event listeners in the DOMContentLoaded section
+    document.getElementById('play-territory-btn').addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            const response = await fetch('/src/assets/components/territory.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show Territory page
+            const territoryDiv = document.createElement('div');
+            territoryDiv.id = 'territory-page';
+            territoryDiv.classList.add('page', 'active-page');
+            territoryDiv.innerHTML = html;
+            document.body.appendChild(territoryDiv);
+
+            // Initialize Territory game
+            initTerritory();
+
+            // Add back button handler
+            document.getElementById('back-to-menu').addEventListener('click', () => {
+                territoryDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+                // Clean up event listeners
+                document.removeEventListener('keydown', null);
+                document.removeEventListener('keyup', null);
+            });
+
+        } catch (error) {
+            console.error('Error loading Territory game:', error);
+            UIManager.showToast('Failed to load the Territory Battle game', 'danger');
+        }
+    });
 });
 
 // Add this function to handle URL parameters
