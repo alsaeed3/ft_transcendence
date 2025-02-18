@@ -79,7 +79,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 1;
+    const WINNING_SCORE = 3;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -796,9 +796,9 @@ function init4PlayerGame() {
         ballRadius: canvas.width * 0.01,
         paddleSpeed: canvas.width * 0.01,
         initialBallSpeed: 5,
-        speedIncrease: 0.5,
+        speedIncrease: 1.1,  // Change to 10% increase like PVP mode
         maxBallSpeed: 15,
-        winningScore: 1
+        winningScore: 3
     };
 
     // Players setup
@@ -927,7 +927,7 @@ function init4PlayerGame() {
                     state.ball.y <= pos.y + config.paddleLength + config.ballRadius) {
 
                     state.lastHitPlayer = index;
-                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+                    state.ball.speed = Math.min(state.ball.speed * config.speedIncrease, config.maxBallSpeed);
 
                     const relativeHit = (state.ball.y - (pos.y + config.paddleLength/2)) / (config.paddleLength/2);
                     const angle = relativeHit * 0.75 * Math.PI / 4;
@@ -942,7 +942,7 @@ function init4PlayerGame() {
                     state.ball.x <= pos.x + config.paddleLength + config.ballRadius) {
 
                     state.lastHitPlayer = index;
-                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+                    state.ball.speed = Math.min(state.ball.speed * config.speedIncrease, config.maxBallSpeed);
 
                     const relativeHit = (state.ball.x - (pos.x + config.paddleLength/2)) / (config.paddleLength/2);
                     const angle = relativeHit * 0.75 * Math.PI / 4;
