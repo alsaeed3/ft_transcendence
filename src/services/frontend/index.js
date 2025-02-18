@@ -2409,40 +2409,47 @@ const getUrlParams = () => {
 };
 
 // Update the initialization code
-document.addEventListener('DOMContentLoaded', () => {
-    // ... other event listeners ...
+document.addEventListener('DOMContentLoaded', async () => {
+    // Add initializing state
+    document.body.classList.add('initializing');
 
-    // Remove automatic auth check and replace with landing page display
-    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    // Initialize all event listeners and UI components first
+    initializeEventListeners();
     
+    // Handle OAuth error if present
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
-    }
-    
-    // Always start with landing page for non-authenticated paths
-    if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-        UIManager.showPage(UIManager.pages.landing);
-    }
-    
-    // Only check auth state after successful login or when accessing protected routes
-    if (window.location.pathname.startsWith('/protected/')) {
-        AuthManager.checkAuthenticationState()
-            .catch(error => {
-                console.error('Authentication check failed:', error);
-                UIManager.showPage(UIManager.pages.landing);
-            });
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/');
     }
 
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
-    
-    // Initialize managers
-    ChatManager.initializeEventListeners();
-    FriendManager.initializeEventListeners();
-    UserManager.initializeEventListeners();
-    
-    // Preload default avatar
-    Utils.preloadDefaultAvatar();
+    try {
+        // Check authentication state before showing any page
+        const isAuthenticated = await AuthManager.checkAuthenticationState();
+        
+        if (isAuthenticated) {
+            // User is authenticated, show main page
+            await UIManager.loadMainPage();
+        } else {
+            // User is not authenticated, show landing page
+            UIManager.showPage(UIManager.pages.landing);
+        }
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        UIManager.showPage(UIManager.pages.landing);
+    } finally {
+        // Initialize managers
+        ChatManager.initializeEventListeners();
+        FriendManager.initializeEventListeners();
+        UserManager.initializeEventListeners();
+        
+        // Preload default avatar
+        Utils.preloadDefaultAvatar();
+        
+        // Remove initializing state
+        document.body.classList.remove('initializing');
+    }
 });
 
 function createChatMessage(message) {
