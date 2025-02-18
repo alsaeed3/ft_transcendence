@@ -458,31 +458,40 @@ function initGame(mode = 'AI') {
         document.getElementById('paddleSpeedValue').textContent = newPaddleSpeed;
     };
 
-    // Keyboard controls
+    let keysPressed = new Set(); // Track all currently pressed keys
+
     document.addEventListener('keydown', (event) => {
-        switch(event.key.toLowerCase()) {
-            case 'p':  // Right player controls
-                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
-                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
-                }
-                break;
-            case 'l':
-                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
-                    paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
-                }
-                break;
-            case 'w':  // Left player controls (AI or second player)
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
-                    paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
-                }
-                break;
-            case 's':
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
-                    paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
-                }
-                break;
-        }
+        keysPressed.add(event.key.toLowerCase());
     });
+
+    document.addEventListener('keyup', (event) => {
+        keysPressed.delete(event.key.toLowerCase());
+    });
+
+    // Add this function to handle paddle movement
+    function handlePaddleMovement() {
+        if (!gameActive || !gameStarted) return;
+
+        // Player 2 (right paddle) controls
+        if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {
+            if (keysPressed.has('p')) {
+                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
+            }
+            if (keysPressed.has('l')) {
+                paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+            }
+        }
+
+        // Player 1 (left paddle) controls
+        if (mode === 'PVP' || mode === 'TOURNAMENT') {
+            if (keysPressed.has('w')) {
+                paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+            }
+            if (keysPressed.has('s')) {
+                paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+            }
+        }
+    }
 
     let lastTime = 0;
     const targetFPS = 60;
@@ -500,11 +509,12 @@ function initGame(mode = 'AI') {
         if (deltaTime >= frameInterval) {
             draw();  // Always draw the game state
             
-            if (gameActive && gameStarted) {  // Only move ball if game has started
+            if (gameActive && gameStarted) {
+                handlePaddleMovement();  // Add this line
                 if (mode === 'AI') {
-        updateAI();
+                    updateAI();
                 }
-        moveBall();
+                moveBall();
             }
             
             lastTime = currentTime - (deltaTime % frameInterval);
