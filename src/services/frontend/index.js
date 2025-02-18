@@ -2134,12 +2134,16 @@ async function handleCreateTournament() {
             const response = await fetch('/src/assets/components/tournament-setup.html');
             const html = await response.text();
             
-            // Hide main page and show tournament setup
+            // Hide main page
+            document.getElementById('main-page').style.display = 'none';
             document.getElementById('main-page').classList.remove('active-page');
             
+            // Create and show tournament setup page without the gap
             const setupDiv = document.createElement('div');
             setupDiv.id = 'tournament-setup-page';
             setupDiv.classList.add('page', 'active-page');
+            setupDiv.style.marginTop = '0'; // Remove top margin
+            setupDiv.style.height = 'auto'; // Allow height to fit content
             setupDiv.innerHTML = html;
             document.body.appendChild(setupDiv);
     
