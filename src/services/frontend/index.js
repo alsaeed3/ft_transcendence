@@ -2425,6 +2425,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize UserManager event listeners
     UserManager.initializeEventListeners();
+
+    // Add this with the other event listeners in the DOMContentLoaded section
+    document.getElementById('play-territory-btn').addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            const response = await fetch('/src/assets/components/territory.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show Territory page
+            const territoryDiv = document.createElement('div');
+            territoryDiv.id = 'territory-page';
+            territoryDiv.classList.add('page', 'active-page');
+            territoryDiv.innerHTML = html;
+            document.body.appendChild(territoryDiv);
+
+            // Initialize Territory game
+            const game = initTerritory();  // Store the game instance
+
+            // Add back button handler with cleanup
+            document.getElementById('back-to-menu').addEventListener('click', () => {
+                // Stop the game
+                game.stop();  // We'll add this method
+                // Remove event listeners
+                document.removeEventListener('keydown', game.handleKeyDown);
+                document.removeEventListener('keyup', game.handleKeyUp);
+                // Remove the game page
+                territoryDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+
+        } catch (error) {
+            console.error('Error loading Territory game:', error);
+            UIManager.showToast('Failed to load the Territory Battle game', 'danger');
+        }
+    });
 });
 
 // Add this function to handle URL parameters

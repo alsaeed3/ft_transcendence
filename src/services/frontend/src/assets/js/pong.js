@@ -71,7 +71,6 @@ function initGame(mode = 'AI') {
     let lastAIUpdate = Date.now();
     let lastAIPaddleMove = Date.now();  // Track last paddle movement
     const AI_UPDATE_INTERVAL = 1000;    // Decision making interval
-    const AI_MOVE_INTERVAL = 20;       // Paddle movement interval
     const AI_DIFFICULTY = 0.85;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
 
     let aiMoveUp = false;              // Rule: Simulated keyboard
@@ -177,15 +176,11 @@ function initGame(mode = 'AI') {
             }
         }
         
-        // Move paddle with delay
-        if (currentTime - lastAIPaddleMove >= AI_MOVE_INTERVAL) {
-            if (aiMoveUp) {
-                paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
-                lastAIPaddleMove = currentTime;
-            } else if (aiMoveDown) {
-                paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
-                lastAIPaddleMove = currentTime;
-            }
+        // Move paddle without delay
+        if (aiMoveUp) {
+            paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+        } else if (aiMoveDown) {
+            paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
         }
     }
 
@@ -458,31 +453,40 @@ function initGame(mode = 'AI') {
         document.getElementById('paddleSpeedValue').textContent = newPaddleSpeed;
     };
 
-    // Keyboard controls
+    let keysPressed = new Set(); // Track all currently pressed keys
+
     document.addEventListener('keydown', (event) => {
-        switch(event.key.toLowerCase()) {
-            case 'p':  // Right player controls
-                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
-                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
-                }
-                break;
-            case 'l':
-                if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {  // Added AI mode
-                    paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
-                }
-                break;
-            case 'w':  // Left player controls (AI or second player)
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
-                    paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
-                }
-                break;
-            case 's':
-                if (mode === 'PVP' || mode === 'TOURNAMENT') {  // Only in PVP/Tournament
-                    paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
-                }
-                break;
-        }
+        keysPressed.add(event.key.toLowerCase());
     });
+
+    document.addEventListener('keyup', (event) => {
+        keysPressed.delete(event.key.toLowerCase());
+    });
+
+    // Add this function to handle paddle movement
+    function handlePaddleMovement() {
+        if (!gameActive || !gameStarted) return;
+
+        // Player 2 (right paddle) controls
+        if (mode === 'PVP' || mode === 'TOURNAMENT' || mode === 'AI') {
+            if (keysPressed.has('p')) {
+                paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED);
+            }
+            if (keysPressed.has('l')) {
+                paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + PADDLE_SPEED);
+            }
+        }
+
+        // Player 1 (left paddle) controls
+        if (mode === 'PVP' || mode === 'TOURNAMENT') {
+            if (keysPressed.has('w')) {
+                paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+            }
+            if (keysPressed.has('s')) {
+                paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
+            }
+        }
+    }
 
     let lastTime = 0;
     const targetFPS = 60;
@@ -500,11 +504,12 @@ function initGame(mode = 'AI') {
         if (deltaTime >= frameInterval) {
             draw();  // Always draw the game state
             
-            if (gameActive && gameStarted) {  // Only move ball if game has started
+            if (gameActive && gameStarted) {
+                handlePaddleMovement();  // Add this line
                 if (mode === 'AI') {
-        updateAI();
+                    updateAI();
                 }
-        moveBall();
+                moveBall();
             }
             
             lastTime = currentTime - (deltaTime % frameInterval);
@@ -627,6 +632,9 @@ function initGame(mode = 'AI') {
 
     function startNextTournamentMatch() {
         currentMatchIndex += 2;
+
+        paddle1Y = (canvas.height - paddleHeight) / 2;
+        paddle2Y = (canvas.height - paddleHeight) / 2;
         
         if (currentMatchIndex >= tournamentBracket[currentRound].length) {
             const winners = tournamentBracket[currentRound].filter(player => player !== null);
@@ -733,10 +741,8 @@ function initGame(mode = 'AI') {
         if (tournamentBracket[0].length === 8) {
             if (currentRound === 0) {
                 if (currentMatchIndex === 6) {
-                    // Last first round match (7-8)
                     nextMatchText = `Next: ${bracketWinners['1-2']} VS ${bracketWinners['3-4']}`;
                 } else {
-                    // Show remaining first round matches
                     const remaining = tournamentBracket[0].slice(currentMatchIndex + 2);
                     if (remaining.length > 0) {
                         const pairs = remaining.reduce((acc, player, i) => {
@@ -747,16 +753,23 @@ function initGame(mode = 'AI') {
                     }
                 }
             } else if (currentRound === 1) {
-                // Semifinals
                 nextMatchText = currentMatchIndex === 0 ?
                     `Next: ${bracketWinners['5-6']} VS ${bracketWinners['7-8']}` :
                     `Winner advances to play against ${bracketWinners['semi1']}`;
             }
-        } else {
+        } else if (tournamentBracket[0].length === 4) {
             // 4 player tournament
-            nextMatchText = currentRound === 0 ?
-                (currentMatchIndex === 0 ? 'Next: 3 vs 4' : 
-                 `Winner advances to play against ${bracketWinners['1-2']}`) : '';
+            if (currentRound === 0) {
+                if (currentMatchIndex === 0) {
+                    // First match (1-2) is being played
+                    const player3 = tournamentBracket[0][2];
+                    const player4 = tournamentBracket[0][3];
+                    nextMatchText = `Next: ${player3} vs ${player4}`;
+                } else {
+                    // Second match (3-4) is being played
+                    nextMatchText = `Winner advances to play against ${bracketWinners['1-2']}`;
+                }
+            }
         }
         
         upcomingDiv.textContent = nextMatchText;

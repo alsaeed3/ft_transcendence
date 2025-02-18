@@ -1,0 +1,64 @@
+<div class="container-fluid bg-dark text-light min-vh-100 d-flex flex-column justify-content-center">
+    <div class="row mb-4">
+        <div class="col text-center">
+            <h2 class="game-title">Color Territory Battle</h2>
+        </div>
+    </div>
+    
+    <div id="game-container" class="row justify-content-center">
+        <!-- Game will be inserted here -->
+    </div>
+
+    <div class="row mt-4">
+        <div class="col text-center">
+            <button id="back-to-menu" class="btn btn-secondary">Back to Menu</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.territory-game {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+}
+
+canvas {
+    border: 2px solid #333;
+    margin: 0 auto;
+    display: block;
+}
+
+.score-display {
+    display: flex;
+    justify-content: space-around;
+    margin: 1rem 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.instructions {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 5px;
+}
+
+.winner-announcement {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.winner-explanation {
+    font-size: 1.5rem;
+    margin-top: 1rem;
+    color: #ffffff;
+}
+</style>

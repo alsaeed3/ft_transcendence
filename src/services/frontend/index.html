@@ -112,7 +112,7 @@
             margin-right: 0;
             margin-left: 10px;
         }
-        
+
         .message-wrapper.received .avatar {
             order: 0;
             margin-right: 10px;
@@ -236,6 +236,10 @@
 
         .game-option-card.bg-info {
             background: linear-gradient(145deg, #0288d1, #03a9f4) !important;
+        }
+
+        .game-option-card.bg-purple {
+            background: linear-gradient(145deg, #6a1b9a, #8e24aa) !important;
         }
 
         .game-option-card:hover {
@@ -565,6 +569,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-12">
+                            <div class="card game-option-card bg-purple">
+                                <div class="card-body text-center">
+                                    <h5>3-Player Territory Battle</h5>
+                                    <button class="btn btn-light" id="play-territory-btn">Start Territory Battle</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -780,6 +792,7 @@
     </div>
 
     <script src="/src/assets/js/pong.js"></script>
+    <script src="/src/assets/js/territory.js"></script>
     <script src="index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
