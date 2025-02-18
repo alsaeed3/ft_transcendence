@@ -124,14 +124,27 @@ function initTerritory() {
             });
         });
 
-        // Draw players
+        // Draw players with colored centers and white borders
         players.forEach(player => {
-            ctx.fillStyle = player.color;
+            // Draw white outer circle (border)
+            ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(
                 player.x * CELL_SIZE + CELL_SIZE/2,
                 player.y * CELL_SIZE + CELL_SIZE/2,
                 CELL_SIZE/2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // Draw colored inner circle
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(
+                player.x * CELL_SIZE + CELL_SIZE/2,
+                player.y * CELL_SIZE + CELL_SIZE/2,
+                CELL_SIZE/2 - 3,  // Slightly smaller to show white border
                 0,
                 Math.PI * 2
             );
