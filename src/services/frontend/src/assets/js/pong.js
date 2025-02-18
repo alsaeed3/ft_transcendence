@@ -927,7 +927,7 @@ function init4PlayerGame() {
                     state.ball.y <= pos.y + config.paddleLength + config.ballRadius) {
 
                     state.lastHitPlayer = index;
-                    state.ball.speed = Math.min(state.ball.speed * config.speedIncrease, config.maxBallSpeed);
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
 
                     const relativeHit = (state.ball.y - (pos.y + config.paddleLength/2)) / (config.paddleLength/2);
                     const angle = relativeHit * 0.75 * Math.PI / 4;
@@ -942,7 +942,7 @@ function init4PlayerGame() {
                     state.ball.x <= pos.x + config.paddleLength + config.ballRadius) {
 
                     state.lastHitPlayer = index;
-                    state.ball.speed = Math.min(state.ball.speed * config.speedIncrease, config.maxBallSpeed);
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
 
                     const relativeHit = (state.ball.x - (pos.x + config.paddleLength/2)) / (config.paddleLength/2);
                     const angle = relativeHit * 0.75 * Math.PI / 4;
