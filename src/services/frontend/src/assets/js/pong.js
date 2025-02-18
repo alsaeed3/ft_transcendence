@@ -738,10 +738,8 @@ function initGame(mode = 'AI') {
         if (tournamentBracket[0].length === 8) {
             if (currentRound === 0) {
                 if (currentMatchIndex === 6) {
-                    // Last first round match (7-8)
                     nextMatchText = `Next: ${bracketWinners['1-2']} VS ${bracketWinners['3-4']}`;
                 } else {
-                    // Show remaining first round matches
                     const remaining = tournamentBracket[0].slice(currentMatchIndex + 2);
                     if (remaining.length > 0) {
                         const pairs = remaining.reduce((acc, player, i) => {
@@ -752,16 +750,23 @@ function initGame(mode = 'AI') {
                     }
                 }
             } else if (currentRound === 1) {
-                // Semifinals
                 nextMatchText = currentMatchIndex === 0 ?
                     `Next: ${bracketWinners['5-6']} VS ${bracketWinners['7-8']}` :
                     `Winner advances to play against ${bracketWinners['semi1']}`;
             }
-        } else {
+        } else if (tournamentBracket[0].length === 4) {
             // 4 player tournament
-            nextMatchText = currentRound === 0 ?
-                (currentMatchIndex === 0 ? 'Next: 3 vs 4' : 
-                 `Winner advances to play against ${bracketWinners['1-2']}`) : '';
+            if (currentRound === 0) {
+                if (currentMatchIndex === 0) {
+                    // First match (1-2) is being played
+                    const player3 = tournamentBracket[0][2];
+                    const player4 = tournamentBracket[0][3];
+                    nextMatchText = `Next: ${player3} vs ${player4}`;
+                } else {
+                    // Second match (3-4) is being played
+                    nextMatchText = `Winner advances to play against ${bracketWinners['1-2']}`;
+                }
+            }
         }
         
         upcomingDiv.textContent = nextMatchText;
