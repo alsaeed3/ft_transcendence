@@ -803,10 +803,10 @@ function init4PlayerGame() {
 
     // Players setup
     const players = [
-        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#FF0000', keys: ['w', 'd'] },
-        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#0000FF', keys: ['i', 'k'] },
-        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#00FF00', keys: ['arrowleft', 'arrowright'] },
-        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#FFFF00', keys: ['4', '5'] }
+        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#FF0000', keys: ['t', 'y'] },  // Top player
+        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#0000FF', keys: ['p', 'l'] },  // Right player
+        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#00FF00', keys: ['arrowleft', 'arrowright'] },  // Bottom player
+        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#FFFF00', keys: ['q', 'a'] }  // Left player
     ];
 
     // Create score display
@@ -829,12 +829,22 @@ function init4PlayerGame() {
     instructions.innerHTML = `
         <h5>Controls</h5>
         <div class="d-flex justify-content-center gap-4">
-            ${players.map((p, i) => `
-                <div style="color: ${p.color}">
-                    ${['Top', 'Right', 'Bottom', 'Left'][i]} Player<br>
-                    ${p.keys[0].toUpperCase()}/${p.keys[1].toUpperCase()}
-                </div>
-            `).join('')}
+            <div style="color: ${players[0].color}">
+                Top Player<br>
+                T/Y
+            </div>
+            <div style="color: ${players[1].color}">
+                Right Player<br>
+                P/L
+            </div>
+            <div style="color: ${players[2].color}">
+                Bottom Player<br>
+                ←/→
+            </div>
+            <div style="color: ${players[3].color}">
+                Left Player<br>
+                Q/A
+            </div>
         </div>
         <div class="mt-2">First to ${config.winningScore} points wins!</div>
     `;
@@ -908,23 +918,34 @@ function init4PlayerGame() {
                 { x: index === 1 ? canvas.width : 0, y: player.pos } :
                 { x: player.pos, y: index === 0 ? 0 : canvas.height };
 
-            if ((isVertical && Math.abs(state.ball.x - pos.x) <= config.paddleThickness + config.ballRadius &&
-                 state.ball.y >= pos.y && state.ball.y <= pos.y + config.paddleLength) ||
-                (!isVertical && Math.abs(state.ball.y - pos.y) <= config.paddleThickness + config.ballRadius &&
-                 state.ball.x >= pos.x && state.ball.x <= pos.x + config.paddleLength)) {
+            // More precise collision detection for paddle edges
+            if (isVertical) {
+                // Vertical paddles (left and right)
+                if (state.ball.x + config.ballRadius >= pos.x - config.paddleThickness/2 && 
+                    state.ball.x - config.ballRadius <= pos.x + config.paddleThickness/2 && 
+                    state.ball.y >= pos.y - config.ballRadius && 
+                    state.ball.y <= pos.y + config.paddleLength + config.ballRadius) {
 
-                state.lastHitPlayer = index;
-                state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+                    state.lastHitPlayer = index;
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
 
-                const relativeHit = isVertical ?
-                    (state.ball.y - (pos.y + config.paddleLength/2)) / (config.paddleLength/2) :
-                    (state.ball.x - (pos.x + config.paddleLength/2)) / (config.paddleLength/2);
-
-                const angle = relativeHit * 0.75 * Math.PI / 4;
-                if (isVertical) {
+                    const relativeHit = (state.ball.y - (pos.y + config.paddleLength/2)) / (config.paddleLength/2);
+                    const angle = relativeHit * 0.75 * Math.PI / 4;
                     state.ball.speedY = state.ball.speed * Math.sin(angle);
                     state.ball.speedX = (state.ball.speedX > 0 ? -1 : 1) * state.ball.speed * Math.cos(angle);
-                } else {
+                }
+            } else {
+                // Horizontal paddles (top and bottom)
+                if (state.ball.y + config.ballRadius >= pos.y - config.paddleThickness/2 && 
+                    state.ball.y - config.ballRadius <= pos.y + config.paddleThickness/2 && 
+                    state.ball.x >= pos.x - config.ballRadius && 
+                    state.ball.x <= pos.x + config.paddleLength + config.ballRadius) {
+
+                    state.lastHitPlayer = index;
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+
+                    const relativeHit = (state.ball.x - (pos.x + config.paddleLength/2)) / (config.paddleLength/2);
+                    const angle = relativeHit * 0.75 * Math.PI / 4;
                     state.ball.speedX = state.ball.speed * Math.sin(angle);
                     state.ball.speedY = (state.ball.speedY > 0 ? -1 : 1) * state.ball.speed * Math.cos(angle);
                 }
