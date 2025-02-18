@@ -1009,7 +1009,11 @@ function init4PlayerGame() {
         const announcement = document.createElement('div');
         announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
         announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
-        announcement.textContent = `Player ${winnerIndex + 1} Wins!`;
+        
+        // Map player index to position
+        const positions = ['Top', 'Right', 'Bottom', 'Left'];
+        announcement.textContent = `${positions[winnerIndex]} Player Wins!`;
+        
         gameContainer.appendChild(announcement);
 
         // Redirect to homepage after 3 seconds
