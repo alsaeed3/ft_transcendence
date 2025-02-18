@@ -3,6 +3,7 @@ function initTerritory() {
     const CELL_SIZE = 25;
     const PLAYER_SPEED = 5;
     let gameActive = true;
+    let animationFrameId = null;
 
     // Player data
     const players = [
@@ -51,8 +52,19 @@ function initTerritory() {
 
     // Track pressed keys
     const keysPressed = new Set();
-    document.addEventListener('keydown', e => keysPressed.add(e.key.toLowerCase()));
-    document.addEventListener('keyup', e => keysPressed.delete(e.key.toLowerCase()));
+
+    // Create separate functions for event listeners so we can remove them
+    function handleKeyDown(e) {
+        keysPressed.add(e.key.toLowerCase());
+    }
+
+    function handleKeyUp(e) {
+        keysPressed.delete(e.key.toLowerCase());
+    }
+
+    // Add event listeners
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
 
     function updateGame() {
         if (!gameActive) return;
@@ -94,9 +106,9 @@ function initTerritory() {
         scoreElements[1].textContent = `Blue: ${scores[1]}`;
         scoreElements[2].textContent = `Green: ${scores[2]}`;
 
-        // Check for winner (when one player has more than 40% of total cells)
+        // Check for winner (when one player has more than 30% of total cells)
         const totalCells = GRID_SIZE * GRID_SIZE;
-        const winningScore = totalCells * 0.4;
+        const winningScore = totalCells * 0.3;
         scores.forEach((score, index) => {
             if (score > winningScore) {
                 gameActive = false;
@@ -106,7 +118,9 @@ function initTerritory() {
 
         // Draw game state
         drawGame();
-        requestAnimationFrame(updateGame);
+
+        // Store the animation frame ID
+        animationFrameId = requestAnimationFrame(updateGame);
     }
 
     function drawGame() {
@@ -160,19 +174,16 @@ function initTerritory() {
         announcement.textContent = `${colors[playerId - 1]} Player Wins!`;
         gameContainer.appendChild(announcement);
 
-        // Add winning condition explanation
+        // Update explanation text
         const explanation = document.createElement('div');
         explanation.className = 'winner-explanation';
-        explanation.textContent = `(First to capture 40% of the board)`;
+        explanation.textContent = `(First to capture 30% of the board)`;
         announcement.appendChild(explanation);
 
+        // Automatically redirect after 3 seconds
         setTimeout(() => {
-            if (confirm('Play again?')) {
-                resetGame();
-            } else {
-                document.getElementById('back-to-menu').click();
-            }
-        }, 2000);
+            document.getElementById('back-to-menu').click();
+        }, 3000);
     }
 
     function resetGame() {
@@ -188,6 +199,20 @@ function initTerritory() {
         if (announcement) announcement.remove();
     }
 
+    function stop() {
+        gameActive = false;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+    }
+
     // Start game
     updateGame();
+
+    // Return game controller
+    return {
+        stop,
+        handleKeyDown,
+        handleKeyUp
+    };
 }

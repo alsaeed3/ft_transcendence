@@ -2448,15 +2448,18 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(territoryDiv);
 
             // Initialize Territory game
-            initTerritory();
+            const game = initTerritory();  // Store the game instance
 
-            // Add back button handler
+            // Add back button handler with cleanup
             document.getElementById('back-to-menu').addEventListener('click', () => {
+                // Stop the game
+                game.stop();  // We'll add this method
+                // Remove event listeners
+                document.removeEventListener('keydown', game.handleKeyDown);
+                document.removeEventListener('keyup', game.handleKeyUp);
+                // Remove the game page
                 territoryDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
-                // Clean up event listeners
-                document.removeEventListener('keydown', null);
-                document.removeEventListener('keyup', null);
             });
 
         } catch (error) {
