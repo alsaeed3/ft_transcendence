@@ -79,7 +79,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 1;
+    const WINNING_SCORE = 3;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -392,11 +392,10 @@ function initGame(mode = 'AI') {
     }
 
     function draw() {
-        // Clear screen (black background)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw classic 1972 center line (dashed)
+
+        // Draw paddles
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 4;
         ctx.setLineDash([20, 15]); // Larger dashes for authentic look
@@ -406,7 +405,6 @@ function initGame(mode = 'AI') {
         ctx.stroke();
         ctx.setLineDash([]); // Reset dash pattern
         
-        // Draw paddles and ball
         ctx.fillStyle = 'white';
         ctx.fillRect(0, paddle1Y, paddleWidth, paddleHeight);
         ctx.fillRect(canvas.width - paddleWidth, paddle2Y, paddleWidth, paddleHeight);
@@ -774,6 +772,284 @@ function initGame(mode = 'AI') {
         
         upcomingDiv.textContent = nextMatchText;
     }
+}
+
+function init4PlayerGame() {
+    // Create game container
+    const gameContainer = document.createElement('div');
+    gameContainer.id = 'game-container';
+    gameContainer.className = 'container text-white text-center';
+    document.getElementById('pong-page').appendChild(gameContainer);
+
+    // Create and add canvas with a border
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
+    canvas.className = 'mx-auto d-block mb-3';
+    canvas.style.border = '2px solid white'; // Add border to see game area
+    gameContainer.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    // Game configuration
+    const config = {
+        paddleLength: canvas.width * 0.2,
+        paddleThickness: canvas.width * 0.015,
+        ballRadius: canvas.width * 0.01,
+        paddleSpeed: canvas.width * 0.01,
+        initialBallSpeed: 5,
+        speedIncrease: 1.1,  // Change to 10% increase like PVP mode
+        maxBallSpeed: 15,
+        winningScore: 3
+    };
+
+    // Players setup
+    const players = [
+        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#FF0000', keys: ['t', 'y'] },  // Top player
+        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#0000FF', keys: ['p', 'l'] },  // Right player
+        { pos: (canvas.width - config.paddleLength)/2, score: 0, name: '', color: '#00FF00', keys: ['arrowleft', 'arrowright'] },  // Bottom player
+        { pos: (canvas.height - config.paddleLength)/2, score: 0, name: '', color: '#FFFF00', keys: ['q', 'a'] }  // Left player
+    ];
+
+    // Create score display
+    const scoreDisplay = document.createElement('div');
+    scoreDisplay.className = 'd-flex justify-content-around mb-3';
+    scoreDisplay.innerHTML = `
+        <div class="d-flex gap-4">
+            ${['Top', 'Right', 'Bottom', 'Left'].map((pos, i) => `
+                <div style="color: ${players[i].color}">
+                    ${pos} Player: <span id="player${i}Score">0</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    gameContainer.appendChild(scoreDisplay);
+
+    // Add controls instructions
+    const instructions = document.createElement('div');
+    instructions.className = 'bg-dark bg-opacity-75 p-3 rounded mb-3';
+    instructions.innerHTML = `
+        <h5>Controls</h5>
+        <div class="d-flex justify-content-center gap-4">
+            <div style="color: ${players[0].color}">
+                Top Player<br>
+                T/Y
+            </div>
+            <div style="color: ${players[1].color}">
+                Right Player<br>
+                P/L
+            </div>
+            <div style="color: ${players[2].color}">
+                Bottom Player<br>
+                ←/→
+            </div>
+            <div style="color: ${players[3].color}">
+                Left Player<br>
+                Q/A
+            </div>
+        </div>
+        <div class="mt-2">First to ${config.winningScore} points wins!</div>
+    `;
+    gameContainer.appendChild(instructions);
+
+    // Game state
+    const state = {
+        ball: { x: canvas.width/2, y: canvas.height/2, speedX: 0, speedY: 0, speed: config.initialBallSpeed },
+        lastHitPlayer: null,
+        gameActive: false,
+        keysPressed: new Set()
+    };
+
+    // Event listeners
+    document.addEventListener('keydown', e => state.keysPressed.add(e.key.toLowerCase()));
+    document.addEventListener('keyup', e => state.keysPressed.delete(e.key.toLowerCase()));
+
+    function announceGame() {
+        const announcement = document.createElement('div');
+        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+        announcement.style.cssText = 'font-size: 2rem; z-index: 1000;';
+        document.getElementById('pong-page').appendChild(announcement);
+
+        // Start with count 3 and show it immediately
+        announcement.innerHTML = `Game starting in 3`;
+        
+        let count = 2;  // Start at 2 since we already showed 3
+        const countdownInterval = setInterval(() => {
+            if (count > 0) {
+                announcement.innerHTML = `Game starting in ${count}`;
+                count--;
+            } else {
+                clearInterval(countdownInterval);
+                announcement.remove();
+                startGame();
+            }
+        }, 1000);
+    }
+
+    function startGame() {
+        const directions = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
+        const dir = directions[Math.floor(Math.random() * 4)];
+        state.ball.speedX = dir.x * state.ball.speed;
+        state.ball.speedY = dir.y * state.ball.speed;
+        state.gameActive = true;
+    }
+
+    function update() {
+        if (!state.gameActive) return;
+
+        // Move paddles
+        players.forEach((player, index) => {
+            const isVertical = index % 2;
+            const maxPos = (isVertical ? canvas.height : canvas.width) - config.paddleLength;
+            if (state.keysPressed.has(player.keys[0])) {
+                player.pos = Math.max(0, player.pos - config.paddleSpeed);
+            }
+            if (state.keysPressed.has(player.keys[1])) {
+                player.pos = Math.min(maxPos, player.pos + config.paddleSpeed);
+            }
+        });
+
+        // Move ball
+        state.ball.x += state.ball.speedX;
+        state.ball.y += state.ball.speedY;
+
+        // Check collisions
+        players.forEach((player, index) => {
+            const isVertical = index % 2;
+            const pos = isVertical ? 
+                { x: index === 1 ? canvas.width : 0, y: player.pos } :
+                { x: player.pos, y: index === 0 ? 0 : canvas.height };
+
+            // More precise collision detection for paddle edges
+            if (isVertical) {
+                // Vertical paddles (left and right)
+                if (state.ball.x + config.ballRadius >= pos.x - config.paddleThickness/2 && 
+                    state.ball.x - config.ballRadius <= pos.x + config.paddleThickness/2 && 
+                    state.ball.y >= pos.y - config.ballRadius && 
+                    state.ball.y <= pos.y + config.paddleLength + config.ballRadius) {
+
+                    state.lastHitPlayer = index;
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+
+                    const relativeHit = (state.ball.y - (pos.y + config.paddleLength/2)) / (config.paddleLength/2);
+                    const angle = relativeHit * 0.75 * Math.PI / 4;
+                    state.ball.speedY = state.ball.speed * Math.sin(angle);
+                    state.ball.speedX = (state.ball.speedX > 0 ? -1 : 1) * state.ball.speed * Math.cos(angle);
+                }
+            } else {
+                // Horizontal paddles (top and bottom)
+                if (state.ball.y + config.ballRadius >= pos.y - config.paddleThickness/2 && 
+                    state.ball.y - config.ballRadius <= pos.y + config.paddleThickness/2 && 
+                    state.ball.x >= pos.x - config.ballRadius && 
+                    state.ball.x <= pos.x + config.paddleLength + config.ballRadius) {
+
+                    state.lastHitPlayer = index;
+                    state.ball.speed = Math.min(state.ball.speed + config.speedIncrease, config.maxBallSpeed);
+
+                    const relativeHit = (state.ball.x - (pos.x + config.paddleLength/2)) / (config.paddleLength/2);
+                    const angle = relativeHit * 0.75 * Math.PI / 4;
+                    state.ball.speedX = state.ball.speed * Math.sin(angle);
+                    state.ball.speedY = (state.ball.speedY > 0 ? -1 : 1) * state.ball.speed * Math.cos(angle);
+                }
+            }
+        });
+
+        // Check scoring
+        if (state.ball.x < 0 || state.ball.x > canvas.width || 
+            state.ball.y < 0 || state.ball.y > canvas.height) {
+            if (state.lastHitPlayer !== null) {
+                players[state.lastHitPlayer].score++;
+                if (players[state.lastHitPlayer].score >= config.winningScore) {
+                    announceWinner(state.lastHitPlayer);
+                    return;
+                }
+            }
+            resetBall();
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw paddles
+        players.forEach((player, index) => {
+            ctx.strokeStyle = player.color;
+            ctx.lineWidth = config.paddleThickness;
+            ctx.beginPath();
+            if (index % 2 === 0) {
+                const y = index === 0 ? config.paddleThickness/2 : canvas.height - config.paddleThickness/2;
+                ctx.moveTo(player.pos, y);
+                ctx.lineTo(player.pos + config.paddleLength, y);
+            } else {
+                const x = index === 1 ? canvas.width - config.paddleThickness/2 : config.paddleThickness/2;
+                ctx.moveTo(x, player.pos);
+                ctx.lineTo(x, player.pos + config.paddleLength);
+            }
+            ctx.stroke();
+        });
+
+        // Draw ball
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(state.ball.x, state.ball.y, config.ballRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function resetBall() {
+        state.ball.x = canvas.width / 2;
+        state.ball.y = canvas.height / 2;
+        state.ball.speed = config.initialBallSpeed;
+        const dir = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }][Math.floor(Math.random() * 4)];
+        state.ball.speedX = dir.x * state.ball.speed;
+        state.ball.speedY = dir.y * state.ball.speed;
+        state.lastHitPlayer = null;
+    }
+
+    function announceWinner(winnerIndex) {
+        state.gameActive = false;
+        const announcement = document.createElement('div');
+        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+        announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
+        
+        // Map player index to position
+        const positions = ['Top', 'Right', 'Bottom', 'Left'];
+        announcement.textContent = `${positions[winnerIndex]} Player Wins!`;
+        
+        gameContainer.appendChild(announcement);
+
+        // Redirect to homepage after 3 seconds
+        setTimeout(() => {
+            document.getElementById('pong-page').remove();
+            document.getElementById('main-page').classList.add('active-page');
+        }, 3000);
+    }
+
+    // Update scores in the UI
+    function updateScores() {
+        players.forEach((player, i) => {
+            const scoreElement = document.getElementById(`player${i}Score`);
+            if (scoreElement) {
+                scoreElement.textContent = player.score;
+            }
+        });
+    }
+
+    // Modify the update function to call updateScores
+    const originalUpdate = update;
+    update = function() {
+        originalUpdate();
+        updateScores();
+    };
+
+    // Start game loop
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+
+    // Start game with countdown
+    announceGame();
 }
 
 // Initialize when script loads
