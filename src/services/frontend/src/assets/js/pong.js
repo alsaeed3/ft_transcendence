@@ -71,7 +71,6 @@ function initGame(mode = 'AI') {
     let lastAIUpdate = Date.now();
     let lastAIPaddleMove = Date.now();  // Track last paddle movement
     const AI_UPDATE_INTERVAL = 1000;    // Decision making interval
-    const AI_MOVE_INTERVAL = 20;       // Paddle movement interval
     const AI_DIFFICULTY = 0.85;         // Rule: Consistent challenge (0 = always miss, 1 = perfect)
 
     let aiMoveUp = false;              // Rule: Simulated keyboard
@@ -177,15 +176,11 @@ function initGame(mode = 'AI') {
             }
         }
         
-        // Move paddle with delay
-        if (currentTime - lastAIPaddleMove >= AI_MOVE_INTERVAL) {
-            if (aiMoveUp) {
-                paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
-                lastAIPaddleMove = currentTime;
-            } else if (aiMoveDown) {
-                paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
-                lastAIPaddleMove = currentTime;
-            }
+        // Move paddle without delay
+        if (aiMoveUp) {
+            paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED);
+        } else if (aiMoveDown) {
+            paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + PADDLE_SPEED);
         }
     }
 
