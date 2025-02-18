@@ -150,11 +150,30 @@ class AuthManager {
                 return;
             }
 
-            // Store user data
+            // Store user data and proceed to main page
             this.currentUser = data.user;
+            UIManager.showPage(UIManager.pages.main);
+            UIManager.updateProfileDisplay(data.user);
+            UIManager.loadUserStats(data.user);
 
-            // Now check authentication state and load main page
-            await this.checkAuthenticationState();
+            // Load additional data in parallel
+            try {
+                await Promise.all([
+                    UserManager.loadUsersList(),
+                    FriendManager.updateFriendListUI(),
+                    this.fetchMatchHistory().then(matches => 
+                        MatchManager.displayMatchHistory(matches)
+                    )
+                ]);
+
+                // Initialize chat after data is loaded
+                ChatManager.initStatusWebSocket();
+                
+                // Apply username clickability after all content is loaded
+                UIManager.applyUsernameClickability();
+            } catch (error) {
+                console.error('Error loading additional data:', error);
+            }
 
         } catch (error) {
             console.error('Login error:', error);
@@ -2003,8 +2022,174 @@ class MatchManager {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Update the game handler functions
+async function handlePlayPlayer() {
+    try {
+        // Check authentication
+        const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+        if (!response.ok) {
+            window.location.href = '/';
+            return;
+        }
 
+        try {
+            // First load the player2 setup page
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            // Show the setup page
+            UIManager.showGamePage(html);
+    
+            // Add event listeners after adding to DOM
+            const setupForm = document.getElementById('player2-setup-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+    
+            if (setupForm) {
+                setupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const player2Name = document.getElementById('player2-name').value;
+                    sessionStorage.setItem('player2Name', player2Name);
+    
+                    // Load pong game
+                    const pongResponse = await fetch('/src/assets/components/pong.html');
+                    const html = await pongResponse.text();
+    
+                    // Show the game page
+                    UIManager.showGamePage(html);
+    
+                    // Initialize game after DOM is updated
+                    setTimeout(() => {
+                        if (typeof initGame === 'function') {
+                            initGame('PVP');
+                        }
+                    }, 0);
+                });
+            }
+    
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    const gamePage = document.getElementById('game-page');
+                    if (gamePage) {
+                        gamePage.remove();
+                    }
+                    UIManager.showPage(UIManager.pages.main);
+                });
+            }
+    
+        } catch (error) {
+            console.error('Error loading setup page:', error);
+            UIManager.showToast('Failed to load the setup page', 'danger');
+        }
+    } catch (error) {
+        console.error('Error starting PVP game:', error);
+        window.location.href = '/';
+    }
+}
+
+async function handlePlayAI() {
+    try {
+        // Check authentication
+        const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+        if (!response.ok) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            // Load pong game
+            const response = await fetch('/src/assets/components/pong.html');
+            const html = await response.text();
+            
+            // Show the game page
+            UIManager.showGamePage(html);
+    
+            // Initialize game after DOM is updated
+            setTimeout(() => {
+                if (typeof initGame === 'function') {
+                    initGame('AI');
+                }
+            }, 0);
+    
+        } catch (error) {
+            console.error('Error loading game:', error);
+            UIManager.showToast('Failed to load the game', 'danger');
+        }
+    } catch (error) {
+        console.error('Error starting AI game:', error);
+        window.location.href = '/';
+    }
+}
+
+async function handleCreateTournament() {
+    try {
+        // Check authentication
+        const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+        if (!response.ok) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            // Load tournament setup
+            const response = await fetch('/src/assets/components/tournament-setup.html');
+            const html = await response.text();
+            
+            // Hide main page and show tournament setup
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'tournament-setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+    
+            // Initialize tournament setup
+            if (typeof initGame === 'function') {
+                initGame('TOURNAMENT');
+            }
+    
+        } catch (error) {
+            console.error('Error loading tournament setup:', error);
+            UIManager.showToast('Failed to load the tournament setup', 'danger');
+        }
+    } catch (error) {
+        console.error('Error starting tournament:', error);
+        window.location.href = '/';
+    }
+}
+
+// Update the DOMContentLoaded event listener at the bottom of index.js
+document.addEventListener('DOMContentLoaded', () => {
+    // Add initializing state
+    document.body.classList.add('initializing');
+
+    // Initialize all event listeners and UI components first
+    initializeEventListeners();
+    
+    // Show landing page by default
+    UIManager.showPage(UIManager.pages.landing);
+    
+    // Handle OAuth error if present
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    if (authError) {
+        UIManager.showToast(decodeURIComponent(authError), 'danger');
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/');
+    }
+    
+    // Initialize managers
+    ChatManager.initializeEventListeners();
+    FriendManager.initializeEventListeners();
+    UserManager.initializeEventListeners();
+    
+    // Preload default avatar
+    Utils.preloadDefaultAvatar();
+    
+    document.body.classList.remove('initializing');
+});
+
+// Move the initializeEventListeners function definition above the DOMContentLoaded listener
+function initializeEventListeners() {
     // 2FA form submit handler
     const twoFAForm = document.getElementById('2fa-form');
     if (twoFAForm) {
@@ -2038,7 +2223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToLoginBtn = document.getElementById('back-to-login');
     if (backToLoginBtn) {
         backToLoginBtn.addEventListener('click', () => {
-            UIManager.showLoginForm(); // Use the updated method
+            UIManager.showLoginForm();
         });
     }
 
@@ -2050,378 +2235,156 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('register-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const inputs = e.target.querySelectorAll('input');
-        const userData = {
-            username: inputs[0].value,
-            email: inputs[1].value,
-            password: inputs[2].value,
-            repeat_password: inputs[3].value
-        };
-        await AuthManager.register(userData);
-    });
-
-    document.getElementById('2fa-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const otp = document.getElementById('otp-input').value.trim();
-        if (otp.length !== 6) {
-            UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
-            return;
-        }
-        await AuthManager.verify2FA(otp);
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', () => AuthManager.logout());
-
-    // Form toggle listeners
-    document.getElementById('register-link').addEventListener('click', UIManager.toggleForms);
-    document.getElementById('login-link').addEventListener('click', UIManager.toggleForms);
-
-    // Profile listeners
-    document.getElementById('update-profile-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        try {
-            const form = e.target;
-            const formData = new FormData(form);
-            
-            // Remove empty password from FormData
-            if (!formData.get('password')) {
-                formData.delete('password');
-            }
-            
-            // Remove empty avatar from FormData
-            if (!formData.get('avatar').size) {
-                formData.delete('avatar');
-            }
-
-            await ProfileManager.updateProfile(formData);
-        } catch (error) {
-            console.error('Form submission error:', error);
-            UIManager.showToast('Failed to submit form', 'danger');
-        }
-    });
-
-    // Auth related listeners
-    document.getElementById('login-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const [username, password] = e.target.querySelectorAll('input');
-        try {
-            await AuthManager.login(username.value, password.value);
-        } catch (error) {
-            UIManager.showToast('Login failed', 'danger');
-        }
-    });
-
-    // Update profile form handler
-    document.getElementById('update-profile-form')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        ProfileManager.updateProfile(formData);
-    });
-
-    // Chat related listeners
-    document.getElementById('send-button').addEventListener('click', () => {
-        ChatManager.sendMessage();
-    });
-
-    document.getElementById('message-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    // Register form handler
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            ChatManager.sendMessage();
-        }
-    });
+            const inputs = e.target.querySelectorAll('input');
+            const userData = {
+                username: inputs[0].value,
+                email: inputs[1].value,
+                password: inputs[2].value,
+                repeat_password: inputs[3].value
+            };
+            await AuthManager.register(userData);
+        });
+    }
+
+    // Logout button handler
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => AuthManager.logout());
+    }
+
+    // Form toggle handlers
+    const registerLink = document.getElementById('register-link');
+    const loginLink = document.getElementById('login-link');
+    if (registerLink) registerLink.addEventListener('click', UIManager.toggleForms);
+    if (loginLink) loginLink.addEventListener('click', UIManager.toggleForms);
+
+    // Profile update form handler
+    const updateProfileForm = document.getElementById('update-profile-form');
+    if (updateProfileForm) {
+        updateProfileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const formData = new FormData(e.target);
+                
+                // Remove empty fields
+                if (!formData.get('password')) formData.delete('password');
+                if (!formData.get('avatar').size) formData.delete('avatar');
+
+                await ProfileManager.updateProfile(formData);
+            } catch (error) {
+                console.error('Form submission error:', error);
+                UIManager.showToast('Failed to submit form', 'danger');
+            }
+        });
+    }
+
+    // Login form handler
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const [username, password] = e.target.querySelectorAll('input');
+            try {
+                await AuthManager.login(username.value, password.value);
+            } catch (error) {
+                UIManager.showToast('Login failed', 'danger');
+            }
+        });
+    }
+
+    // Chat handlers
+    const sendButton = document.getElementById('send-button');
+    const messageInput = document.getElementById('message-input');
+    
+    if (sendButton) {
+        sendButton.addEventListener('click', ChatManager.sendMessage);
+    }
+    
+    if (messageInput) {
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                ChatManager.sendMessage();
+            }
+        });
+    }
 
     // 2FA toggle form handler
-    document.getElementById('2fa-toggle-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const password = document.getElementById('2fa-password').value;
-        try {
-            const profile = await ProfileManager.fetchUserProfile();
-            if (profile.is_42_auth) {
-                UIManager.showToast('2FA settings cannot be modified for 42 School users.', 'warning');
-                return;
-            }
-
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}auth/2fa/toggle/`, {
-            method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to toggle 2FA');
-            }
-
-            const data = await response.json();
-            document.getElementById('2fa-password').value = '';
-            await UIManager.loadUpdateProfilePage();
-            UIManager.showToast(data.message || '2FA status updated successfully', 'success');
-    } catch (error) {
-            console.error('Error toggling 2FA:', error);
-            UIManager.showToast(error.message, 'danger');
-        }
-    });
-
-    document.getElementById('play-player-btn').addEventListener('click', async () => {
-        try {
-            // Check authentication
-            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                window.location.href = '/';
-                return;
-            }
-
+    const twoFAToggleForm = document.getElementById('2fa-toggle-form');
+    if (twoFAToggleForm) {
+        twoFAToggleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('2fa-password').value;
             try {
-                const response = await fetch('/src/assets/components/player2-setup.html');
-                const html = await response.text();
-                
-                // Use the new showGamePage method
-                UIManager.showGamePage(html);
-        
-                // Add event listeners after adding to DOM
-                const setupForm = document.getElementById('player2-setup-form');
-                const cancelBtn = document.getElementById('cancel-btn');
-        
-                setupForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const player2Name = document.getElementById('player2-name').value;
-                    sessionStorage.setItem('player2Name', player2Name);
-        
-                    // Load pong game
-                    const pongResponse = await fetch('/src/assets/components/pong.html');
-                    const html = await pongResponse.text();
-        
-                    // Use showGamePage again for the actual game
-                    UIManager.showGamePage(html);
-        
-                    // Initialize game after DOM is updated
-                    setTimeout(() => {
-                        if (typeof initGame === 'function') {
-                            initGame('PVP');
-                        }
-                    }, 0);
-                });
-        
-                cancelBtn.addEventListener('click', () => {
-                    const gamePage = document.getElementById('game-page');
-                    if (gamePage) {
-                        gamePage.remove();
-                    }
-                    UIManager.showPage(UIManager.pages.main);
-                });
-        
-            } catch (error) {
-                console.error('Error loading setup page:', error);
-                UIManager.showToast('Failed to load the setup page', 'danger');
-            }
-        } catch (error) {
-            window.location.href = '/';
-        }
-    });
-    
-    document.getElementById('play-ai-btn').addEventListener('click', async () => {
-        try {
-            // Check authentication
-            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                window.location.href = '/';
-                return;
-            }
-
-            try {
-                const response = await fetch('/src/assets/components/pong.html');
-                const html = await response.text();
-                
-                // Use the new showGamePage method
-                UIManager.showGamePage(html);
-        
-                requestAnimationFrame(() => {
-                    if (typeof initGame === 'function') {
-                        initGame();
-                    }
-                });
-        
-            } catch (error) {
-                console.error('Error loading game:', error);
-                UIManager.showToast('Failed to load the game', 'danger');
-            }
-        } catch (error) {
-            window.location.href = '/';
-        }
-    });
-    
-    document.getElementById('create-tournament-btn').addEventListener('click', async () => {
-        try {
-            // Check authentication using /me endpoint
-            const response = await fetch(`${AuthManager.API_BASE}users/me/`, {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                window.location.href = '/';
-                return;
-            }
-    
-            try {
-                const response = await fetch('/src/assets/components/tournament-setup.html');
-                const html = await response.text();
-                
-                // Hide main page
-                document.getElementById('main-page').classList.remove('active-page');
-                
-                const setupDiv = document.createElement('div');
-                setupDiv.id = 'tournament-setup-page';
-                setupDiv.classList.add('page', 'active-page');
-                setupDiv.innerHTML = html;
-                document.body.appendChild(setupDiv);
-        
-                // Setup player selection
-                function selectPlayers(count) {
-                    const inputsContainer = document.getElementById('playerInputs');
-                    const buttons = document.querySelectorAll('.player-count-btn');
-                    
-                    buttons.forEach(btn => {
-                        btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
-                    });
-                    
-                    inputsContainer.innerHTML = '';  // Clear existing fields
-                    
-                    // Add player input fields
-                    for (let i = 2; i <= count; i++) {
-                        const div = document.createElement('div');
-                        div.className = 'mb-3';
-                        div.innerHTML = `
-                            <label for="player${i}" class="form-label">Player ${i} Nickname</label>
-                            <input type="text" class="form-control" id="player${i}" name="player${i}" required>
-                        `;
-                        inputsContainer.appendChild(div);
-                    }
+                const profile = await ProfileManager.fetchUserProfile();
+                if (profile.is_42_auth) {
+                    UIManager.showToast('2FA settings cannot be modified for 42 School users.', 'warning');
+                    return;
                 }
-        
-                // Initialize with 4 players and setup event listeners
-                selectPlayers(4);
-                document.querySelectorAll('.player-count-btn').forEach(button => {
-                    button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
+
+                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}auth/2fa/toggle/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
                 });
-        
-                // Setup form validation and submission
-                const setupForm = document.getElementById('tournamentForm');
-                setupForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    
-                    const inputs = [
-                        document.getElementById('currentPlayer'),
-                        ...document.querySelectorAll('#playerInputs input')
-                    ];
-                    const players = [];
-                    let hasError = false;
-                    const errorMessages = new Set();
-        
-                    // Validate all inputs
-                    inputs.forEach(input => {
-                        const nickname = input.value.trim();
-                        
-                        if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
-                            hasError = true;
-                            input.classList.add('is-invalid');
-                            if (!nickname) errorMessages.add('All player nicknames are required');
-                            if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
-                            if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
-                            if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
-                            return;
-                        }
-                        
-                        input.classList.remove('is-invalid');
-                        players.push(nickname);
-                    });
-        
-                    if (hasError) {
-                        const alert = document.createElement('div');
-                        alert.className = 'alert alert-danger mt-3';
-                        alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
-                        const existingAlert = document.querySelector('.alert');
-                        if (existingAlert) existingAlert.remove();
-                        setupForm.insertBefore(alert, setupForm.firstChild);
-                        return;
-                    }
-        
-                    // Update username and start tournament
-                    try {
-                        // Store player nicknames
-                        localStorage.setItem('tournamentPlayers', JSON.stringify(players));
-                        
-                        // Load and show tournament game
-                        const pongResponse = await fetch('/src/assets/components/pong.html');
-                        setupDiv.remove();
-                        
-                        const gameDiv = document.createElement('div');
-                        gameDiv.id = 'game-page';
-                        gameDiv.classList.add('page', 'active-page');
-                        gameDiv.innerHTML = await pongResponse.text();
-                        document.body.appendChild(gameDiv);
-        
-                        requestAnimationFrame(() => {
-                            if (typeof initGame === 'function') initGame('TOURNAMENT');
-                        });
-                    } catch (error) {
-                        console.error('Error:', error);
-                        UIManager.showToast('Failed to start tournament', 'danger');
-                    }
-                });
-        
-                // Setup cancel and input handlers
-                document.getElementById('cancelBtn').addEventListener('click', () => {
-                    setupDiv.remove();
-                    document.getElementById('main-page').classList.add('active-page');
-                });
-        
-                document.addEventListener('input', (e) => {
-                    if (e.target.matches('#playerInputs input, #currentPlayer')) {
-                        e.target.classList.remove('is-invalid');
-                        const alert = document.querySelector('.alert');
-                        if (alert) alert.remove();
-                    }
-                });
-        
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to toggle 2FA');
+                }
+
+                const data = await response.json();
+                document.getElementById('2fa-password').value = '';
+                await UIManager.loadUpdateProfilePage();
+                UIManager.showToast(data.message || '2FA status updated successfully', 'success');
             } catch (error) {
-                console.error('Error loading tournament setup:', error);
-                UIManager.showToast('Failed to load the tournament setup', 'danger');
+                console.error('Error toggling 2FA:', error);
+                UIManager.showToast(error.message, 'danger');
             }
-        } catch (error) {
-            window.location.href = '/';
-        }
-    });
+        });
+    }
 
-    // Initialize chat event listeners
-    ChatManager.initializeEventListeners();
+    // Game buttons handlers
+    const playPlayerBtn = document.getElementById('play-player-btn');
+    const playAIBtn = document.getElementById('play-ai-btn');
+    const createTournamentBtn = document.getElementById('create-tournament-btn');
 
-    // Preload default avatar
-    Utils.preloadDefaultAvatar();
+    if (playPlayerBtn) {
+        playPlayerBtn.addEventListener('click', handlePlayPlayer);
+    }
 
-    // Profile related listeners
-    document.getElementById('user-profile').addEventListener('click', async () => {
-        UIManager.showPage(UIManager.pages.updateProfile);
-        await UIManager.loadUpdateProfilePage(); // Add this line to load profile data
-    });
+    if (playAIBtn) {
+        playAIBtn.addEventListener('click', handlePlayAI);
+    }
 
-    document.getElementById('back-to-main').addEventListener('click', (e) => {
-        e.preventDefault();
-        UIManager.showPage(UIManager.pages.main);
-    });
+    if (createTournamentBtn) {
+        createTournamentBtn.addEventListener('click', handleCreateTournament);
+    }
 
-    // Initialize friend list
-    FriendManager.initializeEventListeners();
+    // Profile navigation handlers
+    const userProfileBtn = document.getElementById('user-profile');
+    const backToMainBtn = document.getElementById('back-to-main');
 
-    // Initialize OAuth button handler
+    if (userProfileBtn) {
+        userProfileBtn.addEventListener('click', async () => {
+            UIManager.showPage(UIManager.pages.updateProfile);
+            await UIManager.loadUpdateProfilePage();
+        });
+    }
+
+    if (backToMainBtn) {
+        backToMainBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            UIManager.showPage(UIManager.pages.main);
+        });
+    }
+
+    // OAuth handler
     const oauth42Btn = document.getElementById('oauth-42-btn');
     if (oauth42Btn) {
         oauth42Btn.addEventListener('click', (e) => {
@@ -2431,35 +2394,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Check for OAuth callback
-    if (window.location.search.includes('code=')) {
-        handleOAuthCallback();
-    }
-
-    // Initialize UserManager event listeners
+    // Initialize managers
+    ChatManager.initializeEventListeners();
+    FriendManager.initializeEventListeners();
     UserManager.initializeEventListeners();
-
-    // Add initializing state
-    document.body.classList.add('initializing');
-
-    // Start auth check and only load friend list if authenticated
-    AuthManager.checkAuthenticationState()
-        .then(isAuthenticated => {
-            if (!isAuthenticated) {
-                UIManager.showPage(UIManager.pages.landing);
-            } else {
-                // Only update friend list if authenticated
-                FriendManager.updateFriendListUI();
-            }
-        })
-        .catch(error => {
-            console.error('Authentication check failed:', error);
-            UIManager.showPage(UIManager.pages.landing);
-        })
-        .finally(() => {
-            document.body.classList.remove('initializing');
-        });
-});
+}
 
 // Add this function to handle URL parameters
 const getUrlParams = () => {
