@@ -1056,10 +1056,9 @@ function init4PlayerGame() {
             announcement.textContent = `${winner} Wins!`;
             gameContainer.appendChild(announcement);
 
-            // Wait 3 seconds before redirecting
+            // Use window.location.href instead of DOM manipulation
             setTimeout(() => {
-                document.getElementById('pong-page').remove();
-                document.getElementById('main-page').classList.add('active-page');
+                window.location.href = '/';
             }, 3000);
         });
     }

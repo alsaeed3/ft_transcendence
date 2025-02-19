@@ -196,9 +196,9 @@ function initTerritory() {
             const matches = await MatchManager.fetchMatchHistory();
             MatchManager.displayMatchHistory(matches);
             
-            // Wait 3 seconds before redirecting
+            // Use window.location.href instead of DOM manipulation
             setTimeout(() => {
-                document.getElementById('back-to-menu').click();
+                window.location.href = '/';
             }, 3000);
         });
     }
