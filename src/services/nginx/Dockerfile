@@ -17,10 +17,6 @@ COPY nginx/conf/nginx.conf /etc/nginx/conf.d/default.conf
 # Create necessary directories
 RUN mkdir -p /usr/share/nginx/static /usr/share/nginx/media
 
-# Copy frontend files (paths are relative to the build context)
-COPY frontend/ /usr/share/nginx/html/
-COPY frontend/src/assets/ /usr/share/nginx/html/assets/
-
 WORKDIR /usr/share/nginx/html
 
 # Expose ports

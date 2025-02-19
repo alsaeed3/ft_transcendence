@@ -1,8 +1,7 @@
 services:
   nginx:
-    build:
-      context: ./src/services
-      dockerfile: nginx/Dockerfile
+    build: 
+      ./src/services/nginx
     ports:
       - "80:80"
       - "443:443"
@@ -11,6 +10,8 @@ services:
     networks:
       - main-network
     volumes:
+      - ./src/services/frontend:/usr/share/nginx/html
+      - ./src/services/frontend/src/assets:/usr/share/nginx/html/assets
       - static_volume:/usr/share/nginx/static
       - media_volume:/usr/share/nginx/media
 
@@ -27,7 +28,7 @@ services:
   backend:
     build: ./src/services/backend
     expose:
-      - "8000"
+      - "8000" # Internal only
     depends_on:
       - database
       - redis
@@ -43,7 +44,7 @@ services:
     image: postgres:15-alpine
     restart: always
     expose:
-      - "5432"
+      - "5432" # Internal only
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}

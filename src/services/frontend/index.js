@@ -179,20 +179,21 @@ class AuthManager {
                         errorMessage += `${field.charAt(0).toUpperCase() + field.slice(1)}: ${data[field].join('\n')}\n`;
                     }
                 });
-    
+
                 // Handle generic error message
                 if (data.detail) {
                     errorMessage += data.detail;
                 }
-    
+
                 // If no specific error message was found, use a generic one
                 if (!errorMessage) {
                     errorMessage = 'Registration failed. Please try again.';
                 }
-    
+
                 throw new Error(errorMessage.trim());
             }
-    
+
+            // Show success message and return to login form
             UIManager.showToast('Registration successful! Please login.', 'success');
             UIManager.toggleForms();
         } catch (error) {
@@ -288,6 +289,15 @@ class AuthManager {
         
         UIManager.showPage(UIManager.pages.main);
         await UIManager.loadMainPage();
+
+        // After successful auth, notify other users about new login
+        if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
+            ChatManager.statusSocket.send(JSON.stringify({
+                type: 'new_user_online',
+                user_id: this.currentUser.id,
+                username: this.currentUser.username
+            }));
+        }
     }
 
     static async logout() {
@@ -296,7 +306,7 @@ class AuthManager {
                 await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh: this.refreshToken })
+                    body: JSON.stringify({ refresh: this.refreshToken }),
                 });
             }
         } catch (error) {
@@ -785,11 +795,18 @@ class ChatManager {
                             const isOnline = data.online_users.includes(parseInt(userId));
                             this.updateStatusBadge(badge, isOnline);
                         });
-                    } else if (data.type === 'status_update') {
-                        // Update individual user status
-                        const badges = document.querySelectorAll(`[data-user-status="${data.user_id}"]`);
+                    } else if (data.type === 'status_update' || data.type === 'new_user_online') {
+                        // Handle both status updates and new users the same way
+                        const userId = data.user_id;
+                        
+                        // Always refresh lists to ensure new users are included
+                        UserManager.refreshUsersList();
+                        FriendManager.refreshFriendsList();
+                        
+                        // Update status badges for existing entries
+                        const badges = document.querySelectorAll(`[data-user-status="${userId}"]`);
                         badges.forEach(badge => {
-                            this.updateStatusBadge(badge, data.online_status);
+                            this.updateStatusBadge(badge, true);
                         });
                     }
                 } catch (error) {
@@ -1465,6 +1482,12 @@ class FriendManager {
             UIManager.showToast('Failed to update friends list', 'danger');
         }
     }
+
+    static async refreshFriendsList() {
+        if (document.getElementById('friendsListModal').classList.contains('show')) {
+            await this.updateFriendListUI();
+        }
+    }
 }
 
 class Utils {
@@ -1810,6 +1833,12 @@ class UserManager {
         } catch (error) {
             console.error('Error updating users list:', error);
             UIManager.showToast('Failed to update users list', 'danger');
+        }
+    }
+
+    static async refreshUsersList() {
+        if (document.getElementById('usersListModal').classList.contains('show')) {
+            await this.loadUsersList();
         }
     }
 }
