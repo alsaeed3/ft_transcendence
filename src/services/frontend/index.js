@@ -751,6 +751,204 @@ class UIManager {
             }
         });
     }
+
+    // Add these history management functions to UIManager class
+    static initializeHistory() {
+        // Handle initial page load
+        window.addEventListener('load', () => {
+            const path = window.location.pathname;
+            this.handlePathChange(path);
+        });
+
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', (event) => {
+            const path = window.location.pathname;
+            this.handlePathChange(path, true);
+        });
+    }
+
+    static async handlePathChange(path, isPopState = false) {
+        // Default to landing if not logged in (except for OAuth callback)
+        if (!AuthManager.accessToken && !window.location.search.includes('code=')) {
+            if (!isPopState) {
+                history.pushState(null, '', '/');
+            }
+            this.showPage(this.pages.landing);
+            return;
+        }
+
+        switch (path) {
+            case '/':
+                if (AuthManager.accessToken) {
+                    await this.loadMainPage();
+                } else {
+                    this.showPage(this.pages.landing);
+                }
+                break;
+
+            case '/profile':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.updateProfile);
+                    await this.loadUpdateProfilePage();
+                }
+                break;
+
+            case '/game/pong/ai':
+                if (AuthManager.accessToken) {
+                    await this.loadGamePage('AI');
+                }
+                break;
+
+            case '/game/pong/pvp':
+                if (AuthManager.accessToken) {
+                    await this.loadSetupPage();
+                }
+                break;
+
+            case '/game/pong/tournament':
+                if (AuthManager.accessToken) {
+                    await this.loadTournamentSetup();
+                }
+                break;
+
+            case '/game/territory':
+                if (AuthManager.accessToken) {
+                    await this.loadTerritoryGame();
+                }
+                break;
+
+            default:
+                if (AuthManager.accessToken) {
+                    if (!isPopState) {
+                        history.pushState(null, '', '/');
+                    }
+                    await this.loadMainPage();
+                } else {
+                    if (!isPopState) {
+                        history.pushState(null, '', '/');
+                    }
+                    this.showPage(this.pages.landing);
+                }
+        }
+    }
+
+    static async loadGamePage(mode) {
+        try {
+            const response = await fetch('/src/assets/components/pong.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show game page
+            const gameDiv = document.createElement('div');
+            gameDiv.id = 'game-page';
+            gameDiv.classList.add('page', 'active-page');
+            gameDiv.innerHTML = html;
+            document.body.appendChild(gameDiv);
+
+            // Initialize game
+            requestAnimationFrame(() => {
+                if (typeof initGame === 'function') {
+                    initGame(mode);
+                }
+            });
+        } catch (error) {
+            console.error('Error loading game:', error);
+            this.showToast('Failed to load the game', 'danger');
+        }
+    }
+
+    static async loadSetupPage() {
+        try {
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            // Create and show setup page
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+
+            // Add event listeners
+            const setupForm = document.getElementById('player2-setup-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const player2Name = document.getElementById('player2-name').value;
+                localStorage.setItem('player2Name', player2Name);
+                
+                history.pushState(null, '', '/game/pong/pvp/play');
+                await this.loadGamePage('PVP');
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                history.pushState(null, '', '/');
+                setupDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+        } catch (error) {
+            console.error('Error loading setup page:', error);
+            this.showToast('Failed to load the setup page', 'danger');
+        }
+    }
+
+    static async loadTournamentSetup() {
+        try {
+            const response = await fetch('/src/assets/components/tournament-setup.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'tournament-setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+
+            // Add event listeners and tournament setup logic...
+            // (Keep your existing tournament setup code)
+        } catch (error) {
+            console.error('Error loading tournament setup:', error);
+            this.showToast('Failed to load tournament setup', 'danger');
+        }
+    }
+
+    static async loadTerritoryGame() {
+        try {
+            const response = await fetch('/src/assets/components/territory.html');
+            const html = await response.text();
+            
+            // Hide main page
+            document.getElementById('main-page').classList.remove('active-page');
+            
+            const territoryDiv = document.createElement('div');
+            territoryDiv.id = 'territory-page';
+            territoryDiv.classList.add('page', 'active-page');
+            territoryDiv.innerHTML = html;
+            document.body.appendChild(territoryDiv);
+
+            // Initialize Territory game
+            const game = initTerritory();
+
+            // Add back button handler
+            document.getElementById('back-to-menu').addEventListener('click', () => {
+                game.stop();
+                history.pushState(null, '', '/');
+                territoryDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+        } catch (error) {
+            console.error('Error loading Territory game:', error);
+            this.showToast('Failed to load the Territory Battle game', 'danger');
+        }
+    }
 }
 
 class ChatManager {
@@ -2047,6 +2245,49 @@ class MatchManager {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize history management
+    UIManager.initializeHistory();
+
+    // Update your button click handlers
+    document.getElementById('play-ai-btn').addEventListener('click', () => {
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/game/pong/ai');
+            UIManager.loadGamePage('AI');
+        }
+    });
+
+    document.getElementById('play-player-btn').addEventListener('click', () => {
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/game/pong/pvp');
+            UIManager.loadSetupPage();
+        }
+    });
+
+    document.getElementById('create-tournament-btn').addEventListener('click', () => {
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/game/pong/tournament');
+            UIManager.loadTournamentSetup();
+        }
+    });
+
+    document.getElementById('play-territory-btn').addEventListener('click', () => {
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/game/territory');
+            UIManager.loadTerritoryGame();
+        }
+    });
+
+    document.getElementById('user-profile').addEventListener('click', () => {
+        history.pushState(null, '', '/profile');
+        UIManager.showPage(UIManager.pages.updateProfile);
+        UIManager.loadUpdateProfilePage();
+    });
+
+    document.getElementById('back-to-main').addEventListener('click', (e) => {
+        e.preventDefault();
+        history.pushState(null, '', '/');
+        UIManager.showPage(UIManager.pages.main);
+    });
 
     // 2FA form submit handler
     const twoFAForm = document.getElementById('2fa-form');
@@ -2444,11 +2685,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await UIManager.loadUpdateProfilePage(); // Add this line to load profile data
     });
 
-    document.getElementById('back-to-main').addEventListener('click', (e) => {
-        e.preventDefault();
-        UIManager.showPage(UIManager.pages.main);
-    });
-
     // Initialize friend list
     FriendManager.initializeEventListeners();
     if (AuthManager.accessToken) {
@@ -2475,47 +2711,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UserManager.initializeEventListeners();
 
     // Add this with the other event listeners in the DOMContentLoaded section
-    document.getElementById('play-territory-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-
-        try {
-            const response = await fetch('/src/assets/components/territory.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            // Create and show Territory page
-            const territoryDiv = document.createElement('div');
-            territoryDiv.id = 'territory-page';
-            territoryDiv.classList.add('page', 'active-page');
-            territoryDiv.innerHTML = html;
-            document.body.appendChild(territoryDiv);
-
-            // Initialize Territory game
-            const game = initTerritory();  // Store the game instance
-
-            // Add back button handler with cleanup
-            document.getElementById('back-to-menu').addEventListener('click', () => {
-                // Stop the game
-                game.stop();  // We'll add this method
-                // Remove event listeners
-                document.removeEventListener('keydown', game.handleKeyDown);
-                document.removeEventListener('keyup', game.handleKeyUp);
-                // Remove the game page
-                territoryDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
-
-        } catch (error) {
-            console.error('Error loading Territory game:', error);
-            UIManager.showToast('Failed to load the Territory Battle game', 'danger');
-        }
-    });
-
     document.getElementById('play-4player-btn').addEventListener('click', async () => {
         if (!AuthManager.accessToken) {
             window.location.href = '/';
