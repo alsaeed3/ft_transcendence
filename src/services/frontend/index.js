@@ -763,89 +763,66 @@ class UIManager {
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (event) => {
             const path = window.location.pathname;
-            this.handlePathChange(path, true);
+            if (event.state?.from === 'pvp-setup') {
+                UIManager.cleanupGames();
+            }
+            UIManager.handlePathChange(path, true);
         });
     }
 
     static async handlePathChange(path, isPopState = false) {
-        // First clean up any existing game instances
+        // First clean up any existing game instances and pages
         this.cleanupGames();
 
-        // Handle modals in path
-        if (path.startsWith('/modal/')) {
-            const modalId = path.split('/modal/')[1];
-            if (isPopState) {
-                this.showModal(modalId);
-            }
-            return;
-        }
-
-        // Close any open modals when navigating away
-        document.querySelectorAll('.modal').forEach(modal => {
-            const bsModal = bootstrap.Modal.getInstance(modal);
-            if (bsModal) {
-                bsModal.hide();
-            }
-        });
+        // Hide all pages first
+        Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
 
         switch (path) {
-            case '/':
-                if (AuthManager.accessToken) {
-                    await this.loadMainPage();
-                } else {
-                    this.showPage(this.pages.landing);
-                }
+            case '/game/pong/pvp':
+                await this.loadSetupPage();
                 break;
 
-            case '/profile':
-                if (AuthManager.accessToken) {
-                    Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
-                    this.showPage(this.pages.updateProfile);
-                    await this.loadUpdateProfilePage();
-                }
+            case '/game/pong/pvp/play':
+                await this.loadGamePage('PVP');
                 break;
 
             case '/game/pong/ai':
-                if (AuthManager.accessToken) {
-                    await this.loadGamePage('AI');
-                }
+                await this.loadGamePage('AI');
                 break;
 
-            case '/game/pong/pvp':
-                if (AuthManager.accessToken) {
-                    await this.loadSetupPage();
-                }
-                break;
-
-            case '/game/pong/tournament':
-                if (AuthManager.accessToken) {
-                    await this.loadTournamentSetup();
-                }
+            case '/game/pong/4player':
+                await this.load4PlayerGame();
                 break;
 
             case '/game/territory':
-                if (AuthManager.accessToken) {
-                    await this.loadTerritoryGame();
-                }
+                await this.loadTerritoryGame();
+                break;
+
+            case '/game/pong/tournament':
+                await this.loadTournamentSetup();
+                break;
+
+            case '/profile':
+                this.showPage(this.pages.updateProfile);
+                await this.loadUpdateProfilePage();
                 break;
 
             default:
-                if (AuthManager.accessToken) {
-                    if (!isPopState) {
-                        history.pushState(null, '', '/');
-                    }
-                    await this.loadMainPage();
-                } else {
-                    if (!isPopState) {
-                        history.pushState(null, '', '/');
-                    }
-                    this.showPage(this.pages.landing);
+                await this.loadMainPage();
+                if (!isPopState) {
+                    history.pushState(null, '', '/');
                 }
+                break;
         }
     }
 
     static async loadGamePage(mode) {
         try {
+            if (window.gameInstance) {
+                window.gameInstance.stop();
+                window.gameInstance = null;
+            }
+
             // Clean up any existing games first
             this.cleanupGames();
             
@@ -866,18 +843,28 @@ class UIManager {
             backBtn.className = 'btn btn-secondary position-absolute m-3';
             backBtn.style.zIndex = '1000';
             backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Menu';
-            backBtn.addEventListener('click', () => this.handleGameExit());
+            backBtn.addEventListener('click', () => {
+                this.handleGameExit();
+            });
             gameDiv.appendChild(backBtn);
             
             document.body.appendChild(gameDiv);
 
             // Initialize game and store instance
             window.gameInstance = await new Promise(resolve => {
-                requestAnimationFrame(() => {
+                // Ensure any previous game is fully cleaned up
+                if (window.gameInstance) {
+                    window.gameInstance.stop?.();
+                    window.gameInstance = null;
+                }
+                
+                // Use setTimeout to ensure DOM is ready
+                setTimeout(() => {
                     if (typeof initGame === 'function') {
-                        resolve(initGame(mode));
+                        const instance = initGame(mode);
+                        resolve(instance);
                     }
-                });
+                }, 0);
             });
         } catch (error) {
             console.error('Error loading game:', error);
@@ -890,6 +877,49 @@ class UIManager {
         this.cleanupGames();
         history.pushState(null, '', '/');
         this.loadMainPage();
+    }
+
+    static async loadSetupPage() {
+        try {
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            // Create and show setup page
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+
+            // Add event listeners
+            const setupForm = document.getElementById('player2-setup-form');
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const player2Name = document.getElementById('player2-name').value;
+                localStorage.setItem('player2Name', player2Name);
+                
+                history.pushState(null, '', '/game/pong/pvp/play');
+                await this.loadGamePage('PVP');
+            });
+
+            // Update cancel button handler
+            document.getElementById('cancel-btn')?.addEventListener('click', () => {
+                this.cleanupGames();
+                history.pushState(null, '', '/');
+                this.loadMainPage();
+            });
+
+        } catch (error) {
+            console.error('Error loading setup page:', error);
+            this.showToast('Failed to load setup page', 'danger');
+            this.handleGameExit();
+        }
     }
 
     static async loadTerritoryGame() {
@@ -913,7 +943,9 @@ class UIManager {
             backBtn.className = 'btn btn-secondary position-absolute m-3';
             backBtn.style.zIndex = '1000';
             backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Menu';
-            backBtn.addEventListener('click', () => this.handleGameExit());
+            backBtn.addEventListener('click', () => {
+                this.handleGameExit();
+            });
             territoryDiv.appendChild(backBtn);
             
             document.body.appendChild(territoryDiv);
@@ -959,13 +991,237 @@ class UIManager {
     }
 
     static cleanupGames() {
-        // Clean up any existing game instances
-        if (window.gameInstance) {
-            window.gameInstance.stop?.();
-            window.gameInstance = null;
+        try {
+            if (window.gameInstance) {
+                if (typeof window.gameInstance.stop === 'function') {
+                    window.gameInstance.stop();
+                }
+                if (typeof window.gameInstance.destroy === 'function') {
+                    window.gameInstance.destroy();
+                }
+                window.gameInstance = null;
+            }
+        
+            // Remove all game-related pages
+            const gameElements = document.querySelectorAll('.game-page, #setup-page, #game-page, #pong-page, #tournament-setup-page');
+            gameElements.forEach(el => el.remove());
+        
+            if (window.gameLoop) {
+                cancelAnimationFrame(window.gameLoop);
+                window.gameLoop = null;
+            }
+            
+            // Force return to main page if game elements remain
+            if (!window.location.pathname.includes('/game/')) {
+                const mainPage = document.getElementById('main-page');
+                if (mainPage) {
+                    Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+                    mainPage.classList.add('active-page');
+                }
+            }
+        } catch (error) {
+            console.error('Error during game cleanup:', error);
+            // Continue with cleanup even if there's an error
         }
-        // Remove any existing game pages
-        document.querySelectorAll('.game-page').forEach(el => el.remove());
+    }
+
+    static async load4PlayerGame() {
+        try {
+            // Check authentication first
+            if (!AuthManager.accessToken) {
+                this.showPage(this.pages.landing);
+                return;
+            }
+
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
+            // Create and show 4-player game page
+            const gameDiv = document.createElement('div');
+            gameDiv.id = 'pong-page';
+            gameDiv.classList.add('page', 'game-page', 'active-page');
+            
+            // Add back button
+            const backBtn = document.createElement('button');
+            backBtn.className = 'btn btn-secondary position-absolute m-3';
+            backBtn.style.zIndex = '1000';
+            backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Main';
+            backBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    this.handleGameExit();
+                } catch (error) {
+                    console.error('Error handling game exit:', error);
+                    // Force cleanup and return to main page
+                    this.cleanupGames();
+                    history.pushState(null, '', '/');
+                    this.loadMainPage();
+                }
+            });
+            
+            gameDiv.appendChild(backBtn);
+            document.body.appendChild(gameDiv);
+
+            // Wait for next frame to ensure DOM is fully updated
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            // Initialize 4-player game
+            window.gameInstance = init4PlayerGame();
+        } catch (error) {
+            console.error('Error loading 4-Player game:', error);
+            this.showToast('Failed to load the 4-Player game', 'danger');
+            this.handleGameExit();
+        }
+    }
+
+    // Add this method to handle page reloads
+    static initializePageReload() {
+        window.addEventListener('load', () => {
+            const currentPath = window.location.pathname;
+            if (currentPath === '/game/pong/4player') {
+                if (AuthManager.accessToken) {
+                    this.handlePathChange(currentPath);
+                } else {
+                    this.showPage(this.pages.landing);
+                }
+            }
+        });
+    }
+
+    static async loadTournamentSetup() {
+        try {
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
+            const response = await fetch('/src/assets/components/tournament-setup.html');
+            const html = await response.text();
+            
+            // Create and show tournament setup page
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'tournament-setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            document.body.appendChild(setupDiv);
+    
+            // Setup player selection
+            function selectPlayers(count) {
+                const inputsContainer = document.getElementById('playerInputs');
+                const buttons = document.querySelectorAll('.player-count-btn');
+                
+                buttons.forEach(btn => {
+                    btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
+                });
+                
+                inputsContainer.innerHTML = '';  // Clear existing fields
+                
+                // Add player input fields
+                for (let i = 2; i <= count; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label for="player${i}" class="form-label">Player ${i} Nickname</label>
+                        <input type="text" class="form-control" id="player${i}" name="player${i}" required>
+                    `;
+                    inputsContainer.appendChild(div);
+                }
+            }
+    
+            // Initialize with 4 players and setup event listeners
+            selectPlayers(4);
+            document.querySelectorAll('.player-count-btn').forEach(button => {
+                button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
+            });
+    
+            // Setup form validation and submission
+            const setupForm = document.getElementById('tournamentForm');
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const inputs = [
+                    document.getElementById('currentPlayer'),
+                    ...document.querySelectorAll('#playerInputs input')
+                ];
+                const players = [];
+                let hasError = false;
+                const errorMessages = new Set();
+    
+                // Validate all inputs
+                inputs.forEach(input => {
+                    const nickname = input.value.trim();
+                    
+                    if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
+                        hasError = true;
+                        input.classList.add('is-invalid');
+                        if (!nickname) errorMessages.add('All player nicknames are required');
+                        if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
+                        if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
+                        if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
+                        return;
+                    }
+                    
+                    input.classList.remove('is-invalid');
+                    players.push(nickname);
+                });
+    
+                if (hasError) {
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-danger mt-3';
+                    alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+                    const existingAlert = document.querySelector('.alert');
+                    if (existingAlert) existingAlert.remove();
+                    setupForm.insertBefore(alert, setupForm.firstChild);
+                    return;
+                }
+    
+                // Update username and start tournament
+                try {
+                    // Store player nicknames
+                    localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+                    
+                    // Load and show tournament game
+                    const pongResponse = await fetch('/src/assets/components/pong.html');
+                    setupDiv.remove();
+                    
+                    const gameDiv = document.createElement('div');
+                    gameDiv.id = 'game-page';
+                    gameDiv.classList.add('page', 'active-page');
+                    gameDiv.innerHTML = await pongResponse.text();
+                    document.body.appendChild(gameDiv);
+    
+                    requestAnimationFrame(() => {
+                        if (typeof initGame === 'function') initGame('TOURNAMENT');
+                    });
+                } catch (error) {
+                    console.error('Error:', error);
+                    UIManager.showToast('Failed to start tournament', 'danger');
+                }
+            });
+    
+            // Setup cancel and input handlers
+            document.getElementById('cancelBtn').addEventListener('click', () => {
+                setupDiv.remove();
+                document.getElementById('main-page').classList.add('active-page');
+            });
+    
+            document.addEventListener('input', (e) => {
+                if (e.target.matches('#playerInputs input, #currentPlayer')) {
+                    e.target.classList.remove('is-invalid');
+                    const alert = document.querySelector('.alert');
+                    if (alert) alert.remove();
+                }
+            });
+    
+        } catch (error) {
+            console.error('Error loading tournament setup:', error);
+            UIManager.showToast('Failed to load the tournament setup', 'danger');
+        }
     }
 }
 
@@ -2294,34 +2550,36 @@ class MatchManager {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize history management
     UIManager.initializeHistory();
-
-    // Update your button click handlers
+    
+    // Initialize page reload handler
+    UIManager.initializePageReload();
+    
+    // Game button handlers
     document.getElementById('play-ai-btn').addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/ai');
-            UIManager.cleanupGames(); // Clean up before loading new game
-            UIManager.loadGamePage('AI');
+            UIManager.handlePathChange('/game/pong/ai');
         }
     });
 
-    document.getElementById('play-player-btn').addEventListener('click', () => {
+    document.getElementById('play-player-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
-            history.pushState(null, '', '/game/pong/pvp');
-            UIManager.loadSetupPage();
+            history.pushState({ from: 'main' }, '', '/game/pong/pvp');
+            UIManager.handlePathChange('/game/pong/pvp');
         }
     });
 
     document.getElementById('create-tournament-btn').addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/tournament');
-            UIManager.loadTournamentSetup();
+            UIManager.handlePathChange('/game/pong/tournament');
         }
     });
 
     document.getElementById('play-territory-btn').addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/territory');
-            UIManager.loadTerritoryGame();
+            UIManager.handlePathChange('/game/territory');
         }
     });
 
@@ -2502,10 +2760,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
-            
+    
             // Hide main page
             document.getElementById('main-page').classList.remove('active-page');
-            
+    
             // Create and show setup page
             const setupDiv = document.createElement('div');
             setupDiv.id = 'setup-page';
@@ -2515,21 +2773,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
             // Add event listeners after adding to DOM
             const setupForm = document.getElementById('player2-setup-form');
-            const cancelBtn = document.getElementById('cancel-btn');
     
             setupForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const player2Name = document.getElementById('player2-name').value;
                 localStorage.setItem('player2Name', player2Name);
-    
+                
                 history.pushState(null, '', '/game/pong/pvp/play');
-                await UIManager.loadGamePage('PVP');
+                await this.loadGamePage('PVP');
             });
     
-            cancelBtn.addEventListener('click', () => {
+            document.getElementById('cancel-btn')?.addEventListener('click', () => {
+                this.cleanupGames();
                 history.pushState(null, '', '/');
-                setupDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
+                this.loadMainPage();
             });
     
         } catch (error) {
@@ -2545,26 +2802,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         try {
-            const response = await fetch('/src/assets/components/pong.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            // Create and show game page
-            const gameDiv = document.createElement('div');
-            gameDiv.id = 'game-page';
-            gameDiv.classList.add('page', 'active-page');
-            gameDiv.innerHTML = html;
-            document.body.appendChild(gameDiv);
-    
-            // Initialize game immediately after canvas is available
-            requestAnimationFrame(() => {
-                if (typeof initGame === 'function') {
-                    initGame();
-                }
-            }, 100);
-    
+            history.pushState(null, '', '/game/pong/ai');
+            await UIManager.loadGamePage('AI');
         } catch (error) {
             console.error('Error loading game:', error);
             UIManager.showToast('Failed to load the game', 'danger');
@@ -2742,28 +2981,12 @@ document.addEventListener('DOMContentLoaded', () => {
     UserManager.initializeEventListeners();
 
     // Add this with the other event listeners in the DOMContentLoaded section
-    document.getElementById('play-4player-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
+    document.getElementById('play-4player-btn').addEventListener('click', () => {
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/game/pong/4player');
+            UIManager.handlePathChange('/game/pong/4player');
+        } else {
             window.location.href = '/';
-            return;
-        }
-
-        try {
-            // Create and show Pong page
-            const pongDiv = document.createElement('div');
-            pongDiv.id = 'pong-page';
-            pongDiv.classList.add('page', 'active-page');
-            
-            // Hide main page and add pong page
-            document.getElementById('main-page').classList.remove('active-page');
-            document.body.appendChild(pongDiv);
-
-            // Initialize 4-player Pong game
-            init4PlayerGame();
-
-        } catch (error) {
-            console.error('Error loading 4-Player Pong game:', error);
-            UIManager.showToast('Failed to load the 4-Player Pong game', 'danger');
         }
     });
 });

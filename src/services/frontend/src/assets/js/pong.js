@@ -498,8 +498,11 @@ function initGame(mode = 'AI') {
 
     // Store animation frame ID
     let animationFrameId = null;
+    let isCleanedUp = false;
 
     function gameLoop(currentTime) {
+        if (isCleanedUp) return;
+        
         if (!lastTime) lastTime = currentTime;
         
         const deltaTime = currentTime - lastTime;
@@ -799,10 +802,15 @@ function initGame(mode = 'AI') {
     // Return game instance with cleanup method
     return {
         stop: () => {
+            isCleanedUp = true;
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
             }
+            // Clean up event listeners
+            document.removeEventListener('keydown', handlePaddleMovement);
+            document.removeEventListener('keyup', handlePaddleMovement);
+            // Reset game state
             gameActive = false;
             gameStarted = false;
         }
@@ -811,7 +819,8 @@ function initGame(mode = 'AI') {
 
 function init4PlayerGame() {
     // Initialize game start time
-    gameStartTime = Date.now();
+    const gameStartTime = Date.now();
+    let animationFrameId = null;
     
     // Create game container
     const gameContainer = document.createElement('div');
@@ -823,7 +832,7 @@ function init4PlayerGame() {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
     canvas.className = 'mx-auto d-block mb-3';
-    canvas.style.border = '2px solid white'; // Add border to see game area
+    canvas.style.border = '2px solid white';
     gameContainer.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
@@ -1097,12 +1106,27 @@ function init4PlayerGame() {
     function gameLoop() {
         update();
         draw();
-        requestAnimationFrame(gameLoop);
+        animationFrameId = requestAnimationFrame(gameLoop);
     }
     gameLoop();
 
     // Start game with countdown
     announceGame();
+
+    // Return game instance with cleanup method
+    return {
+        stop: () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            // Clean up event listeners using the correct references
+            document.removeEventListener('keydown', e => state.keysPressed.add(e.key.toLowerCase()));
+            document.removeEventListener('keyup', e => state.keysPressed.delete(e.key.toLowerCase()));
+            state.keysPressed.clear();
+            state.gameActive = false;
+        }
+    };
 }
 
 // Initialize when script loads
