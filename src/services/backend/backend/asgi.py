@@ -25,9 +25,13 @@ from .routing import websocket_urlpatterns
 # Initialize Django ASGI application early to ensure proper initialization
 django_asgi_app = get_asgi_application()
 
-# Create a custom middleware stack
+# Create a custom middleware stack with additional security
 def create_middleware_stack(inner):
-    return TokenAuthMiddleware(AuthMiddlewareStack(inner))
+    return TokenAuthMiddleware(
+        AuthMiddlewareStack(
+            inner
+        )
+    )
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,

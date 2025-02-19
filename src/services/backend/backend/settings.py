@@ -75,14 +75,12 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-CORS_ALLOW_ALL_ORIGINS = True  # For development only, configure properly for production
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost",
-    "http://localhost:80",
     "https://localhost",
+    "https://127.0.0.1",
     "https://localhost:443",
-    "http://127.0.0.1",
-    "http://127.0.0.1:80",
+    "https://127.0.0.1:443",
     "https://api.intra.42.fr",
     "ws://localhost",
     "wss://localhost",
@@ -119,11 +117,8 @@ CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
-    'http://localhost',
-    'http://127.0.0.1',
-    'ws://localhost',
+    'https://127.0.0.1',
     'wss://localhost',
-    'ws://127.0.0.1',
     'wss://127.0.0.1'
 ]
 

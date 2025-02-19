@@ -764,8 +764,8 @@ class ChatManager {
 
     static initStatusWebSocket() {
         try {
-            // Use the same host as the current page
-            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            // Always use WSS in production, or when on HTTPS
+            const wsScheme = 'wss';  // Always use WSS
             const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
             
             console.log('Connecting to WebSocket:', wsUrl); // Debug log
@@ -981,7 +981,7 @@ class ChatManager {
         this.initializeEventListeners();
         
         const apiHost = new URL(AuthManager.API_BASE).host;
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsScheme = 'wss';  // Always use WSS
         const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
         
         if (this.chatSocket) {
