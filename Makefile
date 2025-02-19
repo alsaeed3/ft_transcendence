@@ -94,4 +94,15 @@ rmc:
 # Remove all images, volumes, networks and containers
 clean: stop down-all rmn rmv rmc rmi
 
-.PHONY: default up down down-v down-all restart logs logs-% shell-% exec rmi rmv rmn rmc clean
+# Setup Docker rootless mode
+setup-rootless:
+	@echo "Setting up Docker rootless mode..."
+	@if [ -d "/goinfre/$$USER" ]; then \
+		mkdir -p /goinfre/$$USER/docker; \
+		ln -sf /goinfre/$$USER/docker $$HOME/.docker; \
+		echo "Docker rootless mode configured to use /goinfre"; \
+	else \
+		echo "Warning: /goinfre directory not found. Are you on 42 network?"; \
+	fi
+
+.PHONY: default up down down-v down-all restart logs logs-% shell-% exec rmi rmv rmn rmc clean setup-rootless

@@ -11,10 +11,15 @@ RUN  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/nginx/ssl/server.key -out /etc/nginx/ssl/server.crt \
     -subj "/C=AE/ST=Abu Dhabi/L=Abu Dhabi/O=42/CN=localhost"
 
-# Copy nginx configuration
-COPY conf/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration (path relative to build context)
+COPY nginx/conf/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Create necessary directories
 RUN mkdir -p /usr/share/nginx/static /usr/share/nginx/media
+
+# Copy frontend files (paths are relative to the build context)
+COPY frontend/ /usr/share/nginx/html/
+COPY frontend/src/assets/ /usr/share/nginx/html/assets/
 
 WORKDIR /usr/share/nginx/html
 
