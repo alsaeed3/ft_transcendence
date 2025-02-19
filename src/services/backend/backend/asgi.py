@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/5.1/howto/deployment/asgi/
 import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 
-# Import Django first and setup
+# Import Django and setup first
 import django
 django.setup()
 
@@ -18,25 +18,24 @@ django.setup()
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
-from channels.auth import AuthMiddlewareStack
-from users.middleware import TokenAuthMiddleware
-from .routing import websocket_urlpatterns
+from django.urls import path
+from users.consumers import StatusConsumer, UserStatusConsumer, PrivateChatConsumer
+from authentication.middleware import JWTAuthMiddleware
 
-# Initialize Django ASGI application early to ensure proper initialization
+# Initialize Django ASGI application early
 django_asgi_app = get_asgi_application()
 
-# Create a custom middleware stack with additional security
-def create_middleware_stack(inner):
-    return TokenAuthMiddleware(
-        AuthMiddlewareStack(
-            inner
-        )
-    )
+# Define WebSocket URL patterns
+websocket_urlpatterns = [
+    path('ws/status/', StatusConsumer.as_asgi()),
+    path('ws/chat/<str:user1_id>/<str:user2_id>/', PrivateChatConsumer.as_asgi()),
+    path('ws/user_status/', UserStatusConsumer.as_asgi()),
+]
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AllowedHostsOriginValidator(
-        create_middleware_stack(
+        JWTAuthMiddleware(
             URLRouter(websocket_urlpatterns)
         )
     ),

@@ -212,3 +212,28 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             'type': 'chat_message',
             **message_data
         }))
+
+class StatusConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        # Check if user is authenticated
+        if self.scope["user"] and self.scope["user"].is_authenticated:
+            await self.channel_layer.group_add("status", self.channel_name)
+            await self.accept()
+        else:
+            await self.close()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard("status", self.channel_name)
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            if data.get('type') == 'get_status':
+                # Handle status request
+                await self.send(text_data=json.dumps({
+                    'type': 'status_update',
+                    'user_id': self.scope["user"].id,
+                    'online': True
+                }))
+        except json.JSONDecodeError:
+            pass
