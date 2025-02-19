@@ -496,7 +496,9 @@ function initGame(mode = 'AI') {
     // At the top with other game variables
     let gameStarted = false;  // Add this to control initial game state
 
-    // Modify game loop to prevent any ball movement before announcement
+    // Store animation frame ID
+    let animationFrameId = null;
+
     function gameLoop(currentTime) {
         if (!lastTime) lastTime = currentTime;
         
@@ -516,11 +518,11 @@ function initGame(mode = 'AI') {
             lastTime = currentTime - (deltaTime % frameInterval);
         }
         
-        requestAnimationFrame(gameLoop);
+        animationFrameId = requestAnimationFrame(gameLoop);
     }
 
     // Start the game loop
-    requestAnimationFrame(gameLoop);
+    animationFrameId = requestAnimationFrame(gameLoop);
 
     // Add slider event listeners
     const sliders = [
@@ -793,6 +795,18 @@ function initGame(mode = 'AI') {
         
         upcomingDiv.textContent = nextMatchText;
     }
+
+    // Return game instance with cleanup method
+    return {
+        stop: () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            gameActive = false;
+            gameStarted = false;
+        }
+    };
 }
 
 function init4PlayerGame() {

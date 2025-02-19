@@ -768,14 +768,25 @@ class UIManager {
     }
 
     static async handlePathChange(path, isPopState = false) {
-        // Default to landing if not logged in (except for OAuth callback)
-        if (!AuthManager.accessToken && !window.location.search.includes('code=')) {
-            if (!isPopState) {
-                history.pushState(null, '', '/');
+        // First clean up any existing game instances
+        this.cleanupGames();
+
+        // Handle modals in path
+        if (path.startsWith('/modal/')) {
+            const modalId = path.split('/modal/')[1];
+            if (isPopState) {
+                this.showModal(modalId);
             }
-            this.showPage(this.pages.landing);
             return;
         }
+
+        // Close any open modals when navigating away
+        document.querySelectorAll('.modal').forEach(modal => {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) {
+                bsModal.hide();
+            }
+        });
 
         switch (path) {
             case '/':
@@ -788,6 +799,7 @@ class UIManager {
 
             case '/profile':
                 if (AuthManager.accessToken) {
+                    Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
                     this.showPage(this.pages.updateProfile);
                     await this.loadUpdateProfilePage();
                 }
@@ -834,122 +846,157 @@ class UIManager {
 
     static async loadGamePage(mode) {
         try {
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
             const response = await fetch('/src/assets/components/pong.html');
             const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
             
             // Create and show game page
             const gameDiv = document.createElement('div');
             gameDiv.id = 'game-page';
-            gameDiv.classList.add('page', 'active-page');
+            gameDiv.classList.add('page', 'game-page', 'active-page');
             gameDiv.innerHTML = html;
+            
+            // Add back button
+            const backBtn = document.createElement('button');
+            backBtn.className = 'btn btn-secondary position-absolute m-3';
+            backBtn.style.zIndex = '1000';
+            backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Menu';
+            backBtn.addEventListener('click', () => this.handleGameExit());
+            gameDiv.appendChild(backBtn);
+            
             document.body.appendChild(gameDiv);
 
-            // Initialize game
-            requestAnimationFrame(() => {
-                if (typeof initGame === 'function') {
-                    initGame(mode);
-                }
+            // Initialize game and store instance
+            window.gameInstance = await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    if (typeof initGame === 'function') {
+                        resolve(initGame(mode));
+                    }
+                });
             });
         } catch (error) {
             console.error('Error loading game:', error);
             this.showToast('Failed to load the game', 'danger');
+            this.handleGameExit();
         }
     }
 
-    static async loadSetupPage() {
-        try {
-            const response = await fetch('/src/assets/components/player2-setup.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            // Create and show setup page
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
-
-            // Add event listeners
-            const setupForm = document.getElementById('player2-setup-form');
-            const cancelBtn = document.getElementById('cancel-btn');
-
-            setupForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const player2Name = document.getElementById('player2-name').value;
-                localStorage.setItem('player2Name', player2Name);
-                
-                history.pushState(null, '', '/game/pong/pvp/play');
-                await this.loadGamePage('PVP');
-            });
-
-            cancelBtn.addEventListener('click', () => {
-                history.pushState(null, '', '/');
-                setupDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
-        } catch (error) {
-            console.error('Error loading setup page:', error);
-            this.showToast('Failed to load the setup page', 'danger');
-        }
-    }
-
-    static async loadTournamentSetup() {
-        try {
-            const response = await fetch('/src/assets/components/tournament-setup.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'tournament-setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
-
-            // Add event listeners and tournament setup logic...
-            // (Keep your existing tournament setup code)
-        } catch (error) {
-            console.error('Error loading tournament setup:', error);
-            this.showToast('Failed to load tournament setup', 'danger');
-        }
+    static handleGameExit() {
+        this.cleanupGames();
+        history.pushState(null, '', '/');
+        this.loadMainPage();
     }
 
     static async loadTerritoryGame() {
         try {
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
             const response = await fetch('/src/assets/components/territory.html');
             const html = await response.text();
             
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
             const territoryDiv = document.createElement('div');
             territoryDiv.id = 'territory-page';
-            territoryDiv.classList.add('page', 'active-page');
+            territoryDiv.classList.add('page', 'game-page', 'active-page');
             territoryDiv.innerHTML = html;
+            
+            // Add back button
+            const backBtn = document.createElement('button');
+            backBtn.className = 'btn btn-secondary position-absolute m-3';
+            backBtn.style.zIndex = '1000';
+            backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Menu';
+            backBtn.addEventListener('click', () => this.handleGameExit());
+            territoryDiv.appendChild(backBtn);
+            
             document.body.appendChild(territoryDiv);
 
-            // Initialize Territory game
-            const game = initTerritory();
-
-            // Add back button handler
-            document.getElementById('back-to-menu').addEventListener('click', () => {
-                game.stop();
-                history.pushState(null, '', '/');
-                territoryDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
+            // Initialize Territory game and store instance
+            window.gameInstance = initTerritory();
         } catch (error) {
             console.error('Error loading Territory game:', error);
             this.showToast('Failed to load the Territory Battle game', 'danger');
+            this.handleGameExit();
         }
     }
+
+    // Add modal history handling
+    static showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            
+            // Push state only if it's not already the current state
+            if (!window.location.pathname.includes(modalId)) {
+                history.pushState({ modalId }, '', `/modal/${modalId}`);
+            }
+
+            // Handle modal close
+            modal.addEventListener('hidden.bs.modal', () => {
+                if (window.location.pathname.includes(modalId)) {
+                    history.pushState(null, '', '/');
+                }
+            }, { once: true });
+        }
+    }
+
+    static hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) {
+                bsModal.hide();
+            }
+        }
+    }
+
+    static cleanupGames() {
+        // Clean up any existing game instances
+        if (window.gameInstance) {
+            window.gameInstance.stop?.();
+            window.gameInstance = null;
+        }
+        // Remove any existing game pages
+        document.querySelectorAll('.game-page').forEach(el => el.remove());
+    }
 }
+
+// Update modal-related click handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+
+    // Update modal show handlers
+    document.getElementById('show-users-btn')?.addEventListener('click', () => {
+        UIManager.showModal('usersListModal');
+    });
+
+    document.getElementById('show-friends-btn')?.addEventListener('click', () => {
+        UIManager.showModal('friendsListModal');
+    });
+
+    // Handle back button for modals
+    window.addEventListener('popstate', (event) => {
+        if (!event.state?.modalId) {
+            // Close all modals if navigating away
+            document.querySelectorAll('.modal').forEach(modal => {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) {
+                    bsModal.hide();
+                }
+            });
+        }
+    });
+
+    // ... rest of your code ...
+});
 
 class ChatManager {
     static chatSocket = null;
@@ -2252,6 +2299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('play-ai-btn').addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/ai');
+            UIManager.cleanupGames(); // Clean up before loading new game
             UIManager.loadGamePage('AI');
         }
     });
@@ -2277,16 +2325,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('user-profile').addEventListener('click', () => {
+    document.getElementById('user-profile').addEventListener('click', (e) => {
+        e.preventDefault();
         history.pushState(null, '', '/profile');
-        UIManager.showPage(UIManager.pages.updateProfile);
-        UIManager.loadUpdateProfilePage();
+        UIManager.handlePathChange('/profile');
     });
 
     document.getElementById('back-to-main').addEventListener('click', (e) => {
         e.preventDefault();
         history.pushState(null, '', '/');
-        UIManager.showPage(UIManager.pages.main);
+        UIManager.handlePathChange('/');
     });
 
     // 2FA form submit handler
@@ -2474,29 +2522,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const player2Name = document.getElementById('player2-name').value;
                 localStorage.setItem('player2Name', player2Name);
     
-                // Load pong game
-                const pongResponse = await fetch('/src/assets/components/pong.html');
-                const pongHtml = await pongResponse.text();
-                
-                // Remove setup page
-                setupDiv.remove();
-                
-                // Create and show game page
-                const gameDiv = document.createElement('div');
-                gameDiv.id = 'game-page';
-                gameDiv.classList.add('page', 'active-page');
-                gameDiv.innerHTML = pongHtml;
-                document.body.appendChild(gameDiv);
-    
-                // Initialize PvP game
-                requestAnimationFrame(() => {
-                    if (typeof initGame === 'function') {
-                        initGame('PVP');
-                    }
-                });
+                history.pushState(null, '', '/game/pong/pvp/play');
+                await UIManager.loadGamePage('PVP');
             });
     
             cancelBtn.addEventListener('click', () => {
+                history.pushState(null, '', '/');
                 setupDiv.remove();
                 document.getElementById('main-page').classList.add('active-page');
             });
