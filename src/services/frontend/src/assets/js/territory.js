@@ -1,9 +1,14 @@
+let gameStartTime;
+
 function initTerritory() {
     const GRID_SIZE = 20;
     const CELL_SIZE = 25;
     const PLAYER_SPEED = 5;
     let gameActive = true;
     let animationFrameId = null;
+
+    // Initialize game start time when game starts
+    const gameStartTime = Date.now();
 
     // Player data
     const players = [
@@ -167,23 +172,35 @@ function initTerritory() {
     }
 
     function announceWinner(playerId) {
+        gameActive = false;
         const colors = ['Red', 'Light Blue', 'Green'];
         const announcement = document.createElement('div');
-        announcement.className = 'winner-announcement';
-        announcement.style.color = players[playerId - 1].color;
+        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+        announcement.style.cssText = 'font-size: 2rem; z-index: 1000;';
         announcement.textContent = `${colors[playerId - 1]} Player Wins!`;
-        gameContainer.appendChild(announcement);
+        document.getElementById('territory-page').appendChild(announcement);
 
-        // Update explanation text
-        const explanation = document.createElement('div');
-        explanation.className = 'winner-explanation';
-        explanation.textContent = `(First to capture 30% of the board)`;
-        announcement.appendChild(explanation);
-
-        // Automatically redirect after 3 seconds
-        setTimeout(() => {
-            document.getElementById('back-to-menu').click();
-        }, 3000);
+        // Save Territory match result
+        const matchData = {
+            match_type: 'Territory',
+            start_time: new Date(gameStartTime).toISOString(),
+            end_time: new Date().toISOString(),
+            winner_name: colors[playerId - 1],
+            created_by: AuthManager.currentUser?.username,
+            duration: Math.floor((Date.now() - gameStartTime) / 1000)
+        };
+        
+        // Save match and update history
+        saveMatchResult(matchData).then(async () => {
+            // Update match history before redirecting
+            const matches = await MatchManager.fetchMatchHistory();
+            MatchManager.displayMatchHistory(matches);
+            
+            // Wait 3 seconds before redirecting
+            setTimeout(() => {
+                document.getElementById('back-to-menu').click();
+            }, 3000);
+        });
     }
 
     function resetGame() {

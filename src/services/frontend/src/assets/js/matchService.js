@@ -98,4 +98,31 @@ class MatchService {
   }
 }
 
-export default MatchService;
+// Remove export and make saveMatchResult globally available
+async function saveMatchResult(matchData) {
+    try {
+        console.log('Attempting to save match data:', matchData);  // Log the data being sent
+        
+        const response = await fetch(`${AuthManager.API_BASE}matches/`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(matchData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();  // Get the error details
+            console.error('Server error response:', errorData);  // Log the server's error message
+            throw new Error('Failed to save match result');
+        }
+    } catch (error) {
+        console.error('Error saving match:', error);
+        throw error;
+    }
+}
+
+// Make both MatchService and saveMatchResult available globally
+window.MatchService = MatchService;
+window.saveMatchResult = saveMatchResult;

@@ -1883,12 +1883,6 @@ class MatchManager {
             matchElement.style.backgroundColor = '#2b3035';
             matchElement.style.border = '1px solid rgba(255, 255, 255, 0.1)';
             
-            const winner = match.winner_name;
-            const isPlayer1Winner = match.player1_name === winner;
-            const player1Class = isPlayer1Winner ? 'text-success' : '';
-            const player2Class = match.player2_name === winner ? 'text-danger' : '';
-            const winnerClass = isPlayer1Winner ? 'text-success' : 'text-danger';
-            
             const date = new Date(match.end_time || match.start_time);
             const formattedDate = date.toLocaleDateString('en-US', {
                 month: 'short',
@@ -1897,35 +1891,60 @@ class MatchManager {
                 minute: '2-digit',
                 hour12: false
             });
-            
-            matchElement.innerHTML = `
-                <div class="d-flex flex-column">
-                    <div class="text-center mb-2">
-                        <div class="match-players mb-1">
-                            <span class="fw-bold ${player1Class}">
-                                ${match.player1_name}
-                            </span>
-                            <span class="mx-2 text-light">vs</span>
-                            <span class="fw-bold ${player2Class}">
-                                ${match.player2_name}
-                            </span>
+
+            if (match.match_type === 'Tournament' || match.match_type === 'Territory' || match.match_type === '4-Player Pong') {
+                matchElement.innerHTML = `
+                    <div class="d-flex flex-column">
+                        <div class="text-center mb-2">
+                            <div class="match-type fw-bold text-white">
+                                ${match.match_type} Match
+                            </div>
                         </div>
-                        <div class="match-score">
-                            Score: <span class="fw-bold">${match.player1_score} - ${match.player2_score}</span>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-light-50" style="color: #adb5bd !important;">
+                                ${formattedDate}
+                            </small>
+                            <small class="text-success">
+                                Winner: ${match.winner_name}
+                            </small>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-light-50" style="color: #adb5bd !important;">
-                            ${formattedDate}
-                        </small>
-                        ${winner ? `
+                `;
+            } else {
+                // Show all details for regular matches
+                const winner = match.winner_name;
+                const isPlayer1Winner = match.player1_name === winner;
+                const player1Class = isPlayer1Winner ? 'text-success' : '';
+                const player2Class = match.player2_name === winner ? 'text-danger' : '';
+                const winnerClass = isPlayer1Winner ? 'text-success' : 'text-danger';
+                
+                matchElement.innerHTML = `
+                    <div class="d-flex flex-column">
+                        <div class="text-center mb-2">
+                            <div class="match-players mb-1">
+                                <span class="fw-bold ${player1Class}">
+                                    ${match.player1_name}
+                                </span>
+                                <span class="mx-2 text-light">vs</span>
+                                <span class="fw-bold ${player2Class}">
+                                    ${match.player2_name}
+                                </span>
+                            </div>
+                            <div class="match-score">
+                                Score: <span class="fw-bold">${match.player1_score} - ${match.player2_score}</span>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-light-50" style="color: #adb5bd !important;">
+                                ${formattedDate}
+                            </small>
                             <small class="${winnerClass}">
                                 Winner: ${winner}
                             </small>
-                        ` : ''}
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
 
             container.appendChild(matchElement);
         });
