@@ -98,4 +98,71 @@ class MatchService {
   }
 }
 
-export default MatchService;
+// Move saveMatchResult to matchService.js
+async function saveMatchResult(matchData) {
+    try {
+        let currentToken = localStorage.getItem('accessToken');
+        if (!currentToken) {
+            throw new Error('No access token available');
+        }
+
+        let response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // ... token refresh code ...
+
+        const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify(matchData)
+        });
+
+        if (!matchResponse.ok) {
+            const errorData = await matchResponse.json();
+            console.error('Match save error details:', errorData);
+            throw new Error('Failed to save match result');
+        }
+
+        const userResponse = await fetch(`${AuthManager.API_BASE}users/profile/`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (userResponse.ok) {
+            const userData = await userResponse.json();
+            const updateData = {
+                username: userData.username,
+                email: userData.email,
+                total_matches: userData.total_matches + 1  // Always increment total_matches
+            };
+
+            await fetch(`${AuthManager.API_BASE}users/profile/`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+        }
+
+        return matchResponse.json();
+    } catch (error) {
+        console.error('Error saving match:', error);
+        throw error;
+    }
+}
+
+// Make both MatchService and saveMatchResult available globally
+window.MatchService = MatchService;
+window.saveMatchResult = saveMatchResult;

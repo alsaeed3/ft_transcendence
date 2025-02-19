@@ -79,7 +79,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 3;
+    const WINNING_SCORE = 1;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -218,21 +218,24 @@ function initGame(mode = 'AI') {
                 messageElement.className = 'text-white text-center display-8 font-monospace';
                 messageElement.textContent = winner;
                 gameOverMessage.classList.remove('d-none');
-                
-                // Save match result
+
+                // Save match result with updated model fields
                 const matchData = {
-                    tournament: null,
+                    match_type: 'Pong',  // Changed to match the model's choices
+                    start_time: new Date(gameStartTime).toISOString(),
+                    end_time: new Date().toISOString(),
+                    winner_name: playerScore > computerScore ? username : 
+                               (mode === 'PVP' ? player2Name : 'Computer'),
+                    created_by: username,
                     player1_name: username,
-                    player2_name: mode === 'PVP' ? player2Name : 'AI',
+                    player2_name: mode === 'PVP' ? player2Name : 'Computer',
                     player1_score: playerScore,
                     player2_score: computerScore,
-                    start_time: new Date().toISOString(),
-                    end_time: new Date().toISOString(),
-                    winner_name: playerScore > computerScore ? username : player2Name,
-                    match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
+                    duration: Math.floor((Date.now() - gameStartTime) / 1000)
                 };
+                console.log(matchData);
                 saveMatchResult(matchData);
-                
+
                 setTimeout(() => {
                     window.location.href = '/';
                 }, 3000);
@@ -604,6 +607,7 @@ function initGame(mode = 'AI') {
     function announceMatch() {
         gameActive = false;
         gameStarted = false;  // Ensure ball doesn't move
+        gameStartTime = Date.now();  // Reset start time for each match
         
         const player1 = tournamentBracket[currentRound][currentMatchIndex];
         const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
@@ -668,6 +672,22 @@ function initGame(mode = 'AI') {
         messageElement.className = 'text-white text-center display-8 font-monospace';
         messageElement.textContent = `Tournament Winner: ${winner}!`;
         gameOverMessage.classList.remove('d-none');
+
+        // Get current user from AuthManager
+        const currentUser = AuthManager.currentUser?.username;
+
+        // Save tournament final match result
+        const matchData = {
+            match_type: 'Tournament',
+            start_time: new Date(gameStartTime).toISOString(),
+            end_time: new Date().toISOString(),
+            winner_name: winner,
+            created_by: currentUser,  // Use current user's username
+            duration: Math.floor((Date.now() - gameStartTime) / 1000)
+        };
+        // Note: Deliberately not including player fields for tournament matches
+        saveMatchResult(matchData);
+
         setTimeout(() => {
             window.location.href = '/';
         }, 3000);
@@ -687,6 +707,7 @@ function initGame(mode = 'AI') {
 
     // Add announceNormalMatch for PVP/AI modes
     function announceNormalMatch() {
+        gameStartTime = Date.now();  // Record when game starts
         gameActive = false;
         gameStarted = false;  // Ensure ball doesn't move
         
@@ -775,6 +796,9 @@ function initGame(mode = 'AI') {
 }
 
 function init4PlayerGame() {
+    // Initialize game start time
+    gameStartTime = Date.now();
+    
     // Create game container
     const gameContainer = document.createElement('div');
     gameContainer.id = 'game-container';
@@ -798,7 +822,7 @@ function init4PlayerGame() {
         initialBallSpeed: 5,
         speedIncrease: 1.1,  // Change to 10% increase like PVP mode
         maxBallSpeed: 15,
-        winningScore: 3
+        winningScore: 1
     };
 
     // Players setup
@@ -814,9 +838,9 @@ function init4PlayerGame() {
     scoreDisplay.className = 'd-flex justify-content-around mb-3';
     scoreDisplay.innerHTML = `
         <div class="d-flex gap-4">
-            ${['Top', 'Right', 'Bottom', 'Left'].map((pos, i) => `
+            ${['Red', 'Blue', 'Green', 'Yellow'].map((color, i) => `
                 <div style="color: ${players[i].color}">
-                    ${pos} Player: <span id="player${i}Score">0</span>
+                    ${color} Player: <span id="player${i}Score">0</span>
                 </div>
             `).join('')}
         </div>
@@ -1006,21 +1030,36 @@ function init4PlayerGame() {
 
     function announceWinner(winnerIndex) {
         state.gameActive = false;
-        const announcement = document.createElement('div');
-        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
-        announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
-        
-        // Map player index to position
-        const positions = ['Top', 'Right', 'Bottom', 'Left'];
-        announcement.textContent = `${positions[winnerIndex]} Player Wins!`;
-        
-        gameContainer.appendChild(announcement);
+        const colors = ['Red', 'Blue', 'Green', 'Yellow'];
+        const winner = colors[winnerIndex] + ' Player';
 
-        // Redirect to homepage after 3 seconds
-        setTimeout(() => {
-            document.getElementById('pong-page').remove();
-            document.getElementById('main-page').classList.add('active-page');
-        }, 3000);
+        // Save 4P match result
+        const matchData = {
+            match_type: '4-Player Pong',
+            start_time: new Date(gameStartTime).toISOString(),
+            end_time: new Date().toISOString(),
+            winner_name: winner,
+            created_by: AuthManager.currentUser?.username,
+            duration: Math.floor((Date.now() - gameStartTime) / 1000)
+        };
+        
+        // Save match and update history
+        saveMatchResult(matchData).then(async () => {
+            // Update match history before redirecting
+            // const matches = await MatchManager.fetchMatchHistory();
+            // MatchManager.displayMatchHistory(matches);
+            
+            // Show winner announcement
+            const announcement = document.createElement('div');
+            announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+            announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
+            announcement.textContent = `${winner} Wins!`;
+            gameContainer.appendChild(announcement);
+
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+        });
     }
 
     // Update scores in the UI
