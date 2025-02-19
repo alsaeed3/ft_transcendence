@@ -190,13 +190,8 @@ function initTerritory() {
             duration: Math.floor((Date.now() - gameStartTime) / 1000)
         };
         
-        // Save match and update history
+        // Save match using the updated saveMatchResult function that uses cookies
         saveMatchResult(matchData).then(async () => {
-            // Update match history before redirecting
-            // const matches = await MatchManager.fetchMatchHistory();
-            // MatchManager.displayMatchHistory(matches);
-            
-            // Use window.location.href instead of DOM manipulation
             setTimeout(() => {
                 window.location.href = '/';
             }, 3000);

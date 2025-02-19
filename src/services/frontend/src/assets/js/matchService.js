@@ -1,16 +1,13 @@
 // API service for match-related operations
 class MatchService {
-  constructor(baseUrl, authToken) {
+  constructor(baseUrl) {
     this.baseUrl = baseUrl;
-    this.authToken = authToken;
   }
 
   async getMatches() {
     try {
       const response = await fetch(`${this.baseUrl}/matches/`, {
-        headers: {
-          'Authorization': `Bearer ${this.authToken}`
-        }
+        credentials: 'include'
       });
       
       if (!response.ok) {
@@ -26,9 +23,7 @@ class MatchService {
 
   async getMatchDetails(matchId) {
     const response = await fetch(`${this.baseUrl}/matches/${matchId}/`, {
-      headers: {
-        'Authorization': `Bearer ${this.authToken}` 
-      }
+      credentials: 'include'
     });
     return response.json();
   }
@@ -36,8 +31,8 @@ class MatchService {
   async createMatch(matchData) {
     const response = await fetch(`${this.baseUrl}/matches/`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Authorization': `Bearer ${this.authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(matchData)
@@ -48,8 +43,8 @@ class MatchService {
   async updateMatch(matchId, matchData) {
     const response = await fetch(`${this.baseUrl}/matches/${matchId}/`, {
       method: 'PUT',
+      credentials: 'include',
       headers: {
-        'Authorization': `Bearer ${this.authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(matchData)
@@ -60,8 +55,8 @@ class MatchService {
   async updateMatchScore(matchId, player1Score, player2Score) {
     const response = await fetch(`${this.baseUrl}/matches/${matchId}/`, {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
-        'Authorization': `Bearer ${this.authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -75,8 +70,8 @@ class MatchService {
   async endMatch(matchId, winnerId) {
     const response = await fetch(`${this.baseUrl}/matches/${matchId}/`, {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
-        'Authorization': `Bearer ${this.authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -90,36 +85,20 @@ class MatchService {
   async deleteMatch(matchId) {
     const response = await fetch(`${this.baseUrl}/matches/${matchId}/`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${this.authToken}`
-      }
+      credentials: 'include'
     });
     return response.ok;
   }
 }
 
-// Move saveMatchResult to matchService.js
+// Update saveMatchResult to use cookies
 async function saveMatchResult(matchData) {
     try {
-        let currentToken = localStorage.getItem('accessToken');
-        if (!currentToken) {
-            throw new Error('No access token available');
-        }
-
-        let response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
-            headers: {
-                'Authorization': `Bearer ${currentToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        // ... token refresh code ...
-
         const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentToken}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(matchData)
         });
@@ -132,8 +111,8 @@ async function saveMatchResult(matchData) {
 
         const userResponse = await fetch(`${AuthManager.API_BASE}users/profile/`, {
             method: 'GET',
+            credentials: 'include',
             headers: {
-                'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json'
             }
         });
@@ -148,8 +127,8 @@ async function saveMatchResult(matchData) {
 
             await fetch(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
-                    'Authorization': `Bearer ${currentToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(updateData)
@@ -159,6 +138,12 @@ async function saveMatchResult(matchData) {
         return matchResponse.json();
     } catch (error) {
         console.error('Error saving match:', error);
+        if (error.message.includes('401')) {
+            localStorage.clear();
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+        }
         throw error;
     }
 }

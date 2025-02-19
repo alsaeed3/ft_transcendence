@@ -3,10 +3,7 @@ class AuthManager {
     static username;
     static API_BASE = 'https://localhost/api/';
     static RECENT_MATCHES_LIMIT = 3;
-    static TOKEN_REFRESH_THRESHOLD = 30 * 60 * 1000; // 30 minutes in milliseconds
     static currentOTPTimer = null; // For tracking OTP timer
-    static accessToken = localStorage.getItem('accessToken');
-    static refreshToken = localStorage.getItem('refreshToken');
     static currentUser = null;
 
     static {
@@ -22,82 +19,27 @@ class AuthManager {
         }
     }
 
-    static async refreshAccessToken() {
-        try {
-            // Check if we have a valid token that doesn't need refresh yet
-            if (this.accessToken && this.refreshToken) {
-                const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
-                const timeUntilExpiry = payload.exp * 1000 - Date.now();
-                
-                if (timeUntilExpiry > this.TOKEN_REFRESH_THRESHOLD) {
-                    return this.accessToken;
-                }
-            }
-    
-            if (!this.refreshToken) {
-                throw new Error("No refresh token available");
-            }
-    
-            const response = await fetch(`${AuthManager.API_BASE}token/refresh/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: this.refreshToken })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("Token refresh response error:", errorData);
-                throw new Error(`Token refresh failed: ${errorData.error || response.statusText}`);
-            }
-            
-            const data = await response.json();
-            this.accessToken = data.access;
-            localStorage.setItem('accessToken', this.accessToken);
-            return this.accessToken;
-        } catch (error) {
-            console.error('Token refresh failed:', error);
-            localStorage.clear();
-            UIManager.showPage(UIManager.pages.landing);
-            throw error;
-        }
-    }
-
     static async fetchWithAuth(url, options = {}) {
         try {
-            if (!this.accessToken) {
-                throw new Error('No access token available');
-            }
-    
             let response = await fetch(url, {
                 ...options,
+                credentials: 'include', // Add this line to include cookies
                 headers: {
                     ...options.headers,
-                    'Authorization': `Bearer ${this.accessToken}`
                 }
             });
-    
+
             if (response.status === 401) {
-                try {
-                    const newToken = await this.refreshAccessToken();
-                    response = await fetch(url, {
-                        ...options,
-                        headers: {
-                            ...options.headers,
-                            'Authorization': `Bearer ${newToken}`
-                        }
-                    });
-                } catch (error) {
-                    console.error('Token refresh failed:', error);
-                    this.logout();
-                    throw new Error('Session expired. Please login again.');
-                }
+                // If unauthorized, redirect to login
+                this.logout();
+                throw new Error('Session expired. Please login again.');
             }
 
             if (response.status === 502) {
                 console.error('Backend server error (502)');
                 throw new Error('Server temporarily unavailable. Please try again later.');
             }
-    
+
             return response;
         } catch (error) {
             console.error('Fetch error:', error);
@@ -109,10 +51,11 @@ class AuthManager {
         try {
             const response = await fetch(`${this.API_BASE}auth/login/`, {
                 method: 'POST',
+                credentials: 'include', // Add this line to include cookies
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
-            
+
             const data = await response.json();
 
             if (!response.ok) {
@@ -120,26 +63,15 @@ class AuthManager {
                 return;
             }
 
-            // Check for 2FA requirement (changed from is_2fa_enabled to 2fa_required)
+            // Check for 2FA requirement
             if (data['2fa_required']) {
                 sessionStorage.setItem('tempUsername', username);
-                if (data.is_2fa_enabled) {
-                    sessionStorage.setItem('tempUsername', username);
-                    sessionStorage.setItem('tempPassword', password);
-                    sessionStorage.setItem('tempUserEmail', data.user.email);
-                    
-                    document.getElementById('login-form').classList.add('d-none');
-                    document.getElementById('2fa-form').classList.remove('d-none');
-                    
-                    AuthManager.startOTPTimer();
-                    return;
-                }
                 sessionStorage.setItem('tempPassword', password);
                 sessionStorage.setItem('tempUserEmail', data.user.email);
-                
+
                 document.getElementById('login-form').classList.add('d-none');
                 document.getElementById('2fa-form').classList.remove('d-none');
-                
+
                 AuthManager.startOTPTimer();
                 return;
             }
@@ -149,6 +81,7 @@ class AuthManager {
             UIManager.showToast(error.message || 'Login failed', 'danger');
         }
     }
+
 
     static async register(userData) {
         try {
@@ -250,21 +183,6 @@ class AuthManager {
     }
 
     static async processSuccessfulAuth(data) {
-        // Check the structure of data
-        console.log('Auth data received:', data);  // Debug log
-        
-        // Handle both standard login and OAuth flows
-        const access = data.access || data.access_token;
-        const refresh = data.refresh || data.refresh_token;
-        
-        if (!access || !refresh) {
-            console.error('Invalid auth data:', data);  // Debug log
-            throw new Error('Invalid authentication response');
-        }
-        
-        this.accessToken = data.access;
-        this.refreshToken = data.refresh;
-        
         // Ensure we have the complete user object with ID
         if (!data.user || !data.user.id) {
             // Fetch user profile if not provided in auth response
@@ -277,49 +195,33 @@ class AuthManager {
             this.currentUser = data.user;
         }
 
-        // Store tokens and user data
-        localStorage.setItem('accessToken', this.accessToken);
-        localStorage.setItem('refreshToken', this.refreshToken);
+        // Store user data (excluding tokens)
         localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
 
         // Clear temporary storage
         sessionStorage.removeItem('tempUsername');
         sessionStorage.removeItem('tempPassword');
         sessionStorage.removeItem('tempUserEmail');
-        
+
         UIManager.showPage(UIManager.pages.main);
         await UIManager.loadMainPage();
-
-        // After successful auth, notify other users about new login
-        if (ChatManager.statusSocket && ChatManager.statusSocket.readyState === WebSocket.OPEN) {
-            ChatManager.statusSocket.send(JSON.stringify({
-                type: 'new_user_online',
-                user_id: this.currentUser.id,
-                username: this.currentUser.username
-            }));
-        }
     }
 
     static async logout() {
         try {
-            if (this.accessToken && this.refreshToken) {
-                await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh: this.refreshToken }),
-                });
-            }
+            await fetch(`${this.API_BASE}auth/logout/`, {
+                method: 'POST',
+                credentials: 'include' // Add this line to include cookies
+            });
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
             ChatManager.cleanup();
             localStorage.clear();
-            sessionStorage.clear(); // Clear all session storage
-            this.accessToken = null;
-            this.refreshToken = null;
+            sessionStorage.clear();
             this.currentUser = null;
-            UIManager.showLoginForm(); // Show login form first
-            UIManager.showPage(UIManager.pages.landing); // Then show landing page
+            UIManager.showLoginForm();
+            UIManager.showPage(UIManager.pages.landing);
         }
     }
 
@@ -764,11 +666,11 @@ class ChatManager {
 
     static initStatusWebSocket() {
         try {
-            // Always use WSS in production, or when on HTTPS
             const wsScheme = 'wss';  // Always use WSS
-            const wsUrl = `${wsScheme}://${window.location.host}/ws/status/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+            // Remove token from URL, cookies will handle auth
+            const wsUrl = `${wsScheme}://${window.location.host}/ws/status/`;
             
-            console.log('Connecting to WebSocket:', wsUrl); // Debug log
+            console.log('Connecting to WebSocket:', wsUrl);
             
             if (this.statusSocket) {
                 this.statusSocket.close();
@@ -982,7 +884,8 @@ class ChatManager {
         
         const apiHost = new URL(AuthManager.API_BASE).host;
         const wsScheme = 'wss';  // Always use WSS
-        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
+        // Remove token from URL, cookies will handle auth
+        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/`;
         
         if (this.chatSocket) {
             this.chatSocket.close();
@@ -2460,7 +2363,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (oauth42Btn) {
         oauth42Btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // Store current URL before redirect
             sessionStorage.setItem('preAuthPath', window.location.pathname);
             window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
         });
@@ -2546,8 +2448,6 @@ document.addEventListener('DOMContentLoaded', () => {
 const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     return {
-        accessToken: params.get('access_token'),
-        refreshToken: params.get('refresh_token'),
         authError: params.get('auth_error')
     };
 };
@@ -2555,25 +2455,29 @@ const getUrlParams = () => {
 // Update the initialization code
 document.addEventListener('DOMContentLoaded', () => {
     const authError = new URLSearchParams(window.location.search).get('auth_error');
-    const accessToken = new URLSearchParams(window.location.search).get('access_token');
-    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
     
     if (authError) {
         UIManager.showToast(decodeURIComponent(authError), 'danger');
         UIManager.showPage(UIManager.pages.landing);
-    } else if (accessToken && refreshToken) {
-        // Store tokens and proceed to main page
-        AuthManager.accessToken = accessToken;
-        AuthManager.refreshToken = refreshToken;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        UIManager.showPage(UIManager.pages.main);
-        UIManager.loadMainPage();
+    } else {
+        // Check if user is authenticated via cookies
+        AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`)
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(userData => {
+                        AuthManager.currentUser = userData;
+                        localStorage.setItem('currentUser', JSON.stringify(userData));
+                        UIManager.showPage(UIManager.pages.main);
+                        UIManager.loadMainPage();
+                    });
+                } else {
+                    UIManager.showPage(UIManager.pages.landing);
+                }
+            })
+            .catch(() => {
+                UIManager.showPage(UIManager.pages.landing);
+            });
     }
-    
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
 });
 
 function createChatMessage(message) {
@@ -2682,25 +2586,18 @@ function createChatMessage(message) {
     return messageWrapper;
 }
 
-// Make refreshAccessToken available globally
-// window.refreshAccessToken = refreshAccessToken;
-
-// Keep handleOAuthCallback function definition but move it before it's used
+// Update the handleOAuthCallback function to remove token storage
 const handleOAuthCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     if (code) {
         try {
-            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
+            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`, {
+                credentials: 'include' // Add this to handle cookies
+            });
             const data = await response.json();
             if (response.ok) {
-                // Store tokens and redirect to main page
-                AuthManager.accessToken = data.access;
-                AuthManager.refreshToken = data.refresh;
-                localStorage.setItem('accessToken', AuthManager.accessToken);
-                localStorage.setItem('refreshToken', AuthManager.refreshToken);
-                
-                // Clean up URL and redirect to main page
+                // Remove token storage, just clean up URL and redirect
                 window.history.replaceState({}, document.title, '/');
                 UIManager.showPage(UIManager.pages.main);
                 await UIManager.loadMainPage();
@@ -2715,11 +2612,41 @@ const handleOAuthCallback = async () => {
     }
 };
 
-// Update initialization code
-if (AuthManager.accessToken) {
-    UIManager.loadMainPage();
-} else {
-    UIManager.showPage(UIManager.pages.landing);
+// Update initialization code to remove token checks
+document.addEventListener('DOMContentLoaded', () => {
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    
+    if (authError) {
+        UIManager.showToast(decodeURIComponent(authError), 'danger');
+        UIManager.showPage(UIManager.pages.landing);
+    } else {
+        // Check if user is authenticated via cookies
+        AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`)
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(userData => {
+                        AuthManager.currentUser = userData;
+                        localStorage.setItem('currentUser', JSON.stringify(userData));
+                        UIManager.showPage(UIManager.pages.main);
+                        UIManager.loadMainPage();
+                    });
+                } else {
+                    UIManager.showPage(UIManager.pages.landing);
+                }
+            })
+            .catch(() => {
+                UIManager.showPage(UIManager.pages.landing);
+            });
+    }
+});
+
+// Remove any remaining token-related code
+if (document.getElementById('oauth-42-btn')) {
+    document.getElementById('oauth-42-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        sessionStorage.setItem('preAuthPath', window.location.pathname);
+        window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
+    });
 }
 
 // Add this to your existing styles or create a new style tag

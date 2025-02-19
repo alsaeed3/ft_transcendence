@@ -15,6 +15,9 @@ import os
 from django.core.mail import send_mail # 2FA
 from django.db import IntegrityError
 from django.conf import settings
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from datetime import datetime
 
 User = get_user_model()
 
@@ -42,10 +45,10 @@ class UserRegistrationView(APIView):
 class UserLogoutView(APIView):
     def post(self, request):
         try:
-            refresh_token = request.data['refresh']
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
+            response = Response(status=status.HTTP_205_RESET_CONTENT)
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
+            return response
         except Exception as e:
             return Response(
                 {'error': str(e)}, 
@@ -61,22 +64,18 @@ class TwoFactorLoginView(APIView):
         username = request.data.get('username')
         password = request.data.get('password')
         
-        # 1. Check if user exists
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response({'error': 'Invalid credentials'}, status=401)
 
-        # 2. Block OAuth users
         if user.is_42_auth:
             return Response({'error': 'Use 42 OAuth login'}, status=400)
 
-        # 4. Authenticate
         authenticated_user = authenticate(username=username, password=password)
         if not authenticated_user:
             return Response({'error': 'Invalid credentials'}, status=401)
 
-        # 5. Handle 2FA
         if user.is_2fa_enabled:
             otp = user.generate_otp()
             subject = 'Your Security Code'
@@ -86,20 +85,40 @@ class TwoFactorLoginView(APIView):
             except Exception as e:
                 return Response({'error': 'Failed to send OTP'}, status=500)
             return Response({
-                '2fa_required': True,  # Changed from is_2fa_enabled to 2fa_required
+                '2fa_required': True,
                 'user': AuthUserSerializer(user).data
             }, status=202)
-        # 6. Return tokens
+
         refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+        response = Response({
             'user': AuthUserSerializer(user).data
-        })
+        }, status=status.HTTP_200_OK)
+        
+        # Set cookies with the correct settings
+        response.set_cookie(
+            key=settings.SIMPLE_JWT['AUTH_COOKIE'],
+            value=str(refresh.access_token),
+            expires=datetime.now() + settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            domain=settings.SIMPLE_JWT['AUTH_COOKIE_DOMAIN'],
+            path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH']
+        )
+        response.set_cookie(
+            key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
+            value=str(refresh),
+            expires=datetime.now() + settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            domain=settings.SIMPLE_JWT['AUTH_COOKIE_DOMAIN'],
+            path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH']
+        )
+        return response
 
 
 class TwoFactorVerifyView(APIView):
-    """Verify 2FA OTP"""
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -113,11 +132,32 @@ class TwoFactorVerifyView(APIView):
 
         if user.is_otp_valid(serializer.validated_data['otp']):
             refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
+            response = Response({
                 'user': AuthUserSerializer(user).data
-            })
+            }, status=status.HTTP_200_OK)
+            
+            # Update cookie settings with domain
+            response.set_cookie(
+                key='access_token',
+                value=str(refresh.access_token),
+                httponly=True,
+                samesite='Lax',
+                secure=True,
+                max_age=3600,
+                domain=None,  # Use None for localhost
+                path='/'
+            )
+            response.set_cookie(
+                key='refresh_token',
+                value=str(refresh),
+                httponly=True,
+                samesite='Lax',
+                secure=True,
+                max_age=86400,
+                domain=None,  # Use None for localhost
+                path='/'
+            )
+            return response
         return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -157,8 +197,8 @@ def ft_oauth_login(request):
     return redirect(url)
 
 @api_view(['GET'])
+@api_view(['GET'])
 def ft_oauth_callback(request):
-    # Check for error parameter first
     error = request.GET.get('error')
     if error:
         frontend_url = "https://localhost"
@@ -179,7 +219,6 @@ def ft_oauth_callback(request):
             'redirect_uri': os.getenv('FT_REDIRECT_URI'),
         }
         
-        # The timeout is currently set to 5 seconds
         token_response = requests.post(token_url, data=token_data, timeout=5)
         token_response.raise_for_status()
         token_data = token_response.json()
@@ -189,14 +228,12 @@ def ft_oauth_callback(request):
             frontend_url = "https://localhost"
             return redirect(f"{frontend_url}/?auth_error=Failed to obtain access token")
 
-        # Get user info from 42 API
         user_info_url = 'https://api.intra.42.fr/v2/me'
         headers = {'Authorization': f'Bearer {access_token}'}
         user_info_response = requests.get(user_info_url, headers=headers, timeout=5)
         user_info_response.raise_for_status()
         user_data = user_info_response.json()
 
-        # Extract user info
         first_name = user_data.get('first_name')
         last_name = user_data.get('last_name')
         user_id_42 = user_data.get('id')
@@ -207,7 +244,6 @@ def ft_oauth_callback(request):
             frontend_url = "https://localhost"
             return redirect(f"{frontend_url}/?auth_error=Incomplete user data from 42 API")
 
-        # Get or create user
         try:
             user = User.objects.get(user_id_42=user_id_42)
         except User.DoesNotExist:
@@ -229,15 +265,31 @@ def ft_oauth_callback(request):
             user.set_unusable_password()
             user.save()
 
-        # Generate tokens and redirect with params
         refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)  # Get access token
-        refresh_token = str(refresh)              # Get refresh token
-
-        frontend_url = "https://localhost"
-        return redirect(
-            f"{frontend_url}/?access_token={access_token}&refresh_token={refresh_token}"
+        response = redirect("https://localhost")
+        
+        # Update cookie settings with domain
+        response.set_cookie(
+            key='access_token',
+            value=str(refresh.access_token),
+            httponly=True,
+            samesite='Lax',
+            secure=True,
+            max_age=3600,
+            domain=None,  # Use None for localhost
+            path='/'
         )
+        response.set_cookie(
+            key='refresh_token',
+            value=str(refresh),
+            httponly=True,
+            samesite='Lax',
+            secure=True,
+            max_age=86400,
+            domain=None,  # Use None for localhost
+            path='/'
+        )
+        return response
 
     except IntegrityError:
         frontend_url = "https://localhost"
@@ -245,3 +297,15 @@ def ft_oauth_callback(request):
     except Exception as e:
         frontend_url = "https://localhost"
         return redirect(f"{frontend_url}/?auth_error=Authentication failed")
+
+class JWTCookieAuthentication(JWTAuthentication):
+    def authenticate(self, request):
+        raw_token = request.COOKIES.get('access_token')
+        if raw_token is None:
+            return None
+
+        try:
+            validated_token = self.get_validated_token(raw_token)
+            return self.get_user(validated_token), validated_token
+        except (InvalidToken, TokenError):
+            return None

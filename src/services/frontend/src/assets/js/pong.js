@@ -91,10 +91,7 @@ function initGame(mode = 'AI') {
     async function fetchUsername() {
         try {
             const response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-                    'Content-Type': 'application/json'
-                }
+                credentials: 'include'
             });
             
             if (response.ok) {
@@ -245,46 +242,11 @@ function initGame(mode = 'AI') {
 
     async function saveMatchResult(matchData) {
         try {
-            let currentToken = localStorage.getItem('accessToken');
-            if (!currentToken) {
-                throw new Error('No access token available');
-            }
-
-            let response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
-                headers: {
-                    'Authorization': `Bearer ${currentToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.status === 401) {
-                try {
-                    currentToken = await window.refreshAccessToken();
-                    response = await fetch(`${AuthManager.API_BASE}users/profile/`, {
-                        headers: {
-                            'Authorization': `Bearer ${currentToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                } catch (refreshError) {
-                    localStorage.clear();
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 3000);
-                    throw refreshError;
-                }
-            }
-
-            if (!response.ok) {
-                throw new Error('Failed to get user profile');
-            }
-
-
             const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${currentToken}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(matchData)
             });
@@ -297,8 +259,8 @@ function initGame(mode = 'AI') {
 
             const userResponse = await fetch(`${AuthManager.API_BASE}users/profile/`, {
                 method: 'GET',
+                credentials: 'include',
                 headers: {
-                    'Authorization': `Bearer ${currentToken}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -314,8 +276,8 @@ function initGame(mode = 'AI') {
     
                 await fetch(`${AuthManager.API_BASE}users/profile/`, {
                     method: 'PUT',
+                    credentials: 'include',
                     headers: {
-                        'Authorization': `Bearer ${currentToken}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(updateData)
@@ -340,7 +302,7 @@ function initGame(mode = 'AI') {
 
         } catch (error) {
             console.error('Error saving match:', error);
-            if (error.message.includes('token') || error.message.includes('401')) {
+            if (error.message.includes('401')) {
                 localStorage.clear();
                 setTimeout(() => {
                     window.location.href = '/';

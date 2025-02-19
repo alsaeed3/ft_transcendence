@@ -63,29 +63,34 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
-	'DEFAULT_AUTHENTICATION_CLASSES': (
-		'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'authentication.authentication.JWTCookieAuthentication',  # Use our custom authentication
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_COOKIE': 'access_token',
+    'AUTH_COOKIE_REFRESH': 'refresh_token',
+    'AUTH_COOKIE_DOMAIN': None,
+    'AUTH_COOKIE_SECURE': True,
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_PATH': '/',
+    'AUTH_COOKIE_SAMESITE': 'Lax',
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "https://localhost",
-    "https://127.0.0.1",
-    "https://localhost:443",
-    "https://127.0.0.1:443",
-    "https://api.intra.42.fr",
-    "ws://localhost",
-    "wss://localhost",
-    "ws://127.0.0.1",
-    "wss://127.0.0.1"
+    "http://localhost",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -113,8 +118,13 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'https://127.0.0.1',
