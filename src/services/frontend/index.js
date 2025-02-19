@@ -2467,6 +2467,31 @@ document.addEventListener('DOMContentLoaded', () => {
             UIManager.showToast('Failed to load the Territory Battle game', 'danger');
         }
     });
+
+    document.getElementById('play-4player-btn').addEventListener('click', async () => {
+        if (!AuthManager.accessToken) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            // Create and show Pong page
+            const pongDiv = document.createElement('div');
+            pongDiv.id = 'pong-page';
+            pongDiv.classList.add('page', 'active-page');
+            
+            // Hide main page and add pong page
+            document.getElementById('main-page').classList.remove('active-page');
+            document.body.appendChild(pongDiv);
+
+            // Initialize 4-player Pong game
+            init4PlayerGame();
+
+        } catch (error) {
+            console.error('Error loading 4-Player Pong game:', error);
+            UIManager.showToast('Failed to load the 4-Player Pong game', 'danger');
+        }
+    });
 });
 
 // Add this function to handle URL parameters
