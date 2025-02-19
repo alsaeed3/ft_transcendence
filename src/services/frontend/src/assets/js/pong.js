@@ -838,9 +838,9 @@ function init4PlayerGame() {
     scoreDisplay.className = 'd-flex justify-content-around mb-3';
     scoreDisplay.innerHTML = `
         <div class="d-flex gap-4">
-            ${['Top', 'Right', 'Bottom', 'Left'].map((pos, i) => `
+            ${['Red', 'Blue', 'Green', 'Yellow'].map((color, i) => `
                 <div style="color: ${players[i].color}">
-                    ${pos} Player: <span id="player${i}Score">0</span>
+                    ${color} Player: <span id="player${i}Score">0</span>
                 </div>
             `).join('')}
         </div>
@@ -1030,8 +1030,8 @@ function init4PlayerGame() {
 
     function announceWinner(winnerIndex) {
         state.gameActive = false;
-        const positions = ['Top', 'Right', 'Bottom', 'Left'];
-        const winner = positions[winnerIndex] + ' Player';
+        const colors = ['Red', 'Blue', 'Green', 'Yellow'];
+        const winner = colors[winnerIndex] + ' Player';
 
         // Save 4P match result
         const matchData = {
@@ -1046,8 +1046,8 @@ function init4PlayerGame() {
         // Save match and update history
         saveMatchResult(matchData).then(async () => {
             // Update match history before redirecting
-            const matches = await MatchManager.fetchMatchHistory();
-            MatchManager.displayMatchHistory(matches);
+            // const matches = await MatchManager.fetchMatchHistory();
+            // MatchManager.displayMatchHistory(matches);
             
             // Show winner announcement
             const announcement = document.createElement('div');
@@ -1056,7 +1056,6 @@ function init4PlayerGame() {
             announcement.textContent = `${winner} Wins!`;
             gameContainer.appendChild(announcement);
 
-            // Use window.location.href instead of DOM manipulation
             setTimeout(() => {
                 window.location.href = '/';
             }, 3000);

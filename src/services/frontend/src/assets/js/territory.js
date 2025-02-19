@@ -193,8 +193,8 @@ function initTerritory() {
         // Save match and update history
         saveMatchResult(matchData).then(async () => {
             // Update match history before redirecting
-            const matches = await MatchManager.fetchMatchHistory();
-            MatchManager.displayMatchHistory(matches);
+            // const matches = await MatchManager.fetchMatchHistory();
+            // MatchManager.displayMatchHistory(matches);
             
             // Use window.location.href instead of DOM manipulation
             setTimeout(() => {
