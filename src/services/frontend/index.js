@@ -1940,15 +1940,15 @@ class MatchManager {
             UIManager.showToast('Failed to start game', 'danger');
         }
     }
-
+    // TODO: Add getting tournament data using the updated matches API
     static async createTournament() {
         try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}tournaments/create/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            // const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}tournaments/create/`, {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     }
+            // });
 
             if (!response.ok) throw new Error('Failed to create tournament');
             const tournamentData = await response.json();

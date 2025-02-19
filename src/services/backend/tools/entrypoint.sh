@@ -23,7 +23,6 @@ python manage.py makemigrations admin --noinput
 python manage.py makemigrations contenttypes --noinput
 python manage.py makemigrations sessions --noinput
 python manage.py makemigrations matches --noinput
-python manage.py makemigrations tournaments --noinput
 python manage.py makemigrations token_blacklist --noinput
 
 # Apply migrations in specific order
@@ -34,7 +33,6 @@ python manage.py migrate admin --noinput
 python manage.py migrate contenttypes --noinput
 python manage.py migrate sessions --noinput
 python manage.py migrate matches --noinput
-python manage.py migrate tournaments --noinput
 python manage.py migrate token_blacklist --noinput
 
 # Clear existing static files
