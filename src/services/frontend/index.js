@@ -2989,6 +2989,50 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/';
         }
     });
+
+    // Remove any existing listeners for these specific buttons
+    const playAIBtn = document.getElementById('play-ai-btn');
+    const playPlayerBtn = document.getElementById('play-player-btn');
+    const createTournamentBtn = document.getElementById('create-tournament-btn');
+
+    if (playAIBtn) {
+        const newAIHandler = () => {
+            if (!AuthManager.accessToken) {
+                window.location.href = '/';
+                return;
+            }
+            history.pushState(null, '', '/game/pong/ai');
+            UIManager.handlePathChange('/game/pong/ai');
+        };
+        playAIBtn.replaceWith(playAIBtn.cloneNode(true));
+        document.getElementById('play-ai-btn').addEventListener('click', newAIHandler);
+    }
+
+    if (playPlayerBtn) {
+        const newPlayerHandler = () => {
+            if (!AuthManager.accessToken) {
+                window.location.href = '/';
+                return;
+            }
+            history.pushState({ from: 'main' }, '', '/game/pong/pvp');
+            UIManager.handlePathChange('/game/pong/pvp');
+        };
+        playPlayerBtn.replaceWith(playPlayerBtn.cloneNode(true));
+        document.getElementById('play-player-btn').addEventListener('click', newPlayerHandler);
+    }
+
+    if (createTournamentBtn) {
+        const newTournamentHandler = () => {
+            if (!AuthManager.accessToken) {
+                window.location.href = '/';
+                return;
+            }
+            history.pushState(null, '', '/game/pong/tournament');
+            UIManager.handlePathChange('/game/pong/tournament');
+        };
+        createTournamentBtn.replaceWith(createTournamentBtn.cloneNode(true));
+        document.getElementById('create-tournament-btn').addEventListener('click', newTournamentHandler);
+    }
 });
 
 // Add this function to handle URL parameters

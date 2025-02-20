@@ -664,10 +664,17 @@ function initGame(mode = 'AI') {
     }
 
     function resetMatch() {
+        // Add null checks for score elements
+        const rightScore = document.getElementById('rightPlayerScore');
+        const leftScore = document.getElementById('leftPlayerScore');
+        
+        // Only update elements if they exist
+        if (rightScore) rightScore.textContent = '0';
+        if (leftScore) leftScore.textContent = '0';
+        
+        // Reset scores in memory regardless of DOM elements
         playerScore = 0;
         computerScore = 0;
-        document.getElementById('rightPlayerScore').textContent = '0';
-        document.getElementById('leftPlayerScore').textContent = '0';
         resetBall();
         gameActive = true;
     }
