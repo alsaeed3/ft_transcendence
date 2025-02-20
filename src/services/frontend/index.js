@@ -20,6 +20,75 @@ class AuthManager {
                 localStorage.removeItem('currentUser');
             }
         }
+
+        // Add initialization check when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // First, ensure we're starting from a clean state
+            UIManager.showPage(UIManager.pages.landing);
+
+            // Check URL parameters first
+            const params = new URLSearchParams(window.location.search);
+            const authError = params.get('auth_error');
+            const urlAccessToken = params.get('access_token');
+            const urlRefreshToken = params.get('refresh_token');
+            const code = params.get('code');
+
+            // If no access token is present, stay on landing page
+            if (!this.accessToken && !urlAccessToken && !code) {
+                // Force redirect to root if not already there
+                if (window.location.pathname !== '/') {
+                    window.location.href = '/';
+                }
+                return;
+            }
+
+            // Handle OAuth callback
+            if (code) {
+                handleOAuthCallback();
+                return;
+            }
+
+            // Handle URL parameters
+            if (authError) {
+                UIManager.showToast(decodeURIComponent(authError), 'danger');
+                return;
+            } 
+            
+            if (urlAccessToken && urlRefreshToken) {
+                // Store tokens from URL
+                this.accessToken = urlAccessToken;
+                this.refreshToken = urlRefreshToken;
+                localStorage.setItem('accessToken', urlAccessToken);
+                localStorage.setItem('refreshToken', urlRefreshToken);
+                
+                UIManager.showPage(UIManager.pages.main);
+                UIManager.loadMainPage();
+                return;
+            }
+
+            // If we have an access token, verify it
+            if (this.accessToken) {
+                this.refreshAccessToken()
+                    .then(() => {
+                        // Only proceed to main page if token refresh was successful
+                        UIManager.showPage(UIManager.pages.main);
+                        UIManager.loadMainPage();
+                    })
+                    .catch(() => {
+                        // If token refresh fails, clear tokens and stay on landing
+                        this.accessToken = null;
+                        this.refreshToken = null;
+                        localStorage.removeItem('accessToken');
+                        localStorage.removeItem('refreshToken');
+                        if (window.location.pathname !== '/') {
+                            window.location.href = '/';
+                        }
+                    });
+            }
+
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, '/');
+        });
     }
 
     static async refreshAccessToken() {
@@ -770,49 +839,61 @@ class UIManager {
         });
     }
 
-    static async handlePathChange(path, isPopState = false) {
-        // First clean up any existing game instances and pages
-        this.cleanupGames();
+    static handlePathChange(path) {
+        // First check authentication
+        if (!AuthManager.accessToken && path !== '/') {
+            // If no auth token and not on landing page, redirect to landing
+            window.location.href = '/';
+            return;
+        }
 
-        // Hide all pages first
-        Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
-
-        switch (path) {
-            case '/game/pong/pvp':
-                await this.loadSetupPage();
-                break;
-
-            case '/game/pong/pvp/play':
-                await this.loadGamePage('PVP');
-                break;
-
-            case '/game/pong/ai':
-                await this.loadGamePage('AI');
-                break;
-
-            case '/game/pong/4player':
-                await this.load4PlayerGame();
-                break;
-
-            case '/game/territory':
-                await this.loadTerritoryGame();
-                break;
-
-            case '/game/pong/tournament':
-                await this.loadTournamentSetup();
-                break;
-
-            case '/profile':
-                this.showPage(this.pages.updateProfile);
-                await this.loadUpdateProfilePage();
-                break;
-
-            default:
-                await this.loadMainPage();
-                if (!isPopState) {
-                    history.pushState(null, '', '/');
-                }
-                break;
+        // Handle paths only if authenticated (except for landing page)
+        if (path === '/') {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.main);
+                this.loadMainPage();
+            } else {
+                this.showPage(this.pages.landing);
+            }
+        } else if (path.startsWith('/game/pong/ai')) {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.game);
+                this.loadGamePage('AI');
+            }
+        } else if (path.startsWith('/game/pong/pvp')) {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.game);
+                this.loadGamePage('PVP');
+            }
+        } else if (path.startsWith('/game/pong/tournament')) {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.game);
+                this.loadGamePage('Tournament');
+            }
+        } else if (path.startsWith('/game/pong/4player')) {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.game);
+                this.loadGamePage('4-Player');
+            }
+        } else if (path.startsWith('/game/territory')) {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.game);
+                this.loadTerritoryPage();
+            }
+        } else if (path === '/profile') {
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.profile);
+                this.loadProfilePage();
+            }
+        } else {
+            // For any unrecognized path, go to landing if not authenticated
+            // or main page if authenticated
+            if (AuthManager.accessToken) {
+                this.showPage(this.pages.main);
+                this.loadMainPage();
+            } else {
+                this.showPage(this.pages.landing);
+            }
         }
     }
 
@@ -2547,15 +2628,44 @@ class MatchManager {
     }
 }
 
+// Keep handleOAuthCallback function definition but move it before it's used
+const handleOAuthCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+        try {
+            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
+            const data = await response.json();
+            if (response.ok) {
+                AuthManager.accessToken = data.access;
+                AuthManager.refreshToken = data.refresh;
+                localStorage.setItem('accessToken', AuthManager.accessToken);
+                localStorage.setItem('refreshToken', AuthManager.refreshToken);
+                
+                window.history.replaceState({}, document.title, '/');
+                UIManager.showPage(UIManager.pages.main);
+                await UIManager.loadMainPage();
+            } else {
+                throw new Error(data.error || 'OAuth authentication failed');
+            }
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            UIManager.showToast('Authentication failed. Please try again.', 'danger');
+            UIManager.showPage(UIManager.pages.landing);
+        }
+    }
+};
+
+// Keep the main event listener we just updated
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize history management
     UIManager.initializeHistory();
     
     // Initialize page reload handler
     UIManager.initializePageReload();
-    
+        
     // Game button handlers
-    document.getElementById('play-ai-btn').addEventListener('click', () => {
+    document.getElementById('play-ai-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/ai');
             UIManager.handlePathChange('/game/pong/ai');
@@ -2569,30 +2679,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('create-tournament-btn').addEventListener('click', () => {
+    document.getElementById('create-tournament-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/tournament');
             UIManager.handlePathChange('/game/pong/tournament');
         }
     });
 
-    document.getElementById('play-territory-btn').addEventListener('click', () => {
+    document.getElementById('play-territory-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/territory');
             UIManager.handlePathChange('/game/territory');
         }
     });
 
-    document.getElementById('user-profile').addEventListener('click', (e) => {
+    document.getElementById('user-profile')?.addEventListener('click', (e) => {
         e.preventDefault();
-        history.pushState(null, '', '/profile');
-        UIManager.handlePathChange('/profile');
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/profile');
+            UIManager.handlePathChange('/profile');
+        }
     });
 
-    document.getElementById('back-to-main').addEventListener('click', (e) => {
+    document.getElementById('back-to-main')?.addEventListener('click', (e) => {
         e.preventDefault();
-        history.pushState(null, '', '/');
-        UIManager.handlePathChange('/');
+        if (AuthManager.accessToken) {
+            history.pushState(null, '', '/');
+            UIManager.handlePathChange('/');
+        }
     });
 
     // 2FA form submit handler
@@ -2628,7 +2742,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToLoginBtn = document.getElementById('back-to-login');
     if (backToLoginBtn) {
         backToLoginBtn.addEventListener('click', () => {
-            UIManager.showLoginForm(); // Use the updated method
+            UIManager.showLoginForm();
         });
     }
 
@@ -2640,7 +2754,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('register-form').addEventListener('submit', async (e) => {
+    // Register form handler
+    document.getElementById('register-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const inputs = e.target.querySelectorAll('input');
         const userData = {
@@ -2652,44 +2767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await AuthManager.register(userData);
     });
 
-    document.getElementById('2fa-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const otp = document.getElementById('otp-input').value.trim();
-        if (otp.length !== 6) {
-            UIManager.showToast('Please enter the 6-digit verification code.', 'warning');
-            return;
-        }
-        await AuthManager.verify2FA(otp);
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', () => AuthManager.logout());
-
-    // Form toggle listeners
-    document.getElementById('register-link').addEventListener('click', UIManager.toggleForms);
-    document.getElementById('login-link').addEventListener('click', UIManager.toggleForms);
-
-    // Profile listeners
-    document.getElementById('update-profile-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        try {
-            const form = e.target;
-            const formData = new FormData(form);
-            
-            // Log the form data before submission
-            console.log('Submitting form data:');
-            for (let [key, value] of formData.entries()) {
-                console.log(`${key}: ${key === 'password' ? '[REDACTED]' : value}`);
-            }
-            
-            await ProfileManager.updateProfile(formData);
-        } catch (error) {
-            console.error('Form submission error:', error);
-            UIManager.showToast('Failed to submit form', 'danger');
-        }
-    });
-
-    // Auth related listeners
+    // Login form handler
     document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const [username, password] = e.target.querySelectorAll('input');
@@ -2700,246 +2778,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Update profile form handler
-    document.getElementById('update-profile-form')?.addEventListener('submit', (e) => {
+    // Logout button handler
+    document.getElementById('logout-btn')?.addEventListener('click', () => AuthManager.logout());
+
+    // Form toggle listeners
+    document.getElementById('register-link')?.addEventListener('click', UIManager.toggleForms);
+    document.getElementById('login-link')?.addEventListener('click', UIManager.toggleForms);
+
+    // Profile form handlers
+    document.getElementById('update-profile-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target);
-        ProfileManager.updateProfile(formData);
+        try {
+            const formData = new FormData(e.target);
+            await ProfileManager.updateProfile(formData);
+        } catch (error) {
+            console.error('Form submission error:', error);
+            UIManager.showToast('Failed to submit form', 'danger');
+        }
     });
 
     // Chat related listeners
-    document.getElementById('send-button').addEventListener('click', () => {
+    document.getElementById('send-button')?.addEventListener('click', () => {
         ChatManager.sendMessage();
     });
 
-    document.getElementById('message-input').addEventListener('keypress', (e) => {
+    document.getElementById('message-input')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             ChatManager.sendMessage();
-        }
-    });
-
-    // 2FA toggle form handler
-    document.getElementById('2fa-toggle-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const password = document.getElementById('2fa-password').value;
-        try {
-            const profile = await ProfileManager.fetchUserProfile();
-            if (profile.is_42_auth) {
-                UIManager.showToast('2FA settings cannot be modified for 42 School users.', 'warning');
-                return;
-            }
-
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}auth/2fa/toggle/`, {
-            method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to toggle 2FA');
-            }
-
-            const data = await response.json();
-            document.getElementById('2fa-password').value = '';
-            await UIManager.loadUpdateProfilePage();
-            UIManager.showToast(data.message || '2FA status updated successfully', 'success');
-    } catch (error) {
-            console.error('Error toggling 2FA:', error);
-            UIManager.showToast(error.message, 'danger');
-        }
-    });
-
-    document.getElementById('play-player-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-    
-        try {
-            const response = await fetch('/src/assets/components/player2-setup.html');
-            const html = await response.text();
-    
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-    
-            // Create and show setup page
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
-    
-            // Add event listeners after adding to DOM
-            const setupForm = document.getElementById('player2-setup-form');
-    
-            setupForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const player2Name = document.getElementById('player2-name').value;
-                localStorage.setItem('player2Name', player2Name);
-                
-                history.pushState(null, '', '/game/pong/pvp/play');
-                await this.loadGamePage('PVP');
-            });
-    
-            document.getElementById('cancel-btn')?.addEventListener('click', () => {
-                this.cleanupGames();
-                history.pushState(null, '', '/');
-                this.loadMainPage();
-            });
-    
-        } catch (error) {
-            console.error('Error loading setup page:', error);
-            UIManager.showToast('Failed to load the setup page', 'danger');
-        }
-    });
-    
-    document.getElementById('play-ai-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-    
-        try {
-            history.pushState(null, '', '/game/pong/ai');
-            await UIManager.loadGamePage('AI');
-        } catch (error) {
-            console.error('Error loading game:', error);
-            UIManager.showToast('Failed to load the game', 'danger');
-        }
-    });
-    
-    document.getElementById('create-tournament-btn').addEventListener('click', async () => {
-        if (!AuthManager.accessToken) {
-            window.location.href = '/';
-            return;
-        }
-    
-        try {
-            const response = await fetch('/src/assets/components/tournament-setup.html');
-            const html = await response.text();
-            
-            // Hide main page
-            document.getElementById('main-page').classList.remove('active-page');
-            
-            const setupDiv = document.createElement('div');
-            setupDiv.id = 'tournament-setup-page';
-            setupDiv.classList.add('page', 'active-page');
-            setupDiv.innerHTML = html;
-            document.body.appendChild(setupDiv);
-    
-            // Setup player selection
-            function selectPlayers(count) {
-                const inputsContainer = document.getElementById('playerInputs');
-                const buttons = document.querySelectorAll('.player-count-btn');
-                
-                buttons.forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
-                });
-                
-                inputsContainer.innerHTML = '';  // Clear existing fields
-                
-                // Add player input fields
-                for (let i = 2; i <= count; i++) {
-                    const div = document.createElement('div');
-                    div.className = 'mb-3';
-                    div.innerHTML = `
-                        <label for="player${i}" class="form-label">Player ${i} Nickname</label>
-                        <input type="text" class="form-control" id="player${i}" name="player${i}" required>
-                    `;
-                    inputsContainer.appendChild(div);
-                }
-            }
-    
-            // Initialize with 4 players and setup event listeners
-            selectPlayers(4);
-            document.querySelectorAll('.player-count-btn').forEach(button => {
-                button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
-            });
-    
-            // Setup form validation and submission
-            const setupForm = document.getElementById('tournamentForm');
-            setupForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const inputs = [
-                    document.getElementById('currentPlayer'),
-                    ...document.querySelectorAll('#playerInputs input')
-                ];
-                const players = [];
-                let hasError = false;
-                const errorMessages = new Set();
-    
-                // Validate all inputs
-                inputs.forEach(input => {
-                    const nickname = input.value.trim();
-                    
-                    if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
-                        hasError = true;
-                        input.classList.add('is-invalid');
-                        if (!nickname) errorMessages.add('All player nicknames are required');
-                        if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
-                        if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
-                        if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
-                        return;
-                    }
-                    
-                    input.classList.remove('is-invalid');
-                    players.push(nickname);
-                });
-    
-                if (hasError) {
-                    const alert = document.createElement('div');
-                    alert.className = 'alert alert-danger mt-3';
-                    alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
-                    const existingAlert = document.querySelector('.alert');
-                    if (existingAlert) existingAlert.remove();
-                    setupForm.insertBefore(alert, setupForm.firstChild);
-                    return;
-                }
-    
-                // Update username and start tournament
-                try {
-                    // Store player nicknames
-                    localStorage.setItem('tournamentPlayers', JSON.stringify(players));
-                    
-                    // Load and show tournament game
-                    const pongResponse = await fetch('/src/assets/components/pong.html');
-                    setupDiv.remove();
-                    
-                    const gameDiv = document.createElement('div');
-                    gameDiv.id = 'game-page';
-                    gameDiv.classList.add('page', 'active-page');
-                    gameDiv.innerHTML = await pongResponse.text();
-                    document.body.appendChild(gameDiv);
-    
-                    requestAnimationFrame(() => {
-                        if (typeof initGame === 'function') initGame('TOURNAMENT');
-                    });
-                } catch (error) {
-                    console.error('Error:', error);
-                    UIManager.showToast('Failed to start tournament', 'danger');
-                }
-            });
-    
-            // Setup cancel and input handlers
-            document.getElementById('cancelBtn').addEventListener('click', () => {
-                setupDiv.remove();
-                document.getElementById('main-page').classList.add('active-page');
-            });
-    
-            document.addEventListener('input', (e) => {
-                if (e.target.matches('#playerInputs input, #currentPlayer')) {
-                    e.target.classList.remove('is-invalid');
-                    const alert = document.querySelector('.alert');
-                    if (alert) alert.remove();
-                }
-            });
-    
-        } catch (error) {
-            console.error('Error loading tournament setup:', error);
-            UIManager.showToast('Failed to load the tournament setup', 'danger');
         }
     });
 
@@ -2949,39 +2815,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // Preload default avatar
     Utils.preloadDefaultAvatar();
 
-    // Profile related listeners
-    document.getElementById('user-profile').addEventListener('click', async () => {
-        UIManager.showPage(UIManager.pages.updateProfile);
-        await UIManager.loadUpdateProfilePage(); // Add this line to load profile data
-    });
-
     // Initialize friend list
     FriendManager.initializeEventListeners();
     if (AuthManager.accessToken) {
         FriendManager.updateFriendListUI();
     }
 
-    // Modify OAuth button handler
+    // OAuth button handler
     const oauth42Btn = document.getElementById('oauth-42-btn');
     if (oauth42Btn) {
         oauth42Btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // Store current URL before redirect
             sessionStorage.setItem('preAuthPath', window.location.pathname);
             window.location.href = `${AuthManager.API_BASE}auth/oauth/login/`;
         });
     }
 
-    // Check for OAuth callback
-    if (window.location.search.includes('code=')) {
-        handleOAuthCallback();
-    }
-
     // Initialize UserManager event listeners
     UserManager.initializeEventListeners();
 
-    // Add this with the other event listeners in the DOMContentLoaded section
-    document.getElementById('play-4player-btn').addEventListener('click', () => {
+    // 4-player game button handler
+    document.getElementById('play-4player-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
             history.pushState(null, '', '/game/pong/4player');
             UIManager.handlePathChange('/game/pong/4player');
@@ -2989,86 +2843,9 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/';
         }
     });
-
-    // Remove any existing listeners for these specific buttons
-    const playAIBtn = document.getElementById('play-ai-btn');
-    const playPlayerBtn = document.getElementById('play-player-btn');
-    const createTournamentBtn = document.getElementById('create-tournament-btn');
-
-    if (playAIBtn) {
-        const newAIHandler = () => {
-            if (!AuthManager.accessToken) {
-                window.location.href = '/';
-                return;
-            }
-            history.pushState(null, '', '/game/pong/ai');
-            UIManager.handlePathChange('/game/pong/ai');
-        };
-        playAIBtn.replaceWith(playAIBtn.cloneNode(true));
-        document.getElementById('play-ai-btn').addEventListener('click', newAIHandler);
-    }
-
-    if (playPlayerBtn) {
-        const newPlayerHandler = () => {
-            if (!AuthManager.accessToken) {
-                window.location.href = '/';
-                return;
-            }
-            history.pushState({ from: 'main' }, '', '/game/pong/pvp');
-            UIManager.handlePathChange('/game/pong/pvp');
-        };
-        playPlayerBtn.replaceWith(playPlayerBtn.cloneNode(true));
-        document.getElementById('play-player-btn').addEventListener('click', newPlayerHandler);
-    }
-
-    if (createTournamentBtn) {
-        const newTournamentHandler = () => {
-            if (!AuthManager.accessToken) {
-                window.location.href = '/';
-                return;
-            }
-            history.pushState(null, '', '/game/pong/tournament');
-            UIManager.handlePathChange('/game/pong/tournament');
-        };
-        createTournamentBtn.replaceWith(createTournamentBtn.cloneNode(true));
-        document.getElementById('create-tournament-btn').addEventListener('click', newTournamentHandler);
-    }
 });
 
-// Add this function to handle URL parameters
-const getUrlParams = () => {
-    const params = new URLSearchParams(window.location.search);
-    return {
-        accessToken: params.get('access_token'),
-        refreshToken: params.get('refresh_token'),
-        authError: params.get('auth_error')
-    };
-};
-
-// Update the initialization code
-document.addEventListener('DOMContentLoaded', () => {
-    const authError = new URLSearchParams(window.location.search).get('auth_error');
-    const accessToken = new URLSearchParams(window.location.search).get('access_token');
-    const refreshToken = new URLSearchParams(window.location.search).get('refresh_token');
-    
-    if (authError) {
-        UIManager.showToast(decodeURIComponent(authError), 'danger');
-        UIManager.showPage(UIManager.pages.landing);
-    } else if (accessToken && refreshToken) {
-        // Store tokens and proceed to main page
-        AuthManager.accessToken = accessToken;
-        AuthManager.refreshToken = refreshToken;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        UIManager.showPage(UIManager.pages.main);
-        UIManager.loadMainPage();
-    }
-    
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
-});
-
+// Keep the createChatMessage function and styles
 function createChatMessage(message) {
     const messageWrapper = document.createElement('div');
     const isSentByMe = message.sender_id === AuthManager.currentUser.id;
@@ -3175,47 +2952,8 @@ function createChatMessage(message) {
     return messageWrapper;
 }
 
-// Make refreshAccessToken available globally
-// window.refreshAccessToken = refreshAccessToken;
 
-// Keep handleOAuthCallback function definition but move it before it's used
-const handleOAuthCallback = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    if (code) {
-        try {
-            const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
-            const data = await response.json();
-            if (response.ok) {
-                // Store tokens and redirect to main page
-                AuthManager.accessToken = data.access;
-                AuthManager.refreshToken = data.refresh;
-                localStorage.setItem('accessToken', AuthManager.accessToken);
-                localStorage.setItem('refreshToken', AuthManager.refreshToken);
-                
-                // Clean up URL and redirect to main page
-                window.history.replaceState({}, document.title, '/');
-                UIManager.showPage(UIManager.pages.main);
-                await UIManager.loadMainPage();
-            } else {
-                throw new Error(data.error || 'OAuth authentication failed');
-            }
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            UIManager.showToast('Authentication failed. Please try again.', 'danger');
-            UIManager.showPage(UIManager.pages.landing);
-        }
-    }
-};
-
-// Update initialization code
-if (AuthManager.accessToken) {
-    UIManager.loadMainPage();
-} else {
-    UIManager.showPage(UIManager.pages.landing);
-}
-
-// Add this to your existing styles or create a new style tag
+// Keep the style element
 const style = document.createElement('style');
 style.textContent = `
     .clickable-username {
