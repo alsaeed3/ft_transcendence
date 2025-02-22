@@ -459,8 +459,21 @@ class UIManager {
     };
 
     static showPage(page) {
-        Object.values(this.pages).forEach(p => p.classList.remove('active-page'));
-        page.classList.add('active-page');
+        // First hide all pages
+        Object.values(this.pages).forEach(p => {
+            if (p) {
+                p.classList.remove('active-page');
+                // If it's not the main or landing page, remove it from DOM
+                if (p.id !== 'main-page' && p.id !== 'landing-page') {
+                    p.remove();
+                }
+            }
+        });
+
+        // Show the requested page
+        if (page) {
+            page.classList.add('active-page');
+        }
     }
 
     static toggleForms() {
@@ -540,15 +553,36 @@ class UIManager {
                     e.preventDefault();
                     const player2Name = document.getElementById('player2-name').value.trim();
                     if (player2Name) {
-                        // Store player2 name and load the game
+                        // Store player2 name
                         localStorage.setItem('player2Name', player2Name);
-                        this.showPage(this.pages.game);
+                        // Update URL and let the router handle game initialization
+                        history.pushState(null, '', '/game/pong/pvp');
+                        this.handleRoute();
                     }
                 });
 
                 // Add cancel button handler
                 document.getElementById('cancel-btn')?.addEventListener('click', () => {
                     this.showPage(this.pages.main);
+                });
+
+                // Add popstate (browser back/forward) handler
+                window.addEventListener('popstate', () => {
+                    // Remove all game and setup pages
+                    document.querySelectorAll('.page').forEach(page => {
+                        if (page.id !== 'main-page' && page.id !== 'landing-page') {
+                            page.remove();
+                        }
+                    });
+                    
+                    // Stop any running game
+                    if (window.currentGame?.stop) {
+                        window.currentGame.stop();
+                        window.currentGame = null;
+                    }
+                    
+                    // Handle the new route
+                    this.handleRoute();
                 });
 
                 // Load users list FIRST
@@ -1012,7 +1046,7 @@ class UIManager {
             const setupForm = document.getElementById('player2-setup-form');
             setupForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const player2Name = document.getElementById('player2-name').value;
+                const player2Name = document.getElementById('player2-name').value.trim();
                 localStorage.setItem('player2Name', player2Name);
                 
                 history.pushState(null, '', '/game/pong/pvp/play');
