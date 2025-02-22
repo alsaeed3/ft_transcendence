@@ -455,7 +455,7 @@ class UIManager {
         tournament: document.getElementById('tournament-page'),
         fourPlayer: document.getElementById('four-player-page'),
         tournamentSetup: document.getElementById('tournament-setup-page'),
-        player2Setup: document.getElementById('player2-setup-page')  // Add this line
+        player2Setup: document.getElementById('player2-setup-page')
     };
 
     static showPage(page) {
@@ -463,8 +463,8 @@ class UIManager {
         Object.values(this.pages).forEach(p => {
             if (p) {
                 p.classList.remove('active-page');
-                // If it's not the main or landing page, remove it from DOM
-                if (p.id !== 'main-page' && p.id !== 'landing-page') {
+                // Only remove game-related pages, keep main pages in DOM
+                if (p.id !== 'main-page' && p.id !== 'landing-page' && p.id !== 'update-profile-page') {
                     p.remove();
                 }
             }
@@ -981,8 +981,11 @@ class UIManager {
             }
         } else if (path === '/profile') {
             if (AuthManager.accessToken) {
-                this.showPage(this.pages.updateProfile);
-                this.loadUpdateProfilePage();
+                if (this.pages.updateProfile) {
+                    console.log('Loading update profile page');
+                    this.showPage(this.pages.updateProfile);
+                    this.loadUpdateProfilePage();
+                }
             }
         } else {
             // For any unrecognized path, go to landing if not authenticated
