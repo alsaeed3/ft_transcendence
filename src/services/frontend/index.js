@@ -1098,8 +1098,8 @@ class UIManager {
                 if (player2Name) {
                     // Store player2 name and change URL to start game
                     localStorage.setItem('player2Name', player2Name);
-                    // Replace the current state instead of pushing a new one
-                    history.replaceState(null, '', '/game/pong/pvp');
+                    // Push a new state for the game (don't replace)
+                    history.pushState(null, '', '/game/pong/pvp');
                     await this.loadGamePage('PVP');
                 }
             });
@@ -1618,8 +1618,8 @@ class UIManager {
                 if (player2Name) {
                     // Store player2 name and change URL to start game
                     localStorage.setItem('player2Name', player2Name);
-                    // Replace the current state instead of pushing a new one
-                    history.replaceState(null, '', '/game/pong/pvp');
+                    // Push a new state for the game (don't replace)
+                    history.pushState(null, '', '/game/pong/pvp');
                     await this.loadGamePage('PVP');
                 }
             });
