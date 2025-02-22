@@ -1310,6 +1310,167 @@ class UIManager {
             UIManager.showToast('Failed to load the tournament setup', 'danger');
         }
     }
+
+    static async loadTournamentGame() {
+        try {
+            // Check authentication
+            if (!AuthManager.accessToken) {
+                window.location.href = '/';
+                return;
+            }
+
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+
+            const currentPath = window.location.pathname;
+            
+            if (currentPath === '/game/pong/tournament/setup') {
+                // Load tournament setup page
+                const response = await fetch('/src/assets/components/tournament-setup.html');
+                const html = await response.text();
+                
+                const setupDiv = document.createElement('div');
+                setupDiv.id = 'tournament-setup-page';
+                setupDiv.classList.add('page', 'active-page');
+                setupDiv.innerHTML = html;
+                document.body.appendChild(setupDiv);
+
+                // Initialize player selection functionality
+                this.initializeTournamentSetup(setupDiv);
+
+            } else if (currentPath.startsWith('/game/pong/tournament/match/')) {
+                // Load and initialize tournament match
+                const response = await fetch('/src/assets/components/pong.html');
+                const html = await response.text();
+                
+                const gameDiv = document.createElement('div');
+                gameDiv.id = 'game-page';
+                gameDiv.classList.add('page', 'game-page', 'active-page');
+                gameDiv.innerHTML = html;
+                
+                // Add back button
+                const backBtn = document.createElement('button');
+                backBtn.className = 'btn btn-secondary position-absolute m-3';
+                backBtn.style.zIndex = '1000';
+                backBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Menu';
+                backBtn.addEventListener('click', () => {
+                    this.handleGameExit();
+                });
+                gameDiv.appendChild(backBtn);
+                
+                document.body.appendChild(gameDiv);
+
+                // Initialize game with tournament mode
+                window.gameInstance = await new Promise(resolve => {
+                    setTimeout(() => {
+                        if (typeof initGame === 'function') {
+                            const instance = initGame('TOURNAMENT');
+                            resolve(instance);
+                        }
+                    }, 0);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading tournament:', error);
+            UIManager.showToast('Failed to load tournament', 'danger');
+            this.handleGameExit();
+        }
+    }
+
+    static initializeTournamentSetup(setupDiv) {
+        function selectPlayers(count) {
+            const inputsContainer = document.getElementById('playerInputs');
+            const buttons = document.querySelectorAll('.player-count-btn');
+            
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
+            });
+            
+            inputsContainer.innerHTML = '';
+            
+            for (let i = 2; i <= count; i++) {
+                const div = document.createElement('div');
+                div.className = 'mb-3';
+                div.innerHTML = `
+                    <label for="player${i}" class="form-label">Player ${i} Nickname</label>
+                    <input type="text" class="form-control" id="player${i}" name="player${i}" required>
+                `;
+                inputsContainer.appendChild(div);
+            }
+        }
+
+        // Initialize with 4 players
+        selectPlayers(4);
+        
+        // Setup event listeners
+        document.querySelectorAll('.player-count-btn').forEach(button => {
+            button.addEventListener('click', () => selectPlayers(parseInt(button.dataset.count)));
+        });
+
+        // Setup form validation and submission
+        const setupForm = document.getElementById('tournamentForm');
+        setupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const inputs = [
+                document.getElementById('currentPlayer'),
+                ...document.querySelectorAll('#playerInputs input')
+            ];
+            const players = [];
+            let hasError = false;
+            const errorMessages = new Set();
+
+            // Validate inputs
+            inputs.forEach(input => {
+                const nickname = input.value.trim();
+                
+                if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
+                    hasError = true;
+                    input.classList.add('is-invalid');
+                    if (!nickname) errorMessages.add('All player nicknames are required');
+                    if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
+                    if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
+                    if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
+                    return;
+                }
+                
+                input.classList.remove('is-invalid');
+                players.push(nickname);
+            });
+
+            if (hasError) {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger mt-3';
+                alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+                const existingAlert = document.querySelector('.alert');
+                if (existingAlert) existingAlert.remove();
+                setupForm.insertBefore(alert, setupForm.firstChild);
+                return;
+            }
+
+            // Store players and start first match
+            localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+            history.pushState(null, '', '/game/pong/tournament/match/1');
+            UIManager.loadTournamentGame();
+        });
+
+        // Setup cancel button
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            this.handleGameExit();
+        });
+
+        // Setup input handlers
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('#playerInputs input, #currentPlayer')) {
+                e.target.classList.remove('is-invalid');
+                const alert = document.querySelector('.alert');
+                if (alert) alert.remove();
+            }
+        });
+    }
 }
 
 // Update modal-related click handlers
@@ -2686,10 +2847,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('create-tournament-btn')?.addEventListener('click', () => {
-        if (AuthManager.accessToken) {
-            history.pushState(null, '', '/game/pong/tournament');
-            UIManager.handlePathChange('/game/pong/tournament');
-        }
+        history.pushState(null, '', '/game/pong/tournament/setup');
+        UIManager.loadTournamentGame();
     });
 
     document.getElementById('play-territory-btn')?.addEventListener('click', () => {
