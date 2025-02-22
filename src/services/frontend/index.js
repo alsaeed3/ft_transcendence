@@ -546,7 +546,8 @@ class UIManager {
                 if (pvpButton) {
                     pvpButton.addEventListener('click', (e) => {
                         e.preventDefault();
-                        history.pushState({ from: 'main' }, '', '/game/pong/pvp/setup');
+                        // Replace the current state instead of pushing a new one
+                        history.replaceState(null, '', '/game/pong/pvp/setup');
                         this.handlePathChange('/game/pong/pvp/setup');
                     });
                 }
@@ -896,20 +897,21 @@ class UIManager {
             this.handlePathChange(path);
         });
 
-        // Handle browser back/forward buttons - add this at the global level
+        // Handle browser back/forward buttons
         window.addEventListener('popstate', (event) => {
             const path = window.location.pathname;
             
             // Clean up games and setup pages
             this.cleanupGames();
             
-            // If we're going back from setup or game, ensure we return to main
-            if (path === '/' || event.state?.from === 'main') {
+            // Handle navigation based on path
+            if (path === '/') {
                 localStorage.removeItem('player2Name');
                 this.showPage(this.pages.main);
                 this.loadMainPage();
+            } else if (path === '/game/pong/pvp/setup') {
+                this.loadPlayer2Setup();
             } else {
-                // Handle other path changes
                 this.handlePathChange(path, true);
             }
         });
@@ -1058,45 +1060,59 @@ class UIManager {
         this.loadMainPage();
     }
 
-    static async loadSetupPage() {
+    static async loadPlayer2Setup() {
         try {
-            // Clean up any existing games first
+            // Remove any existing setup pages first
+            const existingSetups = document.querySelectorAll('#player2-setup-page');
+            existingSetups.forEach(setup => setup.remove());
+            
+            // Clean up any existing games
             this.cleanupGames();
             
             // Hide all pages
-            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            Object.values(this.pages).forEach(p => {
+                if (p) {
+                    p.classList.remove('active-page');
+                    // If it's not the main or landing page, remove it from DOM
+                    if (p.id !== 'main-page' && p.id !== 'landing-page') {
+                        p.remove();
+                    }
+                }
+            });
             
             const response = await fetch('/src/assets/components/player2-setup.html');
             const html = await response.text();
             
-            // Create and show setup page
             const setupDiv = document.createElement('div');
-            setupDiv.id = 'setup-page';
+            setupDiv.id = 'player2-setup-page';
             setupDiv.classList.add('page', 'active-page');
             setupDiv.innerHTML = html;
+            
             document.body.appendChild(setupDiv);
 
-            // Add event listeners
+            // Add form submission handler
             const setupForm = document.getElementById('player2-setup-form');
             setupForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const player2Name = document.getElementById('player2-name').value.trim();
-                localStorage.setItem('player2Name', player2Name);
-                
-                history.pushState(null, '', '/game/pong/pvp/play');
-                await this.loadGamePage('PVP');
+                if (player2Name) {
+                    // Store player2 name and change URL to start game
+                    localStorage.setItem('player2Name', player2Name);
+                    // Replace the current state instead of pushing a new one
+                    history.replaceState(null, '', '/game/pong/pvp');
+                    await this.loadGamePage('PVP');
+                }
             });
 
-            // Update cancel button handler
-            document.getElementById('cancel-btn')?.addEventListener('click', () => {
-                this.cleanupGames();
-                history.pushState(null, '', '/');
-                this.loadMainPage();
+            // Add cancel button handler
+            document.getElementById('cancel-btn').addEventListener('click', () => {
+                localStorage.removeItem('player2Name');
+                history.back();
             });
 
         } catch (error) {
-            console.error('Error loading setup page:', error);
-            this.showToast('Failed to load setup page', 'danger');
+            console.error('Error loading player 2 setup:', error);
+            this.showToast('Failed to load player 2 setup', 'danger');
             this.handleGameExit();
         }
     }
@@ -1602,7 +1618,8 @@ class UIManager {
                 if (player2Name) {
                     // Store player2 name and change URL to start game
                     localStorage.setItem('player2Name', player2Name);
-                    history.pushState({ from: 'pvp-setup' }, '', '/game/pong/pvp');
+                    // Replace the current state instead of pushing a new one
+                    history.replaceState(null, '', '/game/pong/pvp');
                     await this.loadGamePage('PVP');
                 }
             });
@@ -1610,8 +1627,7 @@ class UIManager {
             // Add cancel button handler
             document.getElementById('cancel-btn').addEventListener('click', () => {
                 localStorage.removeItem('player2Name');
-                history.pushState(null, '', '/');
-                this.handlePathChange('/');
+                history.back();
             });
 
         } catch (error) {
@@ -2990,8 +3006,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('play-player-btn')?.addEventListener('click', () => {
         if (AuthManager.accessToken) {
-            history.pushState({ from: 'main' }, '', '/game/pong/pvp');
-            UIManager.handlePathChange('/game/pong/pvp');
+            history.pushState({ from: 'main' }, '', '/game/pong/pvp/setup');
+            UIManager.loadPlayer2Setup();
         }
     });
 
