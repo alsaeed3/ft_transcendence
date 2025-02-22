@@ -1636,6 +1636,88 @@ class UIManager {
             this.handleGameExit();
         }
     }
+
+    static handleRoute() {
+        const path = window.location.pathname;
+        
+        // First check authentication
+        if (!AuthManager.accessToken && path !== '/') {
+            window.location.href = '/';
+            return;
+        }
+
+        // Clean up any existing games when navigating
+        this.cleanupGames();
+
+        // Handle different routes
+        switch (path) {
+            case '/':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.main);
+                    this.loadMainPage();
+                } else {
+                    this.showPage(this.pages.landing);
+                }
+                break;
+
+            case '/game/pong/pvp/setup':
+                if (AuthManager.accessToken) {
+                    this.loadPlayer2Setup();
+                }
+                break;
+
+            case '/game/pong/pvp':
+                if (AuthManager.accessToken) {
+                    const player2Name = localStorage.getItem('player2Name');
+                    if (!player2Name) {
+                        history.pushState(null, '', '/game/pong/pvp/setup');
+                        this.loadPlayer2Setup();
+                    } else {
+                        this.showPage(this.pages.game);
+                        this.loadGamePage('PVP');
+                    }
+                }
+                break;
+
+            case '/game/pong/ai':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.game);
+                    this.loadGamePage('AI');
+                }
+                break;
+
+            case '/game/pong/4player':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.game);
+                    this.load4PlayerGame();
+                }
+                break;
+
+            case '/game/territory':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.game);
+                    this.loadTerritoryGame();
+                }
+                break;
+
+            case '/profile':
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.updateProfile);
+                    this.loadUpdateProfilePage();
+                }
+                break;
+
+            default:
+                // For any unrecognized path, go to landing if not authenticated
+                // or main page if authenticated
+                if (AuthManager.accessToken) {
+                    this.showPage(this.pages.main);
+                    this.loadMainPage();
+                } else {
+                    this.showPage(this.pages.landing);
+                }
+        }
+    }
 }
 
 // Update modal-related click handlers
