@@ -528,6 +528,29 @@ class UIManager {
                 // Load user stats
                 this.loadUserStats(profile);
 
+                // Add click handler for PVP button
+                document.getElementById('play-player-btn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Show the player2 setup page first
+                    this.showPage(this.pages.player2Setup);
+                });
+
+                // Add form submission handler for player2 setup
+                document.getElementById('player2-setup-form')?.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const player2Name = document.getElementById('player2-name').value.trim();
+                    if (player2Name) {
+                        // Store player2 name and load the game
+                        localStorage.setItem('player2Name', player2Name);
+                        this.showPage(this.pages.game);
+                    }
+                });
+
+                // Add cancel button handler
+                document.getElementById('cancel-btn')?.addEventListener('click', () => {
+                    this.showPage(this.pages.main);
+                });
+
                 // Load users list FIRST
                 await UserManager.loadUsersList();
 
@@ -541,6 +564,7 @@ class UIManager {
                 const matches = await AuthManager.fetchMatchHistory();
                 MatchManager.displayMatchHistory(matches);
             }
+
         } catch (error) {
             console.error('Error loading main page:', error);
             this.showToast('Failed to load user data', 'danger');
@@ -1470,6 +1494,49 @@ class UIManager {
                 if (alert) alert.remove();
             }
         });
+    }
+
+    static async loadPlayer2Setup() {
+        try {
+            // Clean up any existing games first
+            this.cleanupGames();
+            
+            // Hide all pages
+            Object.values(this.pages).forEach(page => page.classList.remove('active-page'));
+            
+            const response = await fetch('/src/assets/components/player2-setup.html');
+            const html = await response.text();
+            
+            const setupDiv = document.createElement('div');
+            setupDiv.id = 'player2-setup-page';
+            setupDiv.classList.add('page', 'active-page');
+            setupDiv.innerHTML = html;
+            
+            document.body.appendChild(setupDiv);
+
+            // Add form submission handler
+            const setupForm = document.getElementById('player2-setup-form');
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const player2Name = document.getElementById('player2-name').value.trim();
+                if (player2Name) {
+                    // Store player2 name and load the game
+                    localStorage.setItem('player2Name', player2Name);
+                    history.pushState(null, '', '/game/pong/pvp');
+                    this.loadGame('PVP');
+                }
+            });
+
+            // Add cancel button handler
+            document.getElementById('cancel-btn').addEventListener('click', () => {
+                this.handleGameExit();
+            });
+
+        } catch (error) {
+            console.error('Error loading player 2 setup:', error);
+            this.showToast('Failed to load player 2 setup', 'danger');
+            this.handleGameExit();
+        }
     }
 }
 
