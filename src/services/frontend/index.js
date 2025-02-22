@@ -449,7 +449,13 @@ class UIManager {
     static pages = {
         landing: document.getElementById('landing-page'),
         main: document.getElementById('main-page'),
-        updateProfile: document.getElementById('update-profile-page')
+        updateProfile: document.getElementById('update-profile-page'),
+        game: document.getElementById('game-page'),
+        territory: document.getElementById('territory-page'),
+        tournament: document.getElementById('tournament-page'),
+        fourPlayer: document.getElementById('four-player-page'),
+        tournamentSetup: document.getElementById('tournament-setup-page'),
+        player2Setup: document.getElementById('player2-setup-page')  // Add this line
     };
 
     static showPage(page) {
@@ -868,22 +874,22 @@ class UIManager {
         } else if (path.startsWith('/game/pong/tournament')) {
             if (AuthManager.accessToken) {
                 this.showPage(this.pages.game);
-                this.loadGamePage('Tournament');
+                this.loadTournamentGame();
             }
         } else if (path.startsWith('/game/pong/4player')) {
             if (AuthManager.accessToken) {
                 this.showPage(this.pages.game);
-                this.loadGamePage('4-Player');
+                this.load4PlayerGame();
             }
         } else if (path.startsWith('/game/territory')) {
             if (AuthManager.accessToken) {
                 this.showPage(this.pages.game);
-                this.loadTerritoryPage();
+                this.loadTerritoryGame();
             }
         } else if (path === '/profile') {
             if (AuthManager.accessToken) {
-                this.showPage(this.pages.profile);
-                this.loadProfilePage();
+                this.showPage(this.pages.updateProfile);
+                this.loadUpdateProfilePage();
             }
         } else {
             // For any unrecognized path, go to landing if not authenticated

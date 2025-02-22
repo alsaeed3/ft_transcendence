@@ -1,4 +1,11 @@
 function initGame(mode = 'AI') {
+    // Check authentication first
+    if (!AuthManager.accessToken) {
+        console.log('User not authenticated, redirecting to landing page');
+        window.location.href = '/';
+        return;
+    }
+
     const canvas = document.getElementById('pongCanvas');
     if (!canvas) return; // Exit if canvas isn't loaded yet
     
@@ -825,6 +832,13 @@ function initGame(mode = 'AI') {
 }
 
 function init4PlayerGame() {
+    // Check authentication first
+    if (!AuthManager.accessToken) {
+        console.log('User not authenticated, redirecting to landing page');
+        window.location.href = '/';
+        return;
+    }
+
     // Initialize game start time
     const gameStartTime = Date.now();
     let animationFrameId = null;
@@ -1136,5 +1150,18 @@ function init4PlayerGame() {
     };
 }
 
-// Initialize when script loads
-document.addEventListener('DOMContentLoaded', initGame);
+// Add this:
+document.addEventListener('DOMContentLoaded', () => {
+    // Only initialize if we're on a game page and authenticated
+    const gamePage = document.getElementById('game-page');
+    if (gamePage && gamePage.classList.contains('active-page')) {
+        if (AuthManager.accessToken) {
+            initGame();
+        } else {
+            // Single redirect to landing page
+            if (window.location.pathname !== '/') {
+                window.location.href = '/';
+            }
+        }
+    }
+});
