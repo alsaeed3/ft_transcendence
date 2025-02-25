@@ -105,11 +105,13 @@ function initTerritory() {
             });
         });
 
-        // Update score display
+        // Update score display if elements exist
         const scoreElements = document.querySelectorAll('.player-score');
-        scoreElements[0].textContent = `Red: ${scores[0]}`;
-        scoreElements[1].textContent = `Blue: ${scores[1]}`;
-        scoreElements[2].textContent = `Green: ${scores[2]}`;
+        if (scoreElements && scoreElements.length === 3) {
+            scoreElements[0].textContent = `Red: ${scores[0]}`;
+            scoreElements[1].textContent = `Blue: ${scores[1]}`;
+            scoreElements[2].textContent = `Green: ${scores[2]}`;
+        }
 
         // Check for winner (when one player has more than 30% of total cells)
         const totalCells = GRID_SIZE * GRID_SIZE;
@@ -125,7 +127,9 @@ function initTerritory() {
         drawGame();
 
         // Store the animation frame ID
-        animationFrameId = requestAnimationFrame(updateGame);
+        if (gameActive) {
+            animationFrameId = requestAnimationFrame(updateGame);
+        }
     }
 
     function drawGame() {
@@ -171,34 +175,38 @@ function initTerritory() {
         });
     }
 
-    function announceWinner(playerId) {
+    function announceWinner(winner) {
+        // Stop the game
         gameActive = false;
+        
+        // Create announcement container if it doesn't exist
+        let announcementContainer = document.getElementById('territory-announcement');
+        if (!announcementContainer) {
+            announcementContainer = document.createElement('div');
+            announcementContainer.id = 'territory-announcement';
+            announcementContainer.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+            announcementContainer.style.cssText = 'font-size: 2rem; z-index: 1000;';
+            document.getElementById('game-container').appendChild(announcementContainer);
+        }
+        
+        // Show winner announcement
         const colors = ['Red', 'Light Blue', 'Green'];
-        const announcement = document.createElement('div');
-        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
-        announcement.style.cssText = 'font-size: 2rem; z-index: 1000;';
-        announcement.textContent = `${colors[playerId - 1]} Player Wins!`;
-        document.getElementById('territory-page').appendChild(announcement);
-
-        // Save Territory match result
+        announcementContainer.textContent = `${colors[winner - 1]} Player Wins!`;
+        
+        // Save match result
         const matchData = {
             match_type: 'Territory',
             start_time: new Date(gameStartTime).toISOString(),
             end_time: new Date().toISOString(),
-            winner_name: colors[playerId - 1],
+            winner_name: colors[winner - 1],
             created_by: AuthManager.currentUser?.username,
             duration: Math.floor((Date.now() - gameStartTime) / 1000)
         };
-        
-        // Save match and update history
-        saveMatchResult(matchData).then(async () => {
-            // Update match history before redirecting
-            // const matches = await MatchManager.fetchMatchHistory();
-            // MatchManager.displayMatchHistory(matches);
-            
-            // Use window.location.href instead of DOM manipulation
+
+        // Save match and redirect
+        saveMatchResult(matchData).then(() => {
             setTimeout(() => {
-                window.location.href = '/';
+                UIManager.showLoginForm();
             }, 3000);
         });
     }

@@ -1,4 +1,5 @@
-<div class="container-fluid py-4">
+<!-- Game Container -->
+<div id="pong-page" class="container-fluid py-4">
 	<!-- Game Settings Panel -->
 	<div class="row mb-3">
 		<div class="col-md-8 mx-auto">
@@ -29,7 +30,7 @@
 		</div>
 	</div>
 
-	<!-- After Game Settings Panel, before Player Info Card -->
+	<!-- Tournament Bracket -->
 	<div id="tournamentBracket" class="row mb-3 d-none">
 		<div class="col-md-8 mx-auto">
 			<div class="card bg-dark border border-primary">
@@ -85,7 +86,7 @@
 	<!-- Score and Game Canvas -->
 	<div class="row justify-content-center">
 		<div class="col-auto position-relative">
-			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border-0 bg-black"></canvas>
+			<canvas id="pongCanvas" width="800" height="600" class="d-block mx-auto border border-light bg-black"></canvas>
 			
 			<!-- Game Over Message -->
 			<div id="gameOverMessage" class="position-absolute top-50 start-50 translate-middle d-none">
@@ -94,3 +95,19 @@
 		</div>
 	</div>
 </div>
+
+<!-- Load game script -->
+<script src="/assets/js/pong.js"></script>
+<script>
+	// Wait for DOM to be fully loaded
+	document.addEventListener('DOMContentLoaded', () => {
+		// Wait for next frame to ensure canvas is ready
+		requestAnimationFrame(() => {
+			if (typeof window.initGame === 'function') {
+				const mode = window.location.hash.includes('pvp') ? 'PVP' :
+						   window.location.hash.includes('tournament') ? 'TOURNAMENT' : 'AI';
+				window.initGame(mode);
+			}
+		});
+	});
+</script>

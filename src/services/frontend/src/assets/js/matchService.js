@@ -1,3 +1,7 @@
+// Import dependencies
+import { AuthManager } from './modules/authManager.js';
+
+
 // API service for match-related operations
 class MatchService {
   constructor(baseUrl, authToken) {
@@ -163,6 +167,9 @@ async function saveMatchResult(matchData) {
     }
 }
 
-// Make both MatchService and saveMatchResult available globally
+// Export the MatchService class
+export { MatchService };
+
+// Also make it available globally for non-module scripts
 window.MatchService = MatchService;
 window.saveMatchResult = saveMatchResult;

@@ -1,62 +1,79 @@
+import { AuthManager } from './modules/authManager.js';
+import { UIManager } from './modules/uiManager.js';
+
+// Game initialization function
 function initGame(mode = 'AI') {
-    // Check authentication first
-    if (!AuthManager.accessToken) {
-        console.log('User not authenticated, redirecting to landing page');
-        window.location.href = '/';
+    // Add cleanup flag
+    let isGameRunning = true;
+    
+    const canvas = document.getElementById('pongCanvas');
+    if (!canvas) {
+        console.error('Canvas element not found');
         return;
     }
-
-    const canvas = document.getElementById('pongCanvas');
-    if (!canvas) return; // Exit if canvas isn't loaded yet
+    
+    // Set canvas dimensions
+    canvas.width = 800;
+    canvas.height = 600;
     
     const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for non-transparent canvas
 
     // Score elements
     const playerScoreElement = document.getElementById('rightPlayerScore');
     const computerScoreElement = document.getElementById('leftPlayerScore');
+    if (!playerScoreElement || !computerScoreElement) {
+        console.error('Score elements not found');
+        return;
+    }
+
     let playerScore = 0;
     let computerScore = 0;
+    let gameStartTime = Date.now(); // Add this line to track game start time
 
     // Game settings as variables
     let paddleWidth = 15;      // Slightly thinner paddle for better challenge
     let paddleHeight = 100;    // Shorter paddle for better challenge
     let ballRadius = 8;        // Slightly smaller ball
     let PADDLE_SPEED = 8;      // Faster paddle movement for better control
-    let BALL_SPEED = 6;        // Slightly faster ball for more excitement
+    let BALL_SPEED = 6;
 
     // Initialize slider values and ranges
     const initializeSliders = () => {
-        // Paddle Width slider
-        const paddleWidthSlider = document.getElementById('paddleWidth');
-        paddleWidthSlider.min = paddleWidth;
-        paddleWidthSlider.max = 50;
-        paddleWidthSlider.value = paddleWidth;
-        
-        // Paddle Height slider
-        const paddleHeightSlider = document.getElementById('paddleHeight');
-        paddleHeightSlider.min = paddleHeight;
-        paddleHeightSlider.max = 200;
-        paddleHeightSlider.value = paddleHeight;
-        
-        // Paddle Speed slider
-        const paddleSpeedSlider = document.getElementById('paddleSpeed');
-        paddleSpeedSlider.min = PADDLE_SPEED;
-        paddleSpeedSlider.max = 10;
-        paddleSpeedSlider.value = PADDLE_SPEED;
-        
-        // Ball Speed slider - disabled for authentic 1972 experience
-        /*
-        const ballSpeedSlider = document.getElementById('ballSpeed');
-        ballSpeedSlider.min = BALL_SPEED;
-        ballSpeedSlider.max = 10;
-        ballSpeedSlider.value = BALL_SPEED;
-        */
+        const sliders = {
+            paddleWidth: document.getElementById('paddleWidth'),
+            paddleHeight: document.getElementById('paddleHeight'),
+            paddleSpeed: document.getElementById('paddleSpeed')
+        };
 
-        // Update all display values
-        document.getElementById('paddleWidthValue').textContent = paddleWidth;
-        document.getElementById('paddleHeightValue').textContent = paddleHeight;
-        document.getElementById('paddleSpeedValue').textContent = PADDLE_SPEED;
-        // document.getElementById('ballSpeedValue').textContent = BALL_SPEED;
+        const values = {
+            paddleWidth: document.getElementById('paddleWidthValue'),
+            paddleHeight: document.getElementById('paddleHeightValue'),
+            paddleSpeed: document.getElementById('paddleSpeedValue')
+        };
+
+        if (!sliders.paddleWidth || !sliders.paddleHeight || !sliders.paddleSpeed ||
+            !values.paddleWidth || !values.paddleHeight || !values.paddleSpeed) {
+            console.error('Slider elements not found');
+            return;
+        }
+
+        // Initialize slider ranges
+        sliders.paddleWidth.min = paddleWidth;
+        sliders.paddleWidth.max = 50;
+        sliders.paddleWidth.value = paddleWidth;
+        
+        sliders.paddleHeight.min = paddleHeight;
+        sliders.paddleHeight.max = 200;
+        sliders.paddleHeight.value = paddleHeight;
+        
+        sliders.paddleSpeed.min = PADDLE_SPEED;
+        sliders.paddleSpeed.max = 10;
+        sliders.paddleSpeed.value = PADDLE_SPEED;
+
+        // Update display values
+        values.paddleWidth.textContent = paddleWidth;
+        values.paddleHeight.textContent = paddleHeight;
+        values.paddleSpeed.textContent = PADDLE_SPEED;
     };
 
     // Call initialization right after setting game settings
@@ -129,10 +146,10 @@ function initGame(mode = 'AI') {
                 // Recalculate on direction change, new serve, or no existing calculation
                 if (prevBallSpeedX >= 0 || Math.abs(ballX - canvas.width/2) < 10 || !calculationMade) {
                     // Calculate ball intersection with paddle plane
-                let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
-                
+                    let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
+                    
                     // Bounce prediction
-                while (predictedY < 0 || predictedY > canvas.height) {
+                    while (predictedY < 0 || predictedY > canvas.height) {
                         predictedY = predictedY < 0 ? -predictedY : 2 * canvas.height - predictedY;
                     }
                     
@@ -149,7 +166,7 @@ function initGame(mode = 'AI') {
                         // If ball is below paddle, miss by staying too high
                         if (predictedY > paddleCenter) {
                             predictedY = predictedY - missDistance;  // Miss by not moving up enough
-                    } else {
+                        } else {
                             predictedY = predictedY + missDistance;  // Miss by not moving down enough
                         }
                     }
@@ -228,7 +245,7 @@ function initGame(mode = 'AI') {
 
                 // Save match result with updated model fields
                 const matchData = {
-                    match_type: 'Pong',  // Changed to match the model's choices
+                    match_type: 'Pong',
                     start_time: new Date(gameStartTime).toISOString(),
                     end_time: new Date().toISOString(),
                     winner_name: playerScore > computerScore ? username : 
@@ -244,7 +261,7 @@ function initGame(mode = 'AI') {
                 saveMatchResult(matchData);
 
                 setTimeout(() => {
-                    window.location.href = '/';
+                    UIManager.showPage(UIManager.pages.home);
                 }, 3000);
             }
         }
@@ -276,7 +293,7 @@ function initGame(mode = 'AI') {
                 } catch (refreshError) {
                     localStorage.clear();
                     setTimeout(() => {
-                        window.location.href = '/';
+                        UIManager.showLoginForm();
                     }, 3000);
                     throw refreshError;
                 }
@@ -286,8 +303,7 @@ function initGame(mode = 'AI') {
                 throw new Error('Failed to get user profile');
             }
 
-
-            const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
+                const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -314,10 +330,16 @@ function initGame(mode = 'AI') {
                 const userData = await userResponse.json();
                 const updateData = {
                     username: userData.username,
-                    email: userData.email,
-                    match_wins: userData.match_wins + (playerScore > computerScore ? 1 : 0),
-                    total_matches: userData.total_matches + 1
+                    email: userData.email
                 };
+
+                // Check if it's a tournament match
+                if (matchData.match_type === 'Tournament') {
+                    updateData.total_tourneys = userData.total_tourneys + 1;
+                } else {
+                    updateData.match_wins = userData.match_wins + (playerScore > computerScore ? 1 : 0);
+                    updateData.total_matches = userData.total_matches + 1;
+                }
     
                 await fetch(`${AuthManager.API_BASE}users/profile/`, {
                     method: 'PUT',
@@ -342,7 +364,7 @@ function initGame(mode = 'AI') {
 
             // Redirect only after successful save
             setTimeout(() => {
-                window.location.href = '/';
+                UIManager.showPage(UIManager.pages.home);
             }, 3000);
 
         } catch (error) {
@@ -350,7 +372,7 @@ function initGame(mode = 'AI') {
             if (error.message.includes('token') || error.message.includes('401')) {
                 localStorage.clear();
                 setTimeout(() => {
-                    window.location.href = '/';
+                    UIManager.showLoginForm();
                 }, 3000);
             }
         }
@@ -463,14 +485,6 @@ function initGame(mode = 'AI') {
 
     let keysPressed = new Set(); // Track all currently pressed keys
 
-    document.addEventListener('keydown', (event) => {
-        keysPressed.add(event.key.toLowerCase());
-    });
-
-    document.addEventListener('keyup', (event) => {
-        keysPressed.delete(event.key.toLowerCase());
-    });
-
     // Add this function to handle paddle movement
     function handlePaddleMovement() {
         if (!gameActive || !gameStarted) return;
@@ -503,22 +517,18 @@ function initGame(mode = 'AI') {
     // At the top with other game variables
     let gameStarted = false;  // Add this to control initial game state
 
-    // Store animation frame ID
-    let animationFrameId = null;
-    let isCleanedUp = false;
-
+    // Modify game loop to respect cleanup
     function gameLoop(currentTime) {
-        if (isCleanedUp) return;
+        if (!isGameRunning) return;  // Stop loop if game is not running
         
         if (!lastTime) lastTime = currentTime;
-        
         const deltaTime = currentTime - lastTime;
         
         if (deltaTime >= frameInterval) {
             draw();  // Always draw the game state
             
             if (gameActive && gameStarted) {
-                handlePaddleMovement();  // Add this line
+                handlePaddleMovement();
                 if (mode === 'AI') {
                     updateAI();
                 }
@@ -528,11 +538,13 @@ function initGame(mode = 'AI') {
             lastTime = currentTime - (deltaTime % frameInterval);
         }
         
-        animationFrameId = requestAnimationFrame(gameLoop);
+        if (isGameRunning) {  // Only continue loop if game is running
+            requestAnimationFrame(gameLoop);
+        }
     }
 
     // Start the game loop
-    animationFrameId = requestAnimationFrame(gameLoop);
+    requestAnimationFrame(gameLoop);
 
     // Add slider event listeners
     const sliders = [
@@ -555,19 +567,34 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
-        document.getElementById('gameMode').textContent = mode === 'TOURNAMENT' ? 
+        // Check if elements exist before updating
+        const gameMode = document.getElementById('gameMode');
+        const rightPlayerName = document.getElementById('rightPlayerName');
+        const leftPlayerName = document.getElementById('leftPlayerName');
+
+        // If elements don't exist (navigated away), stop the update
+        if (!gameMode || !rightPlayerName || !leftPlayerName) {
+            return false;
+        }
+
+        gameMode.textContent = mode === 'TOURNAMENT' ? 
             `Tournament Match ${matchNumber}` : 
             (mode === 'AI' ? 'Player vs AI' : 'Player vs Player');
         
         if (mode === 'TOURNAMENT') {
+            // Check if tournament data exists
+            if (!tournamentBracket || !tournamentBracket[currentRound]) {
+                return false;
+            }
             // Update current players
-            document.getElementById('rightPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex];
-            document.getElementById('leftPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex + 1];
+            rightPlayerName.textContent = tournamentBracket[currentRound][currentMatchIndex] || 'TBD';
+            leftPlayerName.textContent = tournamentBracket[currentRound][currentMatchIndex + 1] || 'TBD';
         } else {
             // Regular game display
-            document.getElementById('rightPlayerName').textContent = username || 'Loading...';
-            document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
+            rightPlayerName.textContent = username || 'Loading...';
+            leftPlayerName.textContent = mode === 'PVP' ? player2Name : 'Computer';
         }
+        return true;
     }
 
     // Add at the top with other game variables
@@ -596,6 +623,57 @@ function initGame(mode = 'AI') {
         }
     }
 
+    function announceMatch() {
+        gameActive = false;
+        gameStarted = false;  // Ensure ball doesn't move
+        gameStartTime = Date.now();  // Reset start time for each match
+        
+        // Check if we can still update game info
+        if (!updateGameInfo()) {
+            return; // Stop if elements don't exist
+        }
+
+        const player1 = tournamentBracket[currentRound][currentMatchIndex];
+        const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
+        
+        // Check if announcement element exists
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        if (!gameOverMessage) {
+            return;
+        }
+
+        const messageElement = gameOverMessage.querySelector('h2');
+        if (!messageElement) {
+            return;
+        }
+
+        messageElement.className = 'text-white text-center display-8 font-monospace';
+        messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
+        gameOverMessage.classList.remove('d-none');
+        
+        let count = 2;
+        const countdownInterval = setInterval(() => {
+            // Check if elements still exist
+            if (!gameOverMessage || !messageElement || !document.getElementById('pongCanvas')) {
+                clearInterval(countdownInterval);
+                return;
+            }
+
+            if (count > 0) {
+                messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in ${count}</span>`;
+                count--;
+            } else {
+                clearInterval(countdownInterval);
+                gameOverMessage.classList.add('d-none');
+                if (updateGameInfo()) {  // Only proceed if we can still update game info
+                    resetMatch();
+                    gameStarted = true;
+                    gameActive = true;
+                }
+            }
+        }, 1000);
+    }
+
     function initTournament() {
         tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
         tournamentBracket = [tournamentPlayers];
@@ -604,7 +682,10 @@ function initGame(mode = 'AI') {
         matchNumber = 1;
         
         // Initialize game state first
-        updateGameInfo();
+        if (!updateGameInfo()) {
+            return; // Stop if elements don't exist
+        }
+        
         resetMatch();
         
         // Wait a short moment for textures to load, then show announcement
@@ -613,35 +694,6 @@ function initGame(mode = 'AI') {
         }, 100);
         
         updateTournamentDisplay();
-    }
-
-    // Modify announceMatch to control game start
-    function announceMatch() {
-        gameActive = false;
-        gameStarted = false;  // Ensure ball doesn't move
-        gameStartTime = Date.now();  // Reset start time for each match
-        
-        const player1 = tournamentBracket[currentRound][currentMatchIndex];
-        const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
-        const messageElement = gameOverMessage.querySelector('h2');
-        messageElement.className = 'text-white text-center display-8 font-monospace';
-        messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
-        gameOverMessage.classList.remove('d-none');
-        
-        let count = 2;
-        const countdownInterval = setInterval(() => {
-            if (count > 0) {
-                messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in ${count}</span>`;
-                count--;
-            } else {
-                clearInterval(countdownInterval);
-                gameOverMessage.classList.add('d-none');
-                updateGameInfo();
-                resetMatch();
-                gameStarted = true;  // Now allow ball movement
-                gameActive = true;
-            }
-        }, 1000);
     }
 
     function startNextTournamentMatch() {
@@ -671,17 +723,12 @@ function initGame(mode = 'AI') {
     }
 
     function resetMatch() {
-        // Add null checks for score elements
-        const rightScore = document.getElementById('rightPlayerScore');
-        const leftScore = document.getElementById('leftPlayerScore');
-        
-        // Only update elements if they exist
-        if (rightScore) rightScore.textContent = '0';
-        if (leftScore) leftScore.textContent = '0';
-        
-        // Reset scores in memory regardless of DOM elements
         playerScore = 0;
         computerScore = 0;
+        const rightScore = document.getElementById('rightPlayerScore');
+        const leftScore = document.getElementById('leftPlayerScore');
+        if (rightScore) rightScore.textContent = '0';
+        if (leftScore) leftScore.textContent = '0';
         resetBall();
         gameActive = true;
     }
@@ -701,14 +748,13 @@ function initGame(mode = 'AI') {
             start_time: new Date(gameStartTime).toISOString(),
             end_time: new Date().toISOString(),
             winner_name: winner,
-            created_by: currentUser,  // Use current user's username
+            created_by: currentUser,
             duration: Math.floor((Date.now() - gameStartTime) / 1000)
         };
-        // Note: Deliberately not including player fields for tournament matches
         saveMatchResult(matchData);
 
         setTimeout(() => {
-            window.location.href = '/';
+            UIManager.showPage(UIManager.pages.home);
         }, 3000);
     }
 
@@ -813,35 +859,42 @@ function initGame(mode = 'AI') {
         upcomingDiv.textContent = nextMatchText;
     }
 
-    // Return game instance with cleanup method
-    return {
-        stop: () => {
-            isCleanedUp = true;
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            // Clean up event listeners
-            document.removeEventListener('keydown', handlePaddleMovement);
-            document.removeEventListener('keyup', handlePaddleMovement);
-            // Reset game state
-            gameActive = false;
-            gameStarted = false;
+    // Add cleanup function
+    function cleanup() {
+        isGameRunning = false;
+        // Clear any active intervals
+        if (typeof countdownInterval !== 'undefined') {
+            clearInterval(countdownInterval);
         }
-    };
-}
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('hashchange', cleanup);
+    }
+    
+    // Add navigation cleanup
+    window.addEventListener('hashchange', cleanup);
 
-function init4PlayerGame() {
-    // Check authentication first
-    if (!AuthManager.accessToken) {
-        console.log('User not authenticated, redirecting to landing page');
-        window.location.href = '/';
-        return;
+    // Modify event listeners to use named functions for cleanup
+    function handleKeyDown(event) {
+        keysPressed.add(event.key.toLowerCase());
     }
 
-    // Initialize game start time
-    const gameStartTime = Date.now();
-    let animationFrameId = null;
+    function handleKeyUp(event) {
+        keysPressed.delete(event.key.toLowerCase());
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    // Return cleanup function
+    return cleanup;
+}
+
+// 4-player game initialization function
+function init4PlayerGame() {
+    // Add cleanup flag
+    let isGameRunning = true;
+    let gameStartTime = Date.now();
     
     // Create game container
     const gameContainer = document.createElement('div');
@@ -853,7 +906,7 @@ function init4PlayerGame() {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
     canvas.className = 'mx-auto d-block mb-3';
-    canvas.style.border = '2px solid white';
+    canvas.style.border = '2px solid white'; // Add border to see game area
     gameContainer.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
@@ -1089,10 +1142,6 @@ function init4PlayerGame() {
         
         // Save match and update history
         saveMatchResult(matchData).then(async () => {
-            // Update match history before redirecting
-            // const matches = await MatchManager.fetchMatchHistory();
-            // MatchManager.displayMatchHistory(matches);
-            
             // Show winner announcement
             const announcement = document.createElement('div');
             announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
@@ -1101,7 +1150,7 @@ function init4PlayerGame() {
             gameContainer.appendChild(announcement);
 
             setTimeout(() => {
-                window.location.href = '/';
+                UIManager.showPage(UIManager.pages.home);
             }, 3000);
         });
     }
@@ -1123,45 +1172,57 @@ function init4PlayerGame() {
         updateScores();
     };
 
-    // Start game loop
+    // Modify game loop to respect cleanup
     function gameLoop() {
+        if (!isGameRunning) return;
+        
         update();
         draw();
-        animationFrameId = requestAnimationFrame(gameLoop);
+        
+        if (isGameRunning) {
+            requestAnimationFrame(gameLoop);
+        }
     }
-    gameLoop();
 
     // Start game with countdown
     announceGame();
 
-    // Return game instance with cleanup method
-    return {
-        stop: () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            // Clean up event listeners using the correct references
-            document.removeEventListener('keydown', e => state.keysPressed.add(e.key.toLowerCase()));
-            document.removeEventListener('keyup', e => state.keysPressed.delete(e.key.toLowerCase()));
-            state.keysPressed.clear();
-            state.gameActive = false;
-        }
-    };
-}
-
-// Add this:
-document.addEventListener('DOMContentLoaded', () => {
-    // Only initialize if we're on a game page and authenticated
-    const gamePage = document.getElementById('game-page');
-    if (gamePage && gamePage.classList.contains('active-page')) {
-        if (AuthManager.accessToken) {
-            initGame();
-        } else {
-            // Single redirect to landing page
-            if (window.location.pathname !== '/') {
-                window.location.href = '/';
-            }
+    // Add cleanup function
+    function cleanup() {
+        isGameRunning = false;
+        // Remove event listeners
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('hashchange', cleanup);
+        // Clean up game container
+        if (gameContainer && gameContainer.parentNode) {
+            gameContainer.parentNode.removeChild(gameContainer);
         }
     }
-});
+
+    // Add navigation cleanup
+    window.addEventListener('hashchange', cleanup);
+
+    // Modify event listeners to use named functions for cleanup
+    function handleKeyDown(event) {
+        state.keysPressed.add(event.key.toLowerCase());
+    }
+
+    function handleKeyUp(event) {
+        state.keysPressed.delete(event.key.toLowerCase());
+    }
+
+    // Replace anonymous event listeners with named functions
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    // Start game loop
+    requestAnimationFrame(gameLoop);
+
+    // Return cleanup function
+    return cleanup;
+}
+
+// Make functions available globally
+window.initGame = initGame;
+window.init4PlayerGame = init4PlayerGame;

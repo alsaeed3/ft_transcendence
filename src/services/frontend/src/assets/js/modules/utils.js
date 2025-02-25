@@ -5,3 +5,14 @@ export const showAlert = (message, type = 'success') => {
     document.body.prepend(alertDiv);
     setTimeout(() => alertDiv.remove(), 3000);
 };
+
+export class Utils {
+    static escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+}
