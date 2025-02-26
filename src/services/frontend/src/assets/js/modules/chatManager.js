@@ -15,6 +15,7 @@ export class ChatManager {
     static isConnecting = false;
     static blockedUsers = new Set();
     static onlineUsers = new Set();
+    static statusUpdateCallbacks = new Set();
 
     static initStatusWebSocket() {
         // If already connecting or connected, don't try to connect again
@@ -135,14 +136,14 @@ export class ChatManager {
 
     static updateStatusBadge(badge, isOnline) {
         if (badge) {
-            const userId = parseInt(badge.getAttribute('data-user-status'));
-            if (isOnline) {
-                this.onlineUsers.add(userId);
+            if (badge.classList.contains('status-indicator')) {
+                // Update the dot indicator
+                badge.style.backgroundColor = isOnline ? '#198754' : '#6c757d';
             } else {
-                this.onlineUsers.delete(userId);
+                // Update the badge text and color
+                badge.style.backgroundColor = isOnline ? '#198754' : '#6c757d';
+                badge.textContent = isOnline ? 'Online' : 'Offline';
             }
-            badge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
-            badge.textContent = isOnline ? 'Online' : 'Offline';
         }
     }
 
@@ -503,5 +504,31 @@ export class ChatManager {
             this.reconnectTimeout = null;
         }
         document.getElementById('chat-container').style.display = 'none';
+    }
+
+    static onOnlineStatusUpdate(callback) {
+        this.statusUpdateCallbacks.add(callback);
+    }
+
+    static offOnlineStatusUpdate(callback) {
+        this.statusUpdateCallbacks.delete(callback);
+    }
+
+    static handleStatusUpdate(data) {
+        if (data.type === 'status_update') {
+            const userId = parseInt(data.user_id);
+            const isOnline = data.online_status;
+            
+            if (isOnline) {
+                this.onlineUsers.add(userId);
+            } else {
+                this.onlineUsers.delete(userId);
+            }
+
+            // Update all status indicators for this user
+            document.querySelectorAll(`[data-user-status="${userId}"]`).forEach(badge => {
+                this.updateStatusBadge(badge, isOnline);
+            });
+        }
     }
 } 

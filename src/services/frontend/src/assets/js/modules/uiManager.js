@@ -259,56 +259,9 @@ export class UIManager {
         
         element.addEventListener('click', async () => {
             try {
-                const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${userId}/`);
-                if (!response.ok) throw new Error('Failed to fetch user data');
-                
-                const userData = await response.json();
-                const modalBody = document.querySelector('#userProfileModal .modal-body');
-                const modalTitle = document.querySelector('#userProfileModal .modal-title');
-                const modalChatBtn = document.getElementById('modal-chat-btn');
-                
-                if (modalBody && modalTitle) {
-                    modalTitle.textContent = `${username}'s Profile`;
-                    modalBody.innerHTML = `
-                        <div class="text-center mb-4">
-                            <img src="${userData.avatar_url || '/media/avatars/default.svg'}" 
-                                 alt="${username}" 
-                                 class="rounded-circle mb-3"
-                                 style="width: 128px; height: 128px;"
-                                 onerror="this.src='/media/avatars/default.svg'">
-                            <h4>${username}</h4>
-                            <span class="badge bg-${userData.is_online ? 'success' : 'secondary'}">
-                                ${userData.is_online ? 'Online' : 'Offline'}
-                            </span>
-                        </div>
-                        <div id="modal-recent-matches" class="mt-4">
-                            <h5 class="mb-3">Recent Matches</h5>
-                            <div class="matches-list">
-                                Loading matches...
-                            </div>
-                        </div>
-                    `;
-
-                    // Load recent matches
-                    this.loadUserRecentMatches(userId);
-                }
-                
-                if (modalChatBtn) {
-                    if (userId === AuthManager.currentUser?.id) {
-                        modalChatBtn.style.display = 'none';
-                    } else {
-                        modalChatBtn.style.display = 'block';
-                        modalChatBtn.onclick = () => {
-                            ChatManager.startChat(userId, username);
-                            bootstrap.Modal.getInstance(document.getElementById('userProfileModal')).hide();
-                        };
-                    }
-                }
-
-                const userProfileModal = new bootstrap.Modal(document.getElementById('userProfileModal'));
-                userProfileModal.show();
+                await this.showUserProfile(userId, username);
             } catch (error) {
-                console.error('Error loading user profile:', error);
+                console.error('Error showing user profile:', error);
                 this.showToast('Failed to load user profile', 'danger');
             }
         });
@@ -378,6 +331,134 @@ export class UIManager {
             if (matchesList) {
                 matchesList.innerHTML = '<p class="text-danger">Failed to load matches</p>';
             }
+        }
+    }
+
+    static async showUserProfile(userId, username) {
+        try {
+            // Fetch user data
+            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${userId}/`);
+            if (!response.ok) throw new Error('Failed to fetch user profile');
+            const userData = await response.json();
+
+            // Get online status from ChatManager
+            const isOnline = ChatManager.onlineUsers.has(parseInt(userId));
+
+            // Fetch user stats - using the same endpoint as loadUserStats()
+            const statsResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/${userId}/`);
+            if (!statsResponse.ok) throw new Error('Failed to fetch user stats');
+            const stats = await statsResponse.json();
+
+            // Fetch recent matches
+            const matchesResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/history/${userId}/`);
+            if (!matchesResponse.ok) throw new Error('Failed to fetch matches');
+            const matches = await matchesResponse.json();
+
+            const modalContent = `
+                <div class="modal-header bg-dark text-light border-secondary">
+                    <h5 class="modal-title">User Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-dark text-light">
+                    <div class="text-center mb-4">
+                        <img src="${userData.avatar_url || '/media/avatars/default.svg'}" 
+                             alt="${userData.username}" 
+                             class="rounded-circle mb-3"
+                             style="width: 128px; height: 128px;"
+                             onerror="this.src='/media/avatars/default.svg'">
+                        <h4>${userData.username}</h4>
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <span class="status-indicator" 
+                                  data-user-status="${userId}" 
+                                  style="width: 10px; height: 10px; border-radius: 50%; display: inline-block; background-color: ${isOnline ? '#198754' : '#6c757d'}">
+                            </span>
+                            <span class="badge" 
+                                  data-user-status="${userId}" 
+                                  style="background-color: ${isOnline ? '#198754' : '#6c757d'}">
+                                ${isOnline ? 'Online' : 'Offline'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="stats-section mb-4">
+                        <h5 class="text-light mb-3">Player Stats</h5>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="stat-value">${stats.match_wins || '0'}</div>
+                                <div class="stat-label">Match Wins</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-value">${stats.total_matches || '0'}</div>
+                                <div class="stat-label">Total Matches</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-value">${stats.total_tourneys || '0'}</div>
+                                <div class="stat-label">Total Tourneys</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="modal-recent-matches" class="mt-4">
+                        <h5 class="mb-3">Recent Matches</h5>
+                        <div class="matches-list">
+                            ${matches.slice(0, 5).map(match => {
+                                const date = new Date(match.end_time || match.start_time);
+                                const formattedDate = date.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+
+                                return `
+                                    <div class="match-history-item p-2 mb-2">
+                                        <div class="text-center mb-2">
+                                            <span class="${match.player1_name === match.winner_name ? 'text-success' : 'text-danger'} fw-bold">
+                                                ${match.player1_name}
+                                            </span>
+                                            <span class="text-warning"> X </span>
+                                            <span class="${match.player2_name === match.winner_name ? 'text-success' : 'text-danger'} fw-bold">
+                                                ${match.player2_name}
+                                            </span>
+                                        </div>
+                                        <div class="text-center fw-bold">
+                                            Score: ${match.player1_score} - ${match.player2_score}
+                                        </div>
+                                        <div class="text-center mt-1 small text-white">
+                                            ${formattedDate}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const modalElement = document.getElementById('userProfileModal');
+            if (!modalElement) {
+                const modal = document.createElement('div');
+                modal.className = 'modal fade';
+                modal.id = 'userProfileModal';
+                modal.setAttribute('tabindex', '-1');
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            ${modalContent}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } else {
+                modalElement.querySelector('.modal-content').innerHTML = modalContent;
+            }
+
+            const userProfileModal = new bootstrap.Modal(document.getElementById('userProfileModal'));
+            userProfileModal.show();
+
+        } catch (error) {
+            console.error('Error showing user profile:', error);
+            this.showToast('Failed to load user profile', 'danger');
         }
     }
 } 

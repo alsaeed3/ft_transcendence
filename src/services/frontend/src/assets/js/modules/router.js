@@ -782,6 +782,17 @@ const router = {
             }
         });
 
+        // Add route for user profile modal
+        this.addRoute('#/user-profile', {
+            component: '/assets/components/userProfile.html',
+            init: async () => {
+                const userId = new URLSearchParams(window.location.search).get('id');
+                if (userId) {
+                    await UIManager.showUserProfile(userId);
+                }
+            }
+        });
+
         // Handle navigation events
         window.addEventListener('hashchange', () => this.navigate());
         
