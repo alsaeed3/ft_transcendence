@@ -58,9 +58,21 @@ export class UserManager {
                 const usernameElement = row.querySelector('.username');
                 UIManager.makeUsernameClickable(usernameElement, user.id, user.username);
 
-                // Add chat button handler
+                // Add chat button handler with modal closing
                 const chatBtn = row.querySelector('.chat-btn');
                 chatBtn.addEventListener('click', () => {
+                    const usersModal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
+                    if (usersModal) {
+                        usersModal.hide();
+                        // Remove modal backdrop and reset body styles
+                        const backdrop = document.querySelector('.modal-backdrop');
+                        if (backdrop) {
+                            backdrop.remove();
+                        }
+                        document.body.classList.remove('modal-open');
+                        document.body.style.removeProperty('padding-right');
+                        document.body.style.removeProperty('overflow');
+                    }
                     ChatManager.startChat(user.id, user.username);
                 });
 
@@ -161,6 +173,28 @@ export class UserManager {
                 usersModal.show();
             });
         }
+
+        // Add modal cleanup on hide
+        const usersModal = document.getElementById('usersListModal');
+        if (usersModal) {
+            usersModal.addEventListener('hidden.bs.modal', () => {
+                const searchInput = document.getElementById('user-search');
+                if (searchInput) {
+                    searchInput.value = ''; // Clear search input
+                }
+                // Remove modal backdrop and reset body styles
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
+                
+                // Optionally refresh the users list for next time
+                this.refreshUsersList();
+            });
+        }
     }
 
     static updateUsersTable(users) {
@@ -224,8 +258,21 @@ export class UserManager {
             const usernameElement = row.querySelector('.username');
             UIManager.makeUsernameClickable(usernameElement, user.id, user.username);
 
+            // Add chat button handler with modal closing
             const chatBtn = row.querySelector('.chat-btn');
             chatBtn.addEventListener('click', () => {
+                const usersModal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
+                if (usersModal) {
+                    usersModal.hide();
+                    // Remove modal backdrop and reset body styles
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) {
+                        backdrop.remove();
+                    }
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('padding-right');
+                    document.body.style.removeProperty('overflow');
+                }
                 ChatManager.startChat(user.id, user.username);
             });
 

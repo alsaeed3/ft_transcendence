@@ -343,6 +343,25 @@
         .modal-footer {
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
+
+        /* Add these styles to customize modal backdrop and content */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5) !important; /* Lighter backdrop */
+        }
+        
+        .modal-content {
+            background: linear-gradient(145deg, rgba(30, 42, 58, 0.95), rgba(42, 56, 70, 0.95)) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .table-dark {
+            background-color: transparent !important;
+        }
+
+        .table-dark td, .table-dark th {
+            background-color: transparent !important;
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -388,7 +407,7 @@
     <!-- Users List Modal -->
     <div class="modal fade" id="usersListModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark text-light">
+            <div class="modal-content bg-dark text-light" style="background-color: rgba(33, 37, 41, 0.8) !important;">
                 <div class="modal-header border-secondary">
                     <h5 class="modal-title">Users List</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
