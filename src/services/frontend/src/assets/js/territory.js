@@ -1,3 +1,6 @@
+// Replace imports with global variable access
+// The AuthManager and UIManager will be available globally through the window object
+
 let gameStartTime;
 
 function initTerritory() {
@@ -199,14 +202,19 @@ function initTerritory() {
             start_time: new Date(gameStartTime).toISOString(),
             end_time: new Date().toISOString(),
             winner_name: colors[winner - 1],
-            created_by: AuthManager.currentUser?.username,
+            created_by: window.AuthManager?.currentUser?.username || 'Anonymous',
             duration: Math.floor((Date.now() - gameStartTime) / 1000)
         };
 
         // Save match and redirect
         saveMatchResult(matchData).then(() => {
             setTimeout(() => {
-                UIManager.showLoginForm();
+                if (window.UIManager && typeof window.UIManager.showLoginForm === 'function') {
+                    window.UIManager.showLoginForm();
+                } else {
+                    console.warn('UIManager not available, falling back to hash navigation');
+                    window.location.hash = '#/';
+                }
             }, 3000);
         });
     }
@@ -231,6 +239,28 @@ function initTerritory() {
         }
     }
 
+    async function saveMatchResult(matchData) {
+        try {
+            const response = await fetch(`${window.AuthManager.API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${window.AuthManager.accessToken}`
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save match result');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving match result:', error);
+            window.UIManager.showToast('Failed to save match result', 'error');
+        }
+    }
+
     // Start game
     updateGame();
 
@@ -241,3 +271,6 @@ function initTerritory() {
         handleKeyUp
     };
 }
+
+// Make initTerritory available globally
+window.initTerritory = initTerritory;
