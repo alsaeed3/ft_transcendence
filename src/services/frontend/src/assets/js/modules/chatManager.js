@@ -287,40 +287,45 @@ export class ChatManager {
     static createChatMessage(message) {
         const messageDiv = document.createElement('div');
         
-        // Handle different message object structures with more detailed logging
+        // Handle different message object structures
         const senderId = message.sender?.id || message.sender_id;
         const senderUsername = message.sender?.username || message.sender_display_name || message.username;
         const senderAvatarUrl = message.sender?.avatar_url || message.sender_avatar_url || '/media/avatars/default.svg';
         const messageTimestamp = message.timestamp || new Date().toISOString();
         const messageContent = message.message || message.content;
-
-        console.log('Creating message with:', {
-            senderId,
-            senderUsername,
-            messageContent,
-            messageTimestamp
-        });
         
         const isSentMessage = senderId === AuthManager.currentUser?.id;
         
-        messageDiv.className = `message-wrapper d-flex align-items-start mb-2 ${isSentMessage ? 'sent justify-content-end' : 'received'}`;
+        messageDiv.className = `message-wrapper d-flex ${isSentMessage ? 'justify-content-end' : 'justify-content-start'} mb-3`;
         
         messageDiv.innerHTML = `
-            <img src="${senderAvatarUrl}" 
-                 alt="${senderUsername}" 
-                 class="avatar"
-                 onerror="this.src='/media/avatars/default.svg'">
-            <div class="message-content">
-                <div class="message-header mb-1">
-                    <span class="message-username" style="cursor: pointer; text-decoration: underline;">
-                        ${senderUsername}
-                    </span>
-                    <small class="text-muted ms-2">
-                        ${new Date(messageTimestamp).toLocaleTimeString()}
-                    </small>
+            <div class="message-content ${isSentMessage ? 'sent' : 'received'} d-flex flex-column">
+                <div class="message-header d-flex align-items-center ${isSentMessage ? 'justify-content-end' : 'justify-content-start'} mb-1">
+                    ${isSentMessage ? `
+                        <span class="message-username me-2" style="cursor: pointer; color: #fff;">
+                            ${senderUsername}
+                        </span>
+                        <img src="${senderAvatarUrl}" 
+                             alt="${senderUsername}" 
+                             class="avatar"
+                             style="width: 30px; height: 30px; border-radius: 50%;"
+                             onerror="this.src='/media/avatars/default.svg'">
+                    ` : `
+                        <img src="${senderAvatarUrl}" 
+                             alt="${senderUsername}" 
+                             class="avatar me-2"
+                             style="width: 30px; height: 30px; border-radius: 50%;"
+                             onerror="this.src='/media/avatars/default.svg'">
+                        <span class="message-username" style="cursor: pointer; color: #fff;">
+                            ${senderUsername}
+                        </span>
+                    `}
                 </div>
-                <div class="list-group-item ${isSentMessage ? 'sent-message' : 'received-message'}">
+                <div class="message-bubble ${isSentMessage ? 'sent-message' : 'received-message'} mb-1">
                     ${Utils.escapeHtml(messageContent)}
+                </div>
+                <div class="message-timestamp text-white-50 small ${isSentMessage ? 'text-end' : 'text-start'}">
+                    ${new Date(messageTimestamp).toLocaleString()}
                 </div>
             </div>
         `;
