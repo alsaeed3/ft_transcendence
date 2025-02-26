@@ -10,12 +10,16 @@ import { ChatManager } from '/src/assets/js/modules/chatManager.js';
 // Initialize router
 router.init();
 
-// Handle OAuth callback if present
+// Handle OAuth parameters if present
 const urlParams = new URLSearchParams(window.location.search);
-const code = urlParams.get('code');
+const accessToken = urlParams.get('access_token');
+const refreshToken = urlParams.get('refresh_token');
+const authError = urlParams.get('auth_error');
 
-if (code) {
-    handleOAuthCallback();
+if (accessToken && refreshToken) {
+    handleOAuthSuccess(accessToken, refreshToken);
+} else if (authError) {
+    handleOAuthError(authError);
 } else if (AuthManager.accessToken) {
     // If we already have a token, initialize WebSocket and go to home page
     ChatManager.initStatusWebSocket();
@@ -30,29 +34,46 @@ if (code) {
 // Clean up URL
 window.history.replaceState({}, document.title, '/');
 
-// Keep handleOAuthCallback function definition
-async function handleOAuthCallback() {
+async function handleOAuthSuccess(accessToken, refreshToken) {
     try {
-        const response = await fetch(`${AuthManager.API_BASE}auth/oauth/callback/?code=${code}`);
-        const data = await response.json();
-        if (response.ok) {
-            // Store tokens and redirect to main page
-            AuthManager.accessToken = data.access;
-            AuthManager.refreshToken = data.refresh;
-            localStorage.setItem('accessToken', AuthManager.accessToken);
-            localStorage.setItem('refreshToken', AuthManager.refreshToken);
-            
-            // Clean up URL and redirect to main page
-            window.history.replaceState({}, document.title, '/');
-            UIManager.showPage(UIManager.pages.home);
-        } else {
-            throw new Error(data.error || 'OAuth authentication failed');
-        }
+        // Store tokens
+        AuthManager.accessToken = accessToken;
+        AuthManager.refreshToken = refreshToken;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+
+        // Fetch user data
+        const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/me/`);
+        if (!response.ok) throw new Error('Failed to fetch user data');
+        
+        const userData = await response.json();
+        AuthManager.currentUser = userData;
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+
+        // Initialize WebSocket connection
+        ChatManager.cleanup();
+        ChatManager.initStatusWebSocket();
+
+        // Clean up URL parameters
+        window.history.replaceState({}, document.title, '/');
+
+        // Redirect to home page
+        UIManager.showPage(UIManager.pages.home);
+        await UIManager.loadMainPage();
+
     } catch (error) {
-        console.error('OAuth callback error:', error);
-        UIManager.showToast('Authentication failed. Please try again.', 'danger');
-        UIManager.showPage(UIManager.pages.login);
+        console.error('OAuth success handling error:', error);
+        handleOAuthError('Failed to complete authentication');
     }
+}
+
+function handleOAuthError(error) {
+    // Clean up URL parameters
+    window.history.replaceState({}, document.title, '/');
+    
+    // Show error message and redirect to login
+    UIManager.showToast(decodeURIComponent(error), 'danger');
+    UIManager.showPage(UIManager.pages.login);
 }
 
 // Export all managers for use in other modules
