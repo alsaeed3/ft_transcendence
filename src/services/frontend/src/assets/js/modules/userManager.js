@@ -151,6 +151,16 @@ export class UserManager {
                 }, 300);
             });
         }
+
+        // Add users modal event listener
+        const showUsersBtn = document.getElementById('show-users-btn');
+        if (showUsersBtn) {
+            showUsersBtn.addEventListener('click', async () => {
+                await this.refreshUsersList();
+                const usersModal = new bootstrap.Modal(document.getElementById('usersListModal'));
+                usersModal.show();
+            });
+        }
     }
 
     static updateUsersTable(users) {

@@ -54,6 +54,16 @@ async function handleOAuthSuccess(accessToken, refreshToken) {
         ChatManager.cleanup();
         ChatManager.initStatusWebSocket();
 
+        // Add event listeners for users and friends buttons
+        const showUsersBtn = document.getElementById('show-users-btn');
+        if (showUsersBtn) {
+            showUsersBtn.addEventListener('click', async () => {
+                await UserManager.refreshUsersList();
+                const usersModal = new bootstrap.Modal(document.getElementById('usersListModal'));
+                usersModal.show();
+            });
+        }
+
         // Clean up URL parameters
         window.history.replaceState({}, document.title, '/');
 
