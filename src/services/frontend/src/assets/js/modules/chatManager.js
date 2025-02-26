@@ -216,7 +216,11 @@ export class ChatManager {
             this.reconnectTimeout = null;
         }
 
+        // Show chat container
         const chatContainer = document.getElementById('chat-container');
+        chatContainer.style.display = 'block';
+
+        // Update chat header
         const chatHeader = document.getElementById('chat-header');
         const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
         const isOnline = statusBadge?.classList.contains('bg-success');
@@ -238,85 +242,85 @@ export class ChatManager {
                 </div>
             </div>
         `;
-        
-        document.getElementById('block-user')?.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const isCurrentlyBlocked = e.target.closest('button').classList.contains('btn-secondary');
-            if (isCurrentlyBlocked) {
-                await this.unblockUser(userId);
-            } else {
-                await this.blockUser(userId);
-            }
-        });
-        
-        chatContainer.style.display = 'block';
-        chatContainer.style.transform = 'none';
-        const chatBody = chatContainer.querySelector('.card-body');
-        chatBody.style.display = 'block';
-        
-        this.initializeEventListeners();
-        
-        const apiHost = new URL(AuthManager.API_BASE).host;
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${apiHost}/ws/chat/${AuthManager.currentUser.id}/${userId}/?token=${AuthManager.accessToken}`;
-        
-        if (this.chatSocket) {
-            this.chatSocket.close();
-        }
-        
-        this.chatSocket = new WebSocket(wsUrl);
-        this.chatSocket.onmessage = this.handleChatMessage.bind(this);
-        this.chatSocket.onclose = this.handleChatClose.bind(this);
-        
-        await this.loadPreviousMessages(userId);
-        document.getElementById('chat-messages').innerHTML = '';
-        document.getElementById('usersModal')?.querySelector('[data-bs-dismiss="modal"]')?.click();
-    }
 
-    static async loadPreviousMessages(userId) {
+        // Load previous messages
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/messages/${userId}/`);
             if (!response.ok) throw new Error('Failed to load messages');
-            const messages = await response.json();
             
+            const messages = await response.json();
             const messagesContainer = document.getElementById('chat-messages');
             messagesContainer.innerHTML = '';
             
             messages.forEach(msg => {
-                if (!msg.is_blocked) {
-                    const messageElement = this.createChatMessage(msg);
-                    messagesContainer.appendChild(messageElement);
-                }
+                const messageElement = this.createChatMessage(msg);
+                messagesContainer.appendChild(messageElement);
             });
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } catch (error) {
             console.error('Error loading messages:', error);
+            UIManager.showToast('Failed to load previous messages', 'danger');
         }
+
+        // Close existing WebSocket if any
+        if (this.chatSocket) {
+            this.chatSocket.close();
+        }
+
+        // Establish new WebSocket connection with correct URL pattern
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const currentUserId = AuthManager.currentUser.id;
+        // Sort user IDs to match backend's room name creation
+        const [user1Id, user2Id] = [currentUserId, userId].sort((a, b) => a - b);
+        const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/${user1Id}/${user2Id}/?token=${encodeURIComponent(AuthManager.accessToken)}`;
+        
+        this.chatSocket = new WebSocket(wsUrl);
+        
+        this.chatSocket.onmessage = this.handleChatMessage.bind(this);
+        this.chatSocket.onclose = this.handleChatClose.bind(this);
+
+        // Reattach event listeners
+        this.initializeEventListeners();
     }
 
     static createChatMessage(message) {
         const messageDiv = document.createElement('div');
-        const isSentMessage = message.sender.id === AuthManager.currentUser.id;
+        
+        // Handle different message object structures with more detailed logging
+        const senderId = message.sender?.id || message.sender_id;
+        const senderUsername = message.sender?.username || message.sender_display_name || message.username;
+        const senderAvatarUrl = message.sender?.avatar_url || message.sender_avatar_url || '/media/avatars/default.svg';
+        const messageTimestamp = message.timestamp || new Date().toISOString();
+        const messageContent = message.message || message.content;
+
+        console.log('Creating message with:', {
+            senderId,
+            senderUsername,
+            messageContent,
+            messageTimestamp
+        });
+        
+        const isSentMessage = senderId === AuthManager.currentUser?.id;
         
         messageDiv.className = `message-wrapper d-flex align-items-start mb-2 ${isSentMessage ? 'sent justify-content-end' : 'received'}`;
         
         messageDiv.innerHTML = `
-            <img src="${message.sender.avatar_url}" 
-                 alt="${message.sender.username}" 
+            <img src="${senderAvatarUrl}" 
+                 alt="${senderUsername}" 
                  class="avatar"
                  onerror="this.src='/media/avatars/default.svg'">
             <div class="message-content">
                 <div class="message-header mb-1">
                     <span class="message-username" style="cursor: pointer; text-decoration: underline;">
-                        ${message.sender.username}
+                        ${senderUsername}
                     </span>
                     <small class="text-muted ms-2">
-                        ${new Date(message.timestamp).toLocaleTimeString()}
+                        ${new Date(messageTimestamp).toLocaleTimeString()}
                     </small>
                 </div>
                 <div class="list-group-item ${isSentMessage ? 'sent-message' : 'received-message'}">
-                    ${Utils.escapeHtml(message.message)}
+                    ${Utils.escapeHtml(messageContent)}
                 </div>
             </div>
         `;
@@ -326,8 +330,8 @@ export class ChatManager {
         if (usernameElement) {
             UIManager.makeUsernameClickable(
                 usernameElement,
-                message.sender.id,
-                message.sender.username
+                senderId,
+                senderUsername
             );
         }
         
@@ -335,22 +339,36 @@ export class ChatManager {
     }
 
     static handleChatMessage(event) {
-        const data = JSON.parse(event.data);
-        console.log('WebSocket message data:', data);
-        if (data.type === 'chat_message') {
-            const messagesContainer = document.getElementById('chat-messages');
-            const messageElement = this.createChatMessage({
-                ...data,
-                sender: {
-                    id: data.sender_id,
-                    username: data.sender_display_name || data.username,
-                    avatar_url: data.sender_avatar_url || '/media/avatars/default.svg'
-                },
-                timestamp: new Date().toISOString()
-            });
+        try {
+            const data = JSON.parse(event.data);
+            console.log('WebSocket message data:', data);
             
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            if (data.type === 'chat_message') {
+                const messagesContainer = document.getElementById('chat-messages');
+                const messageElement = this.createChatMessage({
+                    sender_id: data.sender_id,
+                    username: data.sender_display_name,
+                    sender_avatar_url: data.sender_avatar_url,
+                    message: data.content || data.message,
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+                
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else if (data.type === 'chat_history') {
+                // Handle chat history if sent by the server
+                const messagesContainer = document.getElementById('chat-messages');
+                messagesContainer.innerHTML = '';
+                
+                data.messages.forEach(msg => {
+                    const messageElement = this.createChatMessage(msg);
+                    messagesContainer.appendChild(messageElement);
+                });
+                
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        } catch (error) {
+            console.error('Error handling chat message:', error, event.data);
         }
     }
 
@@ -377,10 +395,14 @@ export class ChatManager {
         const message = input.value.trim();
         
         if (message && this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+            // Only send through WebSocket, don't create local message
+            // The message will be displayed when received back from the server
             this.chatSocket.send(JSON.stringify({
                 message: message,
                 recipient: this.currentChatPartner.id
             }));
+            
+            // Clear input after sending
             input.value = '';
         }
     }

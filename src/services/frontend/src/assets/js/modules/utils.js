@@ -8,7 +8,9 @@ export const showAlert = (message, type = 'success') => {
 
 export class Utils {
     static escapeHtml(unsafe) {
-        return unsafe
+        if (unsafe == null) return ''; // Handle null and undefined
+        
+        return String(unsafe)  // Convert to string in case of numbers or other types
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
