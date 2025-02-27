@@ -223,17 +223,10 @@ export class ChatManager {
 
         // Update chat header
         const chatHeader = document.getElementById('chat-header');
-        const statusBadge = document.querySelector(`[data-user-status="${userId}"]`);
-        const isOnline = statusBadge?.classList.contains('bg-success');
-        const isBlocked = userRow?.classList.contains('blocked-user');
-        
         chatHeader.innerHTML = `
             <div class="d-flex justify-content-between align-items-center w-100">
                 <span>Chat with ${username}</span>
                 <div>
-                    <button id="block-user" class="btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} me-2">
-                        <i class="bi bi-slash-circle"></i>
-                    </button>
                     <button id="toggle-chat" class="btn btn-sm btn-outline-light">
                         <i class="bi bi-dash-lg"></i>
                     </button>
