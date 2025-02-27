@@ -747,18 +747,10 @@ const router = {
         this.addRoute('#/territory', {
             component: '/assets/components/territory.html',
             init: async () => {
-                // Load territory.js script if not already loaded
-                if (!window.initTerritory) {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = '/assets/js/territory.js';
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.body.appendChild(script);
-                    });
-                }
+                // Load territory.js script as a module
+                const { initTerritory } = await import('/src/assets/js/territory.js');
                 
-                // Initialize game after script is loaded
+                // Initialize game after module is loaded
                 initTerritory();
             }
         });

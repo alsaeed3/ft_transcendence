@@ -1,5 +1,5 @@
-// Replace imports with global variable access
-// The AuthManager and UIManager will be available globally through the window object
+import { AuthManager } from './modules/authManager.js';
+import { UIManager } from './modules/uiManager.js';
 
 let gameStartTime;
 
@@ -202,19 +202,14 @@ function initTerritory() {
             start_time: new Date(gameStartTime).toISOString(),
             end_time: new Date().toISOString(),
             winner_name: colors[winner - 1],
-            created_by: window.AuthManager?.currentUser?.username || 'Anonymous',
+            created_by: AuthManager.currentUser?.username || 'Anonymous',
             duration: Math.floor((Date.now() - gameStartTime) / 1000)
         };
 
         // Save match and redirect
         saveMatchResult(matchData).then(() => {
             setTimeout(() => {
-                if (window.UIManager && typeof window.UIManager.showLoginForm === 'function') {
-                    window.UIManager.showLoginForm();
-                } else {
-                    console.warn('UIManager not available, falling back to hash navigation');
-                    window.location.hash = '#/';
-                }
+                UIManager.showPage(UIManager.pages.home);
             }, 3000);
         });
     }
@@ -241,11 +236,11 @@ function initTerritory() {
 
     async function saveMatchResult(matchData) {
         try {
-            const response = await fetch(`${window.AuthManager.API_BASE}matches/`, {
+            const response = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${window.AuthManager.accessToken}`
+                    'Authorization': `Bearer ${AuthManager.accessToken}`
                 },
                 body: JSON.stringify(matchData)
             });
@@ -257,7 +252,7 @@ function initTerritory() {
             return await response.json();
         } catch (error) {
             console.error('Error saving match result:', error);
-            window.UIManager.showToast('Failed to save match result', 'error');
+            UIManager.showToast('Failed to save match result', 'error');
         }
     }
 
@@ -272,5 +267,5 @@ function initTerritory() {
     };
 }
 
-// Make initTerritory available globally
-window.initTerritory = initTerritory;
+// Export the initTerritory function
+export { initTerritory };
