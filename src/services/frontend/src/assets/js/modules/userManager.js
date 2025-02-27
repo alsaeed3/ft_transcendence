@@ -12,13 +12,26 @@ export class UserManager {
         if (usersListElement && !this.usersModal) {
             this.usersModal = new bootstrap.Modal(usersListElement);
             
-            // Handle modal cleanup
+            // Handle modal cleanup and focus management
             usersListElement.addEventListener('hidden.bs.modal', () => {
+                // Remove focus from any elements inside the modal before cleanup
+                const focusedElement = document.activeElement;
+                if (usersListElement.contains(focusedElement)) {
+                    focusedElement.blur();
+                }
+
+                // Cleanup modal
                 document.body.classList.remove('modal-open');
                 const backdrop = document.querySelector('.modal-backdrop');
                 if (backdrop) backdrop.remove();
                 document.body.style.removeProperty('padding-right');
                 document.body.style.removeProperty('overflow');
+
+                // Return focus to the element that opened the modal
+                const showUsersBtn = document.getElementById('show-users-btn');
+                if (showUsersBtn) {
+                    showUsersBtn.focus();
+                }
             });
 
             // Handle modal shown event
@@ -127,6 +140,8 @@ export class UserManager {
                         const chatBtn = row.querySelector('.chat-btn');
                         if (chatBtn && !isBlocked) {
                             chatBtn.addEventListener('click', () => {
+                                // Remove focus before hiding modal
+                                chatBtn.blur();
                                 const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
                                 if (modal) {
                                     modal.hide();
@@ -138,6 +153,8 @@ export class UserManager {
                         const blockBtn = row.querySelector('.block-btn');
                         if (blockBtn) {
                             blockBtn.addEventListener('click', async () => {
+                                // Remove focus before any potential modal updates
+                                blockBtn.blur();
                                 if (isBlocked) {
                                     const success = await ChatManager.unblockUser(user.id);
                                     if (success) {
