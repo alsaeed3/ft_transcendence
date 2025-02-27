@@ -5,6 +5,7 @@ import { FriendManager } from './friendManager.js';
 import { UserManager } from './userManager.js';
 import { MatchManager } from './matchManager.js';
 import { router } from './router.js';
+import { LanguageManager } from './LanguageManager.js';
 
 
 export class UIManager {
@@ -207,13 +208,8 @@ export class UIManager {
                 const twoFAForm = document.getElementById('2fa-toggle-form');
 
                 if (profile.is_42_auth) {
-                    // For 42 authenticated users - simpler message
-                    twoFAStatus.innerHTML = `
-                        <div class="alert alert-info text-center">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Your 2FA settings are managed by your 42 School account
-                        </div>
-                    `;
+                    twoFAStatus.innerHTML = `<p class="text-warning" data-i18n="twoFactor42Message">${LanguageManager.getTranslation('twoFactor42Message')}</p>`;
+                    LanguageManager.updateContent();
                     if (twoFAForm) {
                         twoFAForm.style.display = 'none';
                     }
@@ -230,8 +226,8 @@ export class UIManager {
                 }
             }
         } catch (error) {
-            console.error('Error loading profile page:', error);
-            UIManager.showToast('Failed to load profile data', 'danger');
+            console.error('Error loading update profile page:', error);
+            UIManager.showToast('Failed to load profile', 'danger');
         }
     }
 

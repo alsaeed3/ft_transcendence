@@ -8,21 +8,24 @@
                     <!-- Profile Update Form -->
                     <form id="update-profile-form" class="mb-4">
                         <div class="mb-3">
+                            <label for="update-email" class="form-label" data-i18n="email">Email</label>
                             <input type="email" 
                                    class="form-control" 
                                    id="update-email" 
                                    name="email" 
-                                   data-i18n="email"
-                                   placeholder="Email">
+                                   data-i18n-placeholder="enterEmail"
+                                   placeholder="Enter your email">
                         </div>
                         <div class="mb-3">
+                            <label for="update-password" class="form-label" data-i18n="newPassword">New Password</label>
                             <input type="password" 
                                    class="form-control" 
                                    id="update-password" 
                                    name="password" 
-                                   data-i18n="newPasswordoptional"
+                                   data-i18n-placeholder="newPasswordOptional"
                                    placeholder="New Password (optional)"
                                    minlength="8">
+                            <small class="text-light" data-i18n="passwordHint">Leave blank to keep current password</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" data-i18n="currentAvatar">Current Avatar</label>
@@ -33,7 +36,7 @@
                                      class="rounded-circle" 
                                      style="width: 100px; height: 100px; object-fit: cover;">
                             </div>
-                            <label for="update-avatar" class="form-label">Change Avatar</label>
+                            <label for="update-avatar" class="form-label" data-i18n="changeAvatar">Change Avatar</label>
                             <input type="file" 
                                    class="form-control" 
                                    id="update-avatar" 
@@ -45,23 +48,25 @@
 
                     <!-- Update the 2FA Section -->
                     <div id="2fa-section" class="border-top pt-4 mb-4">
-                        <h4 class="text-center mb-3">Two-Factor Authentication</h4>
-                        <div id="2fa-status" class="mb-3">
-                            <!-- 2FA status will be inserted here by JavaScript -->
+                        <h4 class="text-center mb-3" data-i18n="twoFactorAuth">Two-Factor Authentication</h4>
+                        <div id="2fa-status" class="mb-3 text-center">
+                            <p class="text-warning" data-i18n="twoFactor42Message">Your 2FA settings are managed by your 42 School account</p>
                         </div>
                         <form id="2fa-toggle-form">
                             <div class="mb-3">
+                                <label for="2fa-password" class="form-label" data-i18n="confirmPassword">Confirm Password</label>
                                 <input type="password" 
                                        id="2fa-password" 
                                        class="form-control" 
-                                       placeholder="Confirm Password" 
+                                       data-i18n-placeholder="enterCurrentPassword"
+                                       placeholder="Enter your current password" 
                                        required>
                             </div>
-                            <button type="submit" class="btn btn-warning w-100">Enable/Disable 2FA</button>
+                            <button type="submit" class="btn btn-warning w-100" data-i18n="enableDisable2FA">Enable/Disable 2FA</button>
                         </form>
                     </div>
 
-                    <button id="back-to-main" class="btn btn-secondary w-100">Back to Main</button>
+                    <button id="back-to-main" class="btn btn-secondary w-100" data-i18n="backToMain">Back to Main</button>
                 </div>
             </div>
         </div>

@@ -68,7 +68,12 @@ const router = {
 
             const response = await fetch(path);
             if (!response.ok) throw new Error(`Failed to load component: ${path}`);
-            return await response.text();
+            const content = await response.text();
+            
+            // Update translations after loading components
+            setTimeout(() => LanguageManager.updateContent(), 0);
+            
+            return content;
         } catch (error) {
             console.error('Error loading component:', error);
             throw error;

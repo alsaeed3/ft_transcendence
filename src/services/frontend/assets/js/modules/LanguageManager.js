@@ -55,7 +55,18 @@ export class LanguageManager {
 				removeFriend: "Remove Friend",
 				enterUsername: "Enter username",
 				sendFriendRequest: "Send Friend Request",
-				confirmRemoveFriend: "Are you sure you want to remove {username} from your friends list?"
+				confirmRemoveFriend: "Are you sure you want to remove {username} from your friends list?",
+				enterEmail: "Enter your email",
+				newPassword: "New Password",
+				passwordHint: "Leave blank to keep current password",
+				twoFactorAuth: "Two-Factor Authentication",
+				profileUpdateSuccess: "Profile updated successfully!",
+				profileUpdateError: "Failed to update profile",
+				twoFactorEnabled: "Two-Factor Authentication is enabled",
+				twoFactorDisabled: "Two-Factor Authentication is disabled",
+				twoFactorToggleSuccess: "Two-Factor Authentication status updated",
+				twoFactorToggleError: "Failed to update Two-Factor Authentication status",
+				twoFactor42Message: "Your 2FA settings are managed by your 42 School account"
 		},
 		ar: {
 				welcome: "مرحباً",
@@ -112,7 +123,18 @@ export class LanguageManager {
 				removeFriend: "إزالة الصديق",
 				enterUsername: "أدخل اسم المستخدم",
 				sendFriendRequest: "إرسال طلب صداقة",
-				confirmRemoveFriend: "هل أنت متأكد أنك تريد إزالة المستخدم {username} من قائمة أصدقائك؟"
+				confirmRemoveFriend: "هل أنت متأكد أنك تريد إزالة المستخدم {username} من قائمة أصدقائك؟",
+				enterEmail: "أدخل بريدك الإلكتروني",
+				newPassword: "كلمة المرور الجديدة",
+				passwordHint: "اتركه فارغاً للاحتفاظ بكلمة المرور الحالية",
+				twoFactorAuth: "المصادقة الثنائية",
+				profileUpdateSuccess: "تم تحديث الملف الشخصي بنجاح!",
+				profileUpdateError: "فشل تحديث الملف الشخصي",
+				twoFactorEnabled: "المصادقة الثنائية مفعلة",
+				twoFactorDisabled: "المصادقة الثنائية معطلة",
+				twoFactorToggleSuccess: "تم تحديث حالة المصادقة الثنائية",
+				twoFactorToggleError: "فشل تحديث حالة المصادقة الثنائية",
+				twoFactor42Message: "يتم إدارة إعدادات المصادقة الثنائية من خلال حساب مدرسة 42 الخاص بك"
 		},
 		ml: {
 				welcome: "സ്വാഗതം",
@@ -169,7 +191,18 @@ export class LanguageManager {
 				removeFriend: "അടയ്ക്കുക",
 				enterUsername: "ഉപയോക്താനാമം നൽകുക",
 				sendFriendRequest: "സുഹൃത്താക്കുക",
-				confirmRemoveFriend: "നിന്റെ സുഹൃത്തുക്കളിൽ നിന്ന് {username} അടയ്ക്കുക്കോ?"
+				confirmRemoveFriend: "നിന്റെ സുഹൃത്തുക്കളിൽ നിന്ന് {username} അടയ്ക്കുക്കോ?",
+				enterEmail: "നിങ്ങളുടെ ഇമെയിൽ നൽകുക",
+				newPassword: "പുതിയ പാസ്‌വേഡ്",
+				passwordHint: "നിലവിലെ പാസ്‌വേഡ് നിലനിർത്താൻ ഒഴിഞ്ഞതായി വിടുക",
+				twoFactorAuth: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ",
+				profileUpdateSuccess: "പ്രൊഫൈൽ വിജയകരമായി അപ്ഡേറ്റ് ചെയ്തു!",
+				profileUpdateError: "പ്രൊഫൈൽ അപ്ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു",
+				twoFactorEnabled: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ പ്രവർത്തനക്ഷമമാണ്",
+				twoFactorDisabled: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ പ്രവർത്തനരഹിതമാണ്",
+				twoFactorToggleSuccess: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ സ്റ്റാറ്റസ് അപ്ഡേറ്റ് ചെയ്തു",
+				twoFactorToggleError: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ സ്റ്റാറ്റസ് അപ്ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു",
+				twoFactor42Message: "നിങ്ങളുടെ 2FA ക്രമീകരണങ്ങൾ നിങ്ങളുടെ 42 സ്കൂൾ അക്കൗണ്ട് വഴി കൈകാര്യം ചെയ്യുന്നു"
 		}
 	};
 

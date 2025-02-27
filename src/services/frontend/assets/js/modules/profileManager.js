@@ -1,5 +1,6 @@
 import { AuthManager } from './authManager.js';
 import { UIManager } from './uiManager.js';
+import { LanguageManager } from './LanguageManager.js';
 
 export class ProfileManager {
     static async fetchUserProfile() {
@@ -127,6 +128,18 @@ export class ProfileManager {
             
             // Now update the main page content
             await UIManager.loadMainPage();
+
+            // Update 2FA section based on user type
+            const twoFAStatus = document.getElementById('2fa-status');
+            if (twoFAStatus) {
+                if (AuthManager.currentUser.is_42_user) {
+                    twoFAStatus.innerHTML = `<p class="text-warning" data-i18n="twoFactor42Message">${LanguageManager.getTranslation('twoFactor42Message')}</p>`;
+                } else {
+                    // ... existing 2FA status code ...
+                }
+                // Update translations for the newly added content
+                LanguageManager.updateContent();
+            }
 
         } catch (error) {
             console.error('Profile update error:', error);
