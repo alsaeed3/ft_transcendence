@@ -27,11 +27,6 @@ down-v:
 
 # Stop services, remove volumes and images
 down-all:
-	$(COMPOSE) down
-	@containers=$$(docker ps -aq); \
-	if [ -n "$$containers" ]; then \
-		docker rm -f $$containers; \
-	fi
 	$(COMPOSE) down -v --rmi all
 
 # Show logs

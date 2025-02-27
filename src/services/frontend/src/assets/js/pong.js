@@ -1,79 +1,55 @@
-import { AuthManager } from './modules/authManager.js';
-import { UIManager } from './modules/uiManager.js';
-
-// Game initialization function
 function initGame(mode = 'AI') {
-    // Add cleanup flag
-    let isGameRunning = true;
-    
     const canvas = document.getElementById('pongCanvas');
-    if (!canvas) {
-        console.error('Canvas element not found');
-        return;
-    }
-    
-    // Set canvas dimensions
-    canvas.width = 800;
-    canvas.height = 600;
+    if (!canvas) return; // Exit if canvas isn't loaded yet
     
     const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for non-transparent canvas
 
     // Score elements
     const playerScoreElement = document.getElementById('rightPlayerScore');
     const computerScoreElement = document.getElementById('leftPlayerScore');
-    if (!playerScoreElement || !computerScoreElement) {
-        console.error('Score elements not found');
-        return;
-    }
-
     let playerScore = 0;
     let computerScore = 0;
-    let gameStartTime = Date.now(); // Add this line to track game start time
 
     // Game settings as variables
     let paddleWidth = 15;      // Slightly thinner paddle for better challenge
     let paddleHeight = 100;    // Shorter paddle for better challenge
     let ballRadius = 8;        // Slightly smaller ball
     let PADDLE_SPEED = 8;      // Faster paddle movement for better control
-    let BALL_SPEED = 6;
+    let BALL_SPEED = 6;        // Slightly faster ball for more excitement
 
     // Initialize slider values and ranges
     const initializeSliders = () => {
-        const sliders = {
-            paddleWidth: document.getElementById('paddleWidth'),
-            paddleHeight: document.getElementById('paddleHeight'),
-            paddleSpeed: document.getElementById('paddleSpeed')
-        };
-
-        const values = {
-            paddleWidth: document.getElementById('paddleWidthValue'),
-            paddleHeight: document.getElementById('paddleHeightValue'),
-            paddleSpeed: document.getElementById('paddleSpeedValue')
-        };
-
-        if (!sliders.paddleWidth || !sliders.paddleHeight || !sliders.paddleSpeed ||
-            !values.paddleWidth || !values.paddleHeight || !values.paddleSpeed) {
-            console.error('Slider elements not found');
-            return;
-        }
-
-        // Initialize slider ranges
-        sliders.paddleWidth.min = paddleWidth;
-        sliders.paddleWidth.max = 50;
-        sliders.paddleWidth.value = paddleWidth;
+        // Paddle Width slider
+        const paddleWidthSlider = document.getElementById('paddleWidth');
+        paddleWidthSlider.min = paddleWidth;
+        paddleWidthSlider.max = 50;
+        paddleWidthSlider.value = paddleWidth;
         
-        sliders.paddleHeight.min = paddleHeight;
-        sliders.paddleHeight.max = 200;
-        sliders.paddleHeight.value = paddleHeight;
+        // Paddle Height slider
+        const paddleHeightSlider = document.getElementById('paddleHeight');
+        paddleHeightSlider.min = paddleHeight;
+        paddleHeightSlider.max = 200;
+        paddleHeightSlider.value = paddleHeight;
         
-        sliders.paddleSpeed.min = PADDLE_SPEED;
-        sliders.paddleSpeed.max = 10;
-        sliders.paddleSpeed.value = PADDLE_SPEED;
+        // Paddle Speed slider
+        const paddleSpeedSlider = document.getElementById('paddleSpeed');
+        paddleSpeedSlider.min = PADDLE_SPEED;
+        paddleSpeedSlider.max = 10;
+        paddleSpeedSlider.value = PADDLE_SPEED;
+        
+        // Ball Speed slider - disabled for authentic 1972 experience
+        /*
+        const ballSpeedSlider = document.getElementById('ballSpeed');
+        ballSpeedSlider.min = BALL_SPEED;
+        ballSpeedSlider.max = 10;
+        ballSpeedSlider.value = BALL_SPEED;
+        */
 
-        // Update display values
-        values.paddleWidth.textContent = paddleWidth;
-        values.paddleHeight.textContent = paddleHeight;
-        values.paddleSpeed.textContent = PADDLE_SPEED;
+        // Update all display values
+        document.getElementById('paddleWidthValue').textContent = paddleWidth;
+        document.getElementById('paddleHeightValue').textContent = paddleHeight;
+        document.getElementById('paddleSpeedValue').textContent = PADDLE_SPEED;
+        // document.getElementById('ballSpeedValue').textContent = BALL_SPEED;
     };
 
     // Call initialization right after setting game settings
@@ -103,7 +79,7 @@ function initGame(mode = 'AI') {
     let prevBallSpeedX = ballSpeedX;   // Track ball direction changes
     let calculationMade = false;       // Ensure one calculation per approach
 
-    const WINNING_SCORE = 11;
+    const WINNING_SCORE = 3;
     let gameActive = true;
     const gameOverMessage = document.getElementById('gameOverMessage');
 
@@ -146,10 +122,10 @@ function initGame(mode = 'AI') {
                 // Recalculate on direction change, new serve, or no existing calculation
                 if (prevBallSpeedX >= 0 || Math.abs(ballX - canvas.width/2) < 10 || !calculationMade) {
                     // Calculate ball intersection with paddle plane
-                    let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
-                    
+                let predictedY = ballY + (ballSpeedY * (ballX / -ballSpeedX));
+                
                     // Bounce prediction
-                    while (predictedY < 0 || predictedY > canvas.height) {
+                while (predictedY < 0 || predictedY > canvas.height) {
                         predictedY = predictedY < 0 ? -predictedY : 2 * canvas.height - predictedY;
                     }
                     
@@ -166,7 +142,7 @@ function initGame(mode = 'AI') {
                         // If ball is below paddle, miss by staying too high
                         if (predictedY > paddleCenter) {
                             predictedY = predictedY - missDistance;  // Miss by not moving up enough
-                        } else {
+                    } else {
                             predictedY = predictedY + missDistance;  // Miss by not moving down enough
                         }
                     }
@@ -242,26 +218,23 @@ function initGame(mode = 'AI') {
                 messageElement.className = 'text-white text-center display-8 font-monospace';
                 messageElement.textContent = winner;
                 gameOverMessage.classList.remove('d-none');
-
-                // Save match result with updated model fields
+                
+                // Save match result
                 const matchData = {
-                    match_type: 'Pong',
-                    start_time: new Date(gameStartTime).toISOString(),
-                    end_time: new Date().toISOString(),
-                    winner_name: playerScore > computerScore ? username : 
-                               (mode === 'PVP' ? player2Name : 'Computer'),
-                    created_by: username,
+                    tournament: null,
                     player1_name: username,
-                    player2_name: mode === 'PVP' ? player2Name : 'Computer',
+                    player2_name: mode === 'PVP' ? player2Name : 'AI',
                     player1_score: playerScore,
                     player2_score: computerScore,
-                    duration: Math.floor((Date.now() - gameStartTime) / 1000)
+                    start_time: new Date().toISOString(),
+                    end_time: new Date().toISOString(),
+                    winner_name: playerScore > computerScore ? username : player2Name,
+                    match_type: mode === 'PVP' ? 'PVP' : 'AI'  // Explicitly set match type
                 };
-                console.log(matchData);
                 saveMatchResult(matchData);
-
+                
                 setTimeout(() => {
-                    UIManager.showPage(UIManager.pages.home);
+                    window.location.href = '/';
                 }, 3000);
             }
         }
@@ -293,7 +266,7 @@ function initGame(mode = 'AI') {
                 } catch (refreshError) {
                     localStorage.clear();
                     setTimeout(() => {
-                        UIManager.showLoginForm();
+                        window.location.href = '/';
                     }, 3000);
                     throw refreshError;
                 }
@@ -303,7 +276,8 @@ function initGame(mode = 'AI') {
                 throw new Error('Failed to get user profile');
             }
 
-                const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
+
+            const matchResponse = await fetch(`${AuthManager.API_BASE}matches/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -330,16 +304,10 @@ function initGame(mode = 'AI') {
                 const userData = await userResponse.json();
                 const updateData = {
                     username: userData.username,
-                    email: userData.email
+                    email: userData.email,
+                    match_wins: userData.match_wins + (playerScore > computerScore ? 1 : 0),
+                    total_matches: userData.total_matches + 1
                 };
-
-                // Check if it's a tournament match
-                if (matchData.match_type === 'Tournament') {
-                    updateData.total_tourneys = userData.total_tourneys + 1;
-                } else {
-                    updateData.match_wins = userData.match_wins + (playerScore > computerScore ? 1 : 0);
-                    updateData.total_matches = userData.total_matches + 1;
-                }
     
                 await fetch(`${AuthManager.API_BASE}users/profile/`, {
                     method: 'PUT',
@@ -364,7 +332,7 @@ function initGame(mode = 'AI') {
 
             // Redirect only after successful save
             setTimeout(() => {
-                UIManager.showPage(UIManager.pages.home);
+                window.location.href = '/';
             }, 3000);
 
         } catch (error) {
@@ -372,7 +340,7 @@ function initGame(mode = 'AI') {
             if (error.message.includes('token') || error.message.includes('401')) {
                 localStorage.clear();
                 setTimeout(() => {
-                    UIManager.showLoginForm();
+                    window.location.href = '/';
                 }, 3000);
             }
         }
@@ -485,6 +453,14 @@ function initGame(mode = 'AI') {
 
     let keysPressed = new Set(); // Track all currently pressed keys
 
+    document.addEventListener('keydown', (event) => {
+        keysPressed.add(event.key.toLowerCase());
+    });
+
+    document.addEventListener('keyup', (event) => {
+        keysPressed.delete(event.key.toLowerCase());
+    });
+
     // Add this function to handle paddle movement
     function handlePaddleMovement() {
         if (!gameActive || !gameStarted) return;
@@ -517,18 +493,17 @@ function initGame(mode = 'AI') {
     // At the top with other game variables
     let gameStarted = false;  // Add this to control initial game state
 
-    // Modify game loop to respect cleanup
+    // Modify game loop to prevent any ball movement before announcement
     function gameLoop(currentTime) {
-        if (!isGameRunning) return;  // Stop loop if game is not running
-        
         if (!lastTime) lastTime = currentTime;
+        
         const deltaTime = currentTime - lastTime;
         
         if (deltaTime >= frameInterval) {
             draw();  // Always draw the game state
             
             if (gameActive && gameStarted) {
-                handlePaddleMovement();
+                handlePaddleMovement();  // Add this line
                 if (mode === 'AI') {
                     updateAI();
                 }
@@ -538,9 +513,7 @@ function initGame(mode = 'AI') {
             lastTime = currentTime - (deltaTime % frameInterval);
         }
         
-        if (isGameRunning) {  // Only continue loop if game is running
-            requestAnimationFrame(gameLoop);
-        }
+        requestAnimationFrame(gameLoop);
     }
 
     // Start the game loop
@@ -567,34 +540,19 @@ function initGame(mode = 'AI') {
 
     // Update game info display
     function updateGameInfo() {
-        // Check if elements exist before updating
-        const gameMode = document.getElementById('gameMode');
-        const rightPlayerName = document.getElementById('rightPlayerName');
-        const leftPlayerName = document.getElementById('leftPlayerName');
-
-        // If elements don't exist (navigated away), stop the update
-        if (!gameMode || !rightPlayerName || !leftPlayerName) {
-            return false;
-        }
-
-        gameMode.textContent = mode === 'TOURNAMENT' ? 
+        document.getElementById('gameMode').textContent = mode === 'TOURNAMENT' ? 
             `Tournament Match ${matchNumber}` : 
             (mode === 'AI' ? 'Player vs AI' : 'Player vs Player');
         
         if (mode === 'TOURNAMENT') {
-            // Check if tournament data exists
-            if (!tournamentBracket || !tournamentBracket[currentRound]) {
-                return false;
-            }
             // Update current players
-            rightPlayerName.textContent = tournamentBracket[currentRound][currentMatchIndex] || 'TBD';
-            leftPlayerName.textContent = tournamentBracket[currentRound][currentMatchIndex + 1] || 'TBD';
+            document.getElementById('rightPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex];
+            document.getElementById('leftPlayerName').textContent = tournamentBracket[currentRound][currentMatchIndex + 1];
         } else {
             // Regular game display
-            rightPlayerName.textContent = username || 'Loading...';
-            leftPlayerName.textContent = mode === 'PVP' ? player2Name : 'Computer';
+            document.getElementById('rightPlayerName').textContent = username || 'Loading...';
+            document.getElementById('leftPlayerName').textContent = mode === 'PVP' ? player2Name : 'Computer';
         }
-        return true;
     }
 
     // Add at the top with other game variables
@@ -623,57 +581,6 @@ function initGame(mode = 'AI') {
         }
     }
 
-    function announceMatch() {
-        gameActive = false;
-        gameStarted = false;  // Ensure ball doesn't move
-        gameStartTime = Date.now();  // Reset start time for each match
-        
-        // Check if we can still update game info
-        if (!updateGameInfo()) {
-            return; // Stop if elements don't exist
-        }
-
-        const player1 = tournamentBracket[currentRound][currentMatchIndex];
-        const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
-        
-        // Check if announcement element exists
-        const gameOverMessage = document.getElementById('gameOverMessage');
-        if (!gameOverMessage) {
-            return;
-        }
-
-        const messageElement = gameOverMessage.querySelector('h2');
-        if (!messageElement) {
-            return;
-        }
-
-        messageElement.className = 'text-white text-center display-8 font-monospace';
-        messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
-        gameOverMessage.classList.remove('d-none');
-        
-        let count = 2;
-        const countdownInterval = setInterval(() => {
-            // Check if elements still exist
-            if (!gameOverMessage || !messageElement || !document.getElementById('pongCanvas')) {
-                clearInterval(countdownInterval);
-                return;
-            }
-
-            if (count > 0) {
-                messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in ${count}</span>`;
-                count--;
-            } else {
-                clearInterval(countdownInterval);
-                gameOverMessage.classList.add('d-none');
-                if (updateGameInfo()) {  // Only proceed if we can still update game info
-                    resetMatch();
-                    gameStarted = true;
-                    gameActive = true;
-                }
-            }
-        }, 1000);
-    }
-
     function initTournament() {
         tournamentPlayers = JSON.parse(localStorage.getItem('tournamentPlayers') || '[]');
         tournamentBracket = [tournamentPlayers];
@@ -682,10 +589,7 @@ function initGame(mode = 'AI') {
         matchNumber = 1;
         
         // Initialize game state first
-        if (!updateGameInfo()) {
-            return; // Stop if elements don't exist
-        }
-        
+        updateGameInfo();
         resetMatch();
         
         // Wait a short moment for textures to load, then show announcement
@@ -694,6 +598,34 @@ function initGame(mode = 'AI') {
         }, 100);
         
         updateTournamentDisplay();
+    }
+
+    // Modify announceMatch to control game start
+    function announceMatch() {
+        gameActive = false;
+        gameStarted = false;  // Ensure ball doesn't move
+        
+        const player1 = tournamentBracket[currentRound][currentMatchIndex];
+        const player2 = tournamentBracket[currentRound][currentMatchIndex + 1];
+        const messageElement = gameOverMessage.querySelector('h2');
+        messageElement.className = 'text-white text-center display-8 font-monospace';
+        messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in 3</span>`;
+        gameOverMessage.classList.remove('d-none');
+        
+        let count = 2;
+        const countdownInterval = setInterval(() => {
+            if (count > 0) {
+                messageElement.innerHTML = `${player1} vs ${player2}<br><span class="countdown">Match starting in ${count}</span>`;
+                count--;
+            } else {
+                clearInterval(countdownInterval);
+                gameOverMessage.classList.add('d-none');
+                updateGameInfo();
+                resetMatch();
+                gameStarted = true;  // Now allow ball movement
+                gameActive = true;
+            }
+        }, 1000);
     }
 
     function startNextTournamentMatch() {
@@ -725,10 +657,8 @@ function initGame(mode = 'AI') {
     function resetMatch() {
         playerScore = 0;
         computerScore = 0;
-        const rightScore = document.getElementById('rightPlayerScore');
-        const leftScore = document.getElementById('leftPlayerScore');
-        if (rightScore) rightScore.textContent = '0';
-        if (leftScore) leftScore.textContent = '0';
+        document.getElementById('rightPlayerScore').textContent = '0';
+        document.getElementById('leftPlayerScore').textContent = '0';
         resetBall();
         gameActive = true;
     }
@@ -738,23 +668,8 @@ function initGame(mode = 'AI') {
         messageElement.className = 'text-white text-center display-8 font-monospace';
         messageElement.textContent = `Tournament Winner: ${winner}!`;
         gameOverMessage.classList.remove('d-none');
-
-        // Get current user from AuthManager
-        const currentUser = AuthManager.currentUser?.username;
-
-        // Save tournament final match result
-        const matchData = {
-            match_type: 'Tournament',
-            start_time: new Date(gameStartTime).toISOString(),
-            end_time: new Date().toISOString(),
-            winner_name: winner,
-            created_by: currentUser,
-            duration: Math.floor((Date.now() - gameStartTime) / 1000)
-        };
-        saveMatchResult(matchData);
-
         setTimeout(() => {
-            UIManager.showPage(UIManager.pages.home);
+            window.location.href = '/';
         }, 3000);
     }
 
@@ -772,7 +687,6 @@ function initGame(mode = 'AI') {
 
     // Add announceNormalMatch for PVP/AI modes
     function announceNormalMatch() {
-        gameStartTime = Date.now();  // Record when game starts
         gameActive = false;
         gameStarted = false;  // Ensure ball doesn't move
         
@@ -858,44 +772,9 @@ function initGame(mode = 'AI') {
         
         upcomingDiv.textContent = nextMatchText;
     }
-
-    // Add cleanup function
-    function cleanup() {
-        isGameRunning = false;
-        // Clear any active intervals
-        if (typeof countdownInterval !== 'undefined') {
-            clearInterval(countdownInterval);
-        }
-        document.removeEventListener('keydown', handleKeyDown);
-        document.removeEventListener('keyup', handleKeyUp);
-        window.removeEventListener('hashchange', cleanup);
-    }
-    
-    // Add navigation cleanup
-    window.addEventListener('hashchange', cleanup);
-
-    // Modify event listeners to use named functions for cleanup
-    function handleKeyDown(event) {
-        keysPressed.add(event.key.toLowerCase());
-    }
-
-    function handleKeyUp(event) {
-        keysPressed.delete(event.key.toLowerCase());
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-
-    // Return cleanup function
-    return cleanup;
 }
 
-// 4-player game initialization function
 function init4PlayerGame() {
-    // Add cleanup flag
-    let isGameRunning = true;
-    let gameStartTime = Date.now();
-    
     // Create game container
     const gameContainer = document.createElement('div');
     gameContainer.id = 'game-container';
@@ -919,7 +798,7 @@ function init4PlayerGame() {
         initialBallSpeed: 5,
         speedIncrease: 1.1,  // Change to 10% increase like PVP mode
         maxBallSpeed: 15,
-        winningScore: 1
+        winningScore: 3
     };
 
     // Players setup
@@ -935,9 +814,9 @@ function init4PlayerGame() {
     scoreDisplay.className = 'd-flex justify-content-around mb-3';
     scoreDisplay.innerHTML = `
         <div class="d-flex gap-4">
-            ${['Red', 'Blue', 'Green', 'Yellow'].map((color, i) => `
+            ${['Top', 'Right', 'Bottom', 'Left'].map((pos, i) => `
                 <div style="color: ${players[i].color}">
-                    ${color} Player: <span id="player${i}Score">0</span>
+                    ${pos} Player: <span id="player${i}Score">0</span>
                 </div>
             `).join('')}
         </div>
@@ -1127,32 +1006,21 @@ function init4PlayerGame() {
 
     function announceWinner(winnerIndex) {
         state.gameActive = false;
-        const colors = ['Red', 'Blue', 'Green', 'Yellow'];
-        const winner = colors[winnerIndex] + ' Player';
-
-        // Save 4P match result
-        const matchData = {
-            match_type: '4-Player Pong',
-            start_time: new Date(gameStartTime).toISOString(),
-            end_time: new Date().toISOString(),
-            winner_name: winner,
-            created_by: AuthManager.currentUser?.username,
-            duration: Math.floor((Date.now() - gameStartTime) / 1000)
-        };
+        const announcement = document.createElement('div');
+        announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+        announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
         
-        // Save match and update history
-        saveMatchResult(matchData).then(async () => {
-            // Show winner announcement
-            const announcement = document.createElement('div');
-            announcement.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
-            announcement.style.cssText = `font-size: 2rem; z-index: 1000; color: ${players[winnerIndex].color}`;
-            announcement.textContent = `${winner} Wins!`;
-            gameContainer.appendChild(announcement);
+        // Map player index to position
+        const positions = ['Top', 'Right', 'Bottom', 'Left'];
+        announcement.textContent = `${positions[winnerIndex]} Player Wins!`;
+        
+        gameContainer.appendChild(announcement);
 
-            setTimeout(() => {
-                UIManager.showPage(UIManager.pages.home);
-            }, 3000);
-        });
+        // Redirect to homepage after 3 seconds
+        setTimeout(() => {
+            document.getElementById('pong-page').remove();
+            document.getElementById('main-page').classList.add('active-page');
+        }, 3000);
     }
 
     // Update scores in the UI
@@ -1172,57 +1040,30 @@ function init4PlayerGame() {
         updateScores();
     };
 
-    // Modify game loop to respect cleanup
+    // Start game loop
     function gameLoop() {
-        if (!isGameRunning) return;
-        
         update();
         draw();
-        
-        if (isGameRunning) {
-            requestAnimationFrame(gameLoop);
-        }
+        requestAnimationFrame(gameLoop);
     }
+    gameLoop();
 
     // Start game with countdown
     announceGame();
-
-    // Add cleanup function
-    function cleanup() {
-        isGameRunning = false;
-        // Remove event listeners
-        document.removeEventListener('keydown', handleKeyDown);
-        document.removeEventListener('keyup', handleKeyUp);
-        window.removeEventListener('hashchange', cleanup);
-        // Clean up game container
-        if (gameContainer && gameContainer.parentNode) {
-            gameContainer.parentNode.removeChild(gameContainer);
-        }
-    }
-
-    // Add navigation cleanup
-    window.addEventListener('hashchange', cleanup);
-
-    // Modify event listeners to use named functions for cleanup
-    function handleKeyDown(event) {
-        state.keysPressed.add(event.key.toLowerCase());
-    }
-
-    function handleKeyUp(event) {
-        state.keysPressed.delete(event.key.toLowerCase());
-    }
-
-    // Replace anonymous event listeners with named functions
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-
-    // Start game loop
-    requestAnimationFrame(gameLoop);
-
-    // Return cleanup function
-    return cleanup;
 }
 
-// Make functions available globally
-window.initGame = initGame;
-window.init4PlayerGame = init4PlayerGame;
+// Add translation support for game messages
+function showGameMessage(key, ...args) {
+    const message = LanguageManager.getText(key);
+    // Replace placeholders with args
+    const formatted = args.reduce((msg, arg, i) => 
+        msg.replace(`{${i}}`, arg), message);
+    
+    const messageElement = document.getElementById('game-message');
+    if (messageElement) {
+        messageElement.textContent = formatted;
+    }
+}
+
+// Initialize when script loads
+document.addEventListener('DOMContentLoaded', initGame);

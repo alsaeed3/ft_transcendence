@@ -85,22 +85,10 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         try:
-            data = json.loads(text_data)
-            
-            if data['type'] == 'block_update':
-                # Broadcast block update to all connected users
-                for uid, connection in self.connected_users.items():
-                    if uid != self.user.id:  # Don't send to self
-                        await connection.send(text_data=json.dumps({
-                            'type': 'block_update',
-                            'blocker_id': self.user.id,
-                            'blocked_id': data.get('blocked_id'),
-                            'unblocked_id': data.get('unblocked_id')
-                        }))
-            # ... handle other message types ...
-            
+            # Handle any incoming messages if needed
+            pass
         except Exception as e:
-            logger.error(f"Error in receive: {str(e)}", exc_info=True)
+            logger.error(f"Error in receive: {str(e)}")
 
 class PrivateChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
