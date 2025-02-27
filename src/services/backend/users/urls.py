@@ -16,4 +16,5 @@ urlpatterns = [
     path('messages/send/', views.send_message, name='send_message'),
     path('messages/<int:other_user_id>/read/', views.mark_messages_read, name='mark-messages-read'),
     path('profile/<int:user_id>/', views.UserProfileView.as_view(), name='user-profile'),
+    path('blocked/', views.BlockedUsersView.as_view(), name='blocked-users'),
 ]

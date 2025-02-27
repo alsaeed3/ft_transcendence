@@ -349,7 +349,12 @@ export class ChatManager {
             const data = JSON.parse(event.data);
             console.log('WebSocket message data:', data);
             
-            if (data.type === 'chat_message') {
+            if (data.type === 'block_user' && data.blocked_user_id === AuthManager.currentUser.id) {
+                // Close chat if open
+                this.closeChat();
+                // Refresh users list to update UI
+                UserManager.refreshUsersList();
+            } else if (data.type === 'chat_message') {
                 const messagesContainer = document.getElementById('chat-messages');
                 const messageElement = this.createChatMessage({
                     sender_id: data.sender_id,
@@ -374,7 +379,7 @@ export class ChatManager {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
         } catch (error) {
-            console.error('Error handling chat message:', error, event.data);
+            console.error('Error handling chat message:', error);
         }
     }
 
@@ -529,6 +534,18 @@ export class ChatManager {
             document.querySelectorAll(`[data-user-status="${userId}"]`).forEach(badge => {
                 this.updateStatusBadge(badge, isOnline);
             });
+        } else if (data.type === 'block_update') {
+            // Handle block updates
+            const { blocker_id, blocked_id } = data;
+            
+            // Close chat if necessary
+            if (this.currentChatPartner && 
+                (this.currentChatPartner.id === blocker_id || this.currentChatPartner.id === blocked_id)) {
+                this.closeChat();
+            }
+            
+            // Refresh users list
+            UserManager.refreshUsersList();
         }
     }
 } 
