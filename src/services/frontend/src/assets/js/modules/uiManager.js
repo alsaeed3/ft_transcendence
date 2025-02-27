@@ -1,336 +1,237 @@
 import { AuthManager } from './authManager.js';
 import { ChatManager } from './chatManager.js';
 import { ProfileManager } from './profileManager.js';
+import { FriendManager } from './friendManager.js';
+import { UserManager } from './userManager.js';
+import { MatchManager } from './matchManager.js';
+import { router } from './router.js';
 
 
 export class UIManager {
     static pages = {
         login: '#/',
         register: '#/register',
+        twoFactor: '#/2fa',
         home: '#/home',
         profile: '#/profile',
-        twoFactor: '#/2fa',
+        playerSetup: '#/player-setup',
         pongPVP: '#/pong/pvp',
         pongAI: '#/pong/ai',
         pongTournament: '#/pong/tournament',
         tournamentSetup: '#/tournament-setup',
-        playerSetup: '#/player-setup',
         territory: '#/territory',
         pong4Player: '#/pong4'
     };
 
-    static showPage(pageHash) {
-        window.location.hash = pageHash;
+    static showPage(page) {
+        window.location.hash = page;
+    }
+
+    static toggleForms() {
+        if (router.currentPage === this.pages.login) {
+            this.showPage(this.pages.register);
+        } else {
+            this.showPage(this.pages.login);
+        }
     }
 
     static showLoginForm() {
+        // Clear temporary storage first
+        sessionStorage.removeItem('tempUserEmail');
+        sessionStorage.removeItem('tempUsername');
+        sessionStorage.removeItem('tempPassword');
+
+        // Show login page
         this.showPage(this.pages.login);
+
+        // Clear OTP timer
+        if (AuthManager.currentOTPTimer) {
+            clearInterval(AuthManager.currentOTPTimer);
+            AuthManager.currentOTPTimer = null;
+        }
+    }
+
+    static showToast(message, type = 'info') {
+        const toastContainer = document.createElement('div');
+        toastContainer.className = `toast align-items-center text-white bg-${type} border-0`;
+        toastContainer.setAttribute('role', 'alert');
+        toastContainer.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        const container = document.querySelector('.toast-container');
+        if (container) {
+            container.appendChild(toastContainer);
+        const bsToast = new bootstrap.Toast(toastContainer, { delay: 3000 });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toastContainer.addEventListener('hidden.bs.toast', () => {
+            toastContainer.remove();
+        });
+        }
     }
 
     static async loadMainPage() {
         try {
-            // Load user profile
+            // Get user profile
             const profile = await ProfileManager.fetchUserProfile();
-            if (!profile) throw new Error('Failed to load user profile');
+            if (profile) {
+                AuthManager.currentUser = profile;
 
-            // Update UI elements
-            const usernameDisplay = document.getElementById('username-display');
-            const profileAvatar = document.getElementById('profile-avatar');
-            
-            if (usernameDisplay) {
-                usernameDisplay.textContent = profile.username;
+                // Update UI elements after ensuring they exist
+                await this.waitForElement('#username-display');
+                this.updateProfileDisplay(profile);
+
+                // Load user stats after ensuring elements exist
+                await this.waitForElement('#stats-username');
+                this.loadUserStats(profile);
+
+                // Load users list FIRST
+                await UserManager.loadUsersList();
+
+                // Load friends list AFTER users list
+                await FriendManager.updateFriendListUI();
+
+                // THEN initialize chat status socket
+                ChatManager.initStatusWebSocket();
+
+                // Load match history after ensuring element exists
+                await this.waitForElement('#match-history');
+                const matches = await AuthManager.fetchMatchHistory();
+                MatchManager.displayMatchHistory(matches);
+
+                // After loading all components
+                this.applyUsernameClickability();
             }
-            
-            if (profileAvatar) {
-                profileAvatar.src = profile.avatar_url || '/media/avatars/default.svg';
-                profileAvatar.onerror = () => {
-                    profileAvatar.src = '/media/avatars/default.svg';
-                };
-            }
-
-            // Load user stats
-            await this.loadUserStats();
-
-            // Load recent matches for the home page
-            await this.loadHomePageMatches();
-
-            // Initialize WebSocket connection
-            ChatManager.initStatusWebSocket();
-
         } catch (error) {
             console.error('Error loading main page:', error);
             this.showToast('Failed to load user data', 'danger');
         }
     }
 
-    static async loadUserStats() {
-        try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/profile/${AuthManager.currentUser?.id}/`);
-            if (!response.ok) throw new Error('Failed to fetch user stats');
+    static async waitForElement(selector, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            if (document.querySelector(selector)) {
+                return resolve(document.querySelector(selector));
+            }
 
-            const stats = await response.json();
+            const observer = new MutationObserver(() => {
+                if (document.querySelector(selector)) {
+                    resolve(document.querySelector(selector));
+                    observer.disconnect();
+                }
+            });
 
-            // Update stats in the UI
-            const statsUsername = document.getElementById('stats-username');
-            const matchWins = document.getElementById('stats-match-wins');
-            const totalMatches = document.getElementById('stats-total-matches');
-            const totalTourneys = document.getElementById('stats-total-tourneys');
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
 
-            if (statsUsername) statsUsername.textContent = stats.username;
-            if (matchWins) matchWins.textContent = stats.match_wins || '0';
-            if (totalMatches) totalMatches.textContent = stats.total_matches || '0';
-            if (totalTourneys) totalTourneys.textContent = stats.total_tourneys || '0';
+            setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`Timeout waiting for element: ${selector}`));
+            }, timeout);
+        });
+    }
 
-        } catch (error) {
-            console.error('Error loading user stats:', error);
-            // Set default values if stats fail to load
-            const statsUsername = document.getElementById('stats-username');
-            const matchWins = document.getElementById('stats-match-wins');
-            const totalMatches = document.getElementById('stats-total-matches');
-            const totalTourneys = document.getElementById('stats-total-tourneys');
-
-            if (statsUsername) statsUsername.textContent = AuthManager.currentUser?.username || 'Unknown';
-            if (matchWins) matchWins.textContent = '0';
-            if (totalMatches) totalMatches.textContent = '0';
-            if (totalTourneys) totalTourneys.textContent = '0';
-
-            this.showToast('Failed to load user statistics', 'danger');
+    static updateProfileDisplay(profile) {
+        const usernameDisplay = document.getElementById('username-display');
+        const profileAvatar = document.getElementById('profile-avatar');
+        
+        if (usernameDisplay) {
+            usernameDisplay.textContent = profile.username;
+        }
+        
+        if (profileAvatar && profile.avatar) {
+            profileAvatar.src = profile.avatar;
+            profileAvatar.onerror = () => {
+                profileAvatar.src = '/media/avatars/default.svg';
+            };
         }
     }
 
-    static async loadHomePageMatches() {
-        try {
-            const matchHistory = document.getElementById('match-history');
-            if (!matchHistory) return;
+    static loadUserStats(profile) {
+        const elements = {
+            username: document.getElementById('stats-username'),
+            matchWins: document.getElementById('stats-match-wins'),
+            totalMatches: document.getElementById('stats-total-matches'),
+            totalTourneys: document.getElementById('stats-total-tourneys')
+        };
 
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/history/${AuthManager.currentUser?.id}/`);
-            if (!response.ok) throw new Error('Failed to fetch matches');
-
-            const matches = await response.json();
-
-            if (!matches.length) {
-                matchHistory.innerHTML = '<p class="text-muted">No recent matches</p>';
-                return;
-            }
-
-            matchHistory.innerHTML = matches
-                .slice(0, 5)
-                .map(match => {
-                    const winner = match.winner_name;
-                    const player1Class = match.player1_name === winner ? 'text-success' : 'text-danger';
-                    const player2Class = match.player2_name === winner ? 'text-success' : 'text-danger';
-
-                    return `
-                        <div class="match-history-item p-2 mb-2">
-                            <div class="text-center mb-2">
-                                <span class="${player1Class} fw-bold">${match.player1_name}</span>
-                                <span class="text-warning"> X </span>
-                                <span class="${player2Class} fw-bold">${match.player2_name}</span>
-                            </div>
-                            <div class="text-center fw-bold">
-                                Score: ${match.player1_score} - ${match.player2_score}
-                            </div>
-                            <div class="text-center mt-1 small text-white">
-                                ${new Date(match.end_time || match.start_time).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                })}
-                            </div>
-                        </div>
-                    `;
-                })
-                .join('');
-
-        } catch (error) {
-            console.error('Error loading home page matches:', error);
-            const matchHistory = document.getElementById('match-history');
-            if (matchHistory) {
-                matchHistory.innerHTML = '<p class="text-danger">Failed to load matches</p>';
-            }
-        }
+        if (elements.username) elements.username.textContent = profile.username;
+        if (elements.matchWins) elements.matchWins.textContent = profile.match_wins || 0;
+        if (elements.totalMatches) elements.totalMatches.textContent = profile.total_matches || 0;
+        if (elements.totalTourneys) elements.totalTourneys.textContent = profile.total_tourneys || 0;
     }
 
     static async loadUpdateProfilePage() {
         try {
             const profile = await ProfileManager.fetchUserProfile();
-            if (!profile) throw new Error('Failed to load profile');
+            if (profile) {
+                // Set the email value and placeholder
+                const emailInput = document.getElementById('update-email');
+                if (emailInput) {
+                    emailInput.value = profile.email || '';
+                    emailInput.placeholder = 'Enter your email';
+                }
+                
+                // Clear password field
+                document.getElementById('update-password').value = '';
 
-            // Update form fields
-            const emailInput = document.getElementById('email');
-            const usernameInput = document.getElementById('username');
-            const currentAvatarImg = document.getElementById('current-avatar');
-            const is2FAEnabled = document.getElementById('is-2fa-enabled');
-            const twoFAToggleBtn = document.getElementById('2fa-toggle-btn');
+                // Set current avatar
+                const currentAvatar = document.getElementById('current-avatar');
+                if (currentAvatar) {
+                    currentAvatar.src = profile.avatar || '/media/avatars/default.svg';
+                    currentAvatar.onerror = () => {
+                        currentAvatar.src = '/media/avatars/default.svg';
+                    };
+                }
 
-            if (emailInput) emailInput.value = profile.email || '';
-            if (usernameInput) usernameInput.value = profile.username || '';
-            
-            if (currentAvatarImg) {
-                currentAvatarImg.src = profile.avatar_url || '/media/avatars/default.svg';
-                currentAvatarImg.onerror = () => {
-                    currentAvatarImg.src = '/media/avatars/default.svg';
-                };
-            }
-
-            if (is2FAEnabled) {
-                is2FAEnabled.textContent = profile.is_2fa_enabled ? 'Enabled' : 'Disabled';
-            }
-
-            if (twoFAToggleBtn) {
-                twoFAToggleBtn.textContent = profile.is_2fa_enabled ? 'Disable 2FA' : 'Enable 2FA';
-            }
-
-            // Handle 42 School authentication
-            if (profile.is_42_auth) {
-                const emailField = document.querySelector('.email-field');
-                const usernameField = document.querySelector('.username-field');
-                const avatarField = document.querySelector('.avatar-field');
-                const twoFAField = document.querySelector('.twofa-field');
-
-                if (emailField) emailField.style.display = 'none';
-                if (usernameField) usernameField.style.display = 'none';
-                if (avatarField) avatarField.style.display = 'none';
-                if (twoFAField) twoFAField.style.display = 'none';
-
-                const notice = document.createElement('div');
-                notice.className = 'alert alert-info';
-                notice.textContent = 'Profile management is handled through 42 School authentication.';
-                document.getElementById('update-profile-form')?.prepend(notice);
-            }
-
-        } catch (error) {
-            console.error('Error loading profile page:', error);
-            this.showToast('Failed to load profile data', 'danger');
-        }
-    }
-
-    static showToast(message, type = 'success') {
-        const toastContainer = document.querySelector('.toast-container');
-        if (!toastContainer) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast align-items-center text-white bg-${type} border-0`;
-        toast.setAttribute('role', 'alert');
-        toast.setAttribute('aria-live', 'assertive');
-        toast.setAttribute('aria-atomic', 'true');
-
-        toast.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
-
-        toastContainer.appendChild(toast);
-        const bsToast = new bootstrap.Toast(toast);
-        bsToast.show();
-
-        toast.addEventListener('hidden.bs.toast', () => {
-            toast.remove();
-        });
-    }
-
-    static toggleForms() {
-        const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
-        
-        if (loginForm && registerForm) {
-            if (loginForm.classList.contains('d-none')) {
-                loginForm.classList.remove('d-none');
-                registerForm.classList.add('d-none');
-                window.location.hash = '#/';
-            } else {
-                loginForm.classList.add('d-none');
-                registerForm.classList.remove('d-none');
-                window.location.hash = '#/register';
-            }
-        }
-    }
-
-    static makeUsernameClickable(element, userId, username) {
-        if (!element || !userId || !username) return;
-
-        element.style.cursor = 'pointer';
-        element.style.textDecoration = 'underline';
-        
-        element.addEventListener('click', async () => {
-            try {
-                await this.showUserProfile(userId, username);
-            } catch (error) {
-                console.error('Error showing user profile:', error);
-                this.showToast('Failed to load user profile', 'danger');
-            }
-        });
-    }
-
-    static async loadUserRecentMatches(userId) {
-        try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}matches/history/${userId}/`);
-            if (!response.ok) throw new Error('Failed to fetch matches');
-
-            const matches = await response.json();
-            const matchesList = document.querySelector('#modal-recent-matches .matches-list');
-            
-            if (!matchesList) return;
-
-            if (!matches.length) {
-                matchesList.innerHTML = '<p class="text-muted">No recent matches</p>';
-                return;
-            }
-
-            matchesList.innerHTML = matches
-                .slice(0, 5)
-                .map(match => {
-                    const date = new Date(match.end_time || match.start_time);
-                    const formattedDate = date.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-
-                    return `
-                        <div class="match-item p-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <span class="clickable-username" data-user-id="${match.player1_id}">
-                                        ${match.player1_name}
-                                    </span>
-                                    VS
-                                    <span class="clickable-username" data-user-id="${match.player2_id}">
-                                        ${match.player2_name}
-                                    </span>
-                                </div>
-                                <small class="text-muted">${formattedDate}</small>
-                            </div>
-                            <div class="mt-1">
-                                Score: ${match.player1_score} - ${match.player2_score}
-                                <span class="text-success ms-2">
-                                    Winner: ${match.winner_name}
-                                </span>
-                            </div>
+                // Update 2FA status display immediately
+                const twoFAStatus = document.getElementById('2fa-status');
+                if (twoFAStatus) {
+                    twoFAStatus.innerHTML = `
+                        <div class="alert ${profile.is_2fa_enabled ? 'alert-success' : 'alert-danger'} text-center">
+                            2FA ${profile.is_2fa_enabled ? 'Enabled' : 'Disabled'}
                         </div>
                     `;
-                })
-                .join('');
+                }
 
-            // Make usernames in match history clickable
-            matchesList.querySelectorAll('.clickable-username').forEach(element => {
-                const userId = element.getAttribute('data-user-id');
-                const username = element.textContent.trim();
-                this.makeUsernameClickable(element, userId, username);
-            });
+                // Update 2FA section based on authentication type
+                const twoFASection = document.getElementById('2fa-section');
+                const twoFAStatusElement = document.getElementById('2fa-status');
+                const twoFAForm = document.getElementById('2fa-toggle-form');
 
-        } catch (error) {
-            console.error('Error loading matches:', error);
-            const matchesList = document.querySelector('#modal-recent-matches .matches-list');
-            if (matchesList) {
-                matchesList.innerHTML = '<p class="text-danger">Failed to load matches</p>';
+                if (profile.is_42_auth) {
+                    // For 42 authenticated users - simpler message
+                    twoFAStatus.innerHTML = `
+                        <div class="alert alert-info text-center">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Your 2FA settings are managed by your 42 School account
+                        </div>
+                    `;
+                    if (twoFAForm) {
+                        twoFAForm.style.display = 'none';
+                    }
+                } else {
+                    // For regular users
+                    twoFAStatus.innerHTML = `
+                        <div class="alert ${profile.is_2fa_enabled ? 'alert-success' : 'alert-danger'} text-center">
+                            2FA is currently ${profile.is_2fa_enabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                    `;
+                    if (twoFAForm) {
+                        twoFAForm.style.display = 'block';
+                    }
+                }
             }
+        } catch (error) {
+            console.error('Error loading profile page:', error);
+            UIManager.showToast('Failed to load profile data', 'danger');
         }
     }
 
@@ -380,6 +281,7 @@ export class UIManager {
                         </div>
                     </div>
 
+                    <!-- Rest of the modal content remains the same -->
                     <div class="stats-section mb-4">
                         <h5 class="text-light mb-3">Player Stats</h5>
                         <div class="row text-center">
@@ -461,4 +363,85 @@ export class UIManager {
             this.showToast('Failed to load user profile', 'danger');
         }
     }
-} 
+
+    static makeUsernameClickable(element, userId, username) {
+        if (!element || !userId) return;
+        
+        element.style.cursor = 'pointer';
+        element.style.textDecoration = 'underline';
+        element.classList.add('clickable-username');
+        
+        // Create a new element with the same properties
+        const newElement = element.cloneNode(true);
+        
+        // Replace the old element with the new one
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add click handler to the new element
+        newElement.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Get the friends list modal element
+            const friendsListModal = document.getElementById('friendsListModal');
+            
+            // Increase the z-index of the user profile modal
+            const userProfileModal = document.getElementById('userProfileModal');
+            if (userProfileModal) {
+                // Set a higher z-index than the friends list modal
+                userProfileModal.style.zIndex = '1060';
+            }
+
+            // Close any existing profile modal before showing the new one
+            const existingModal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
+            if (existingModal) {
+                existingModal.hide();
+                await new Promise(resolve => setTimeout(resolve, 150)); // Wait for modal to close
+            }
+
+            this.showUserProfile(userId);
+
+            // Reset z-index when the profile modal is hidden
+            userProfileModal.addEventListener('hidden.bs.modal', () => {
+                userProfileModal.style.zIndex = '';
+            }, { once: true });
+        });
+    }
+
+    static applyUsernameClickability() {
+        // Apply to match history
+        document.querySelectorAll('.match-history-item').forEach(item => {
+            const player1El = item.querySelector('.player1-name');
+            const player2El = item.querySelector('.player2-name');
+            if (player1El && player1El.dataset.userId) {
+                this.makeUsernameClickable(player1El, player1El.dataset.userId);
+            }
+            if (player2El && player2El.dataset.userId) {
+                this.makeUsernameClickable(player2El, player2El.dataset.userId);
+            }
+        });
+
+        // Apply to friends list
+        document.querySelectorAll('#friend-list-body .friend-username').forEach(el => {
+            const userId = el.closest('tr').dataset.userId;
+            if (userId) {
+                this.makeUsernameClickable(el, userId);
+            }
+        });
+
+        // Apply to users list
+        document.querySelectorAll('#users-table-body .user-username').forEach(el => {
+            const userId = el.closest('tr').dataset.userId;
+            if (userId) {
+                this.makeUsernameClickable(el, userId);
+            }
+        });
+
+        // Apply to tournament brackets
+        document.querySelectorAll('.tournament-player-name').forEach(el => {
+            if (el.dataset.userId) {
+                this.makeUsernameClickable(el, el.dataset.userId);
+            }
+        });
+    }
+}

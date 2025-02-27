@@ -3,297 +3,151 @@ import { UIManager } from './uiManager.js';
 import { ChatManager } from './chatManager.js';
 
 export class UserManager {
-    static async refreshUsersList() {
+    static usersModal = null;
+
+    static initializeEventListeners() {
+        // Initialize modal only if it doesn't exist
+        const usersListElement = document.getElementById('usersListModal');
+        
+        if (usersListElement && !this.usersModal) {
+            this.usersModal = new bootstrap.Modal(usersListElement);
+            
+            // Handle modal cleanup
+            usersListElement.addEventListener('hidden.bs.modal', () => {
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) backdrop.remove();
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
+            });
+
+            // Handle modal shown event
+            usersListElement.addEventListener('shown.bs.modal', async () => {
+                await this.loadUsersList();
+                // Request status update for all users
+            const userIds = Array.from(document.querySelectorAll('#users-table-body [data-user-status]'))
+                    .map(el => parseInt(el.getAttribute('data-user-status')))
+                    .filter(id => !isNaN(id));
+            
+            if (userIds.length > 0 && ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
+                ChatManager.statusSocket.send(JSON.stringify({
+                    type: 'get_status',
+                        user_ids: userIds
+                }));
+            }
+        });
+        }
+
+        // Show users list button handler
+        document.getElementById('show-users-btn')?.addEventListener('click', () => {
+            if (this.usersModal) {
+                this.usersModal.show();
+            }
+        });
+    }
+
+    static async loadUsersList() {
         try {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/`);
             if (!response.ok) throw new Error('Failed to fetch users');
-
             const users = await response.json();
-            const tableBody = document.getElementById('users-table-body');
-            if (!tableBody) return;
 
+            const tableBody = document.getElementById('users-table-body');
             tableBody.innerHTML = '';
 
             users.forEach(user => {
-                if (user.id === AuthManager.currentUser?.id) return; // Skip current user
-
-                const row = document.createElement('tr');
-                row.setAttribute('data-user-id', user.id);
-                
-                const isOnline = ChatManager.onlineUsers.has(user.id);
-                const isBlocked = ChatManager.blockedUsers.has(user.id);
-
-                row.innerHTML = `
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <img src="${user.avatar_url || '/media/avatars/default.svg'}" 
-                                 alt="${user.username}" 
-                                 class="rounded-circle me-2"
-                                 style="width: 32px; height: 32px;"
-                                 onerror="this.src='/media/avatars/default.svg'">
-                            <span class="username" style="cursor: pointer; text-decoration: underline;">
-                                ${user.username}
-                            </span>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-primary chat-btn" ${isBlocked ? 'disabled' : ''}>
-                                Chat
-                            </button>
-                            <button class="btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} block-btn">
-                                ${isBlocked ? 'Unblock' : 'Block'}
-                            </button>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
-                              data-user-status="${user.id}">
-                            ${isOnline ? 'Online' : 'Offline'}
-                        </span>
-                    </td>
-                `;
-
-                // Make username clickable
-                const usernameElement = row.querySelector('.username');
-                UIManager.makeUsernameClickable(usernameElement, user.id, user.username);
-
-                // Add chat button handler with modal closing
-                const chatBtn = row.querySelector('.chat-btn');
-                chatBtn.addEventListener('click', () => {
-                    const usersModal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
-                    if (usersModal) {
-                        usersModal.hide();
-                        // Remove modal backdrop and reset body styles
-                        const backdrop = document.querySelector('.modal-backdrop');
-                        if (backdrop) {
-                            backdrop.remove();
-                        }
-                        document.body.classList.remove('modal-open');
-                        document.body.style.removeProperty('padding-right');
-                        document.body.style.removeProperty('overflow');
+                if (user.id !== AuthManager.currentUser.id) {
+                    const isOnline = ChatManager.onlineUsers.has(user.id);
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-user-id', user.id);
+                    if (user.is_blocked) {
+                        row.classList.add('blocked-user');
                     }
-                    ChatManager.startChat(user.id, user.username);
-                });
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="${user.avatar_url || '/media/avatars/default.svg'}" 
+                                     alt="${user.username}" 
+                                     class="rounded-circle me-2"
+                                     style="width: 24px; height: 24px;"
+                                     onerror="this.src='/media/avatars/default.svg'">
+                                <span class="user-username clickable-username">
+                                    ${user.username}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
+                                  data-user-status="${user.id}"
+                                  data-user-name="${user.username}">
+                                ${isOnline ? 'Online' : 'Offline'}
+                        </span>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-primary me-1 chat-btn" 
+                                    title="Chat with ${user.username}"
+                                    ${user.is_blocked ? 'disabled' : ''}>
+                                <i class="bi bi-chat-dots"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger block-btn" 
+                                    title="${user.is_blocked ? 'Unblock' : 'Block'} ${user.username}">
+                                ${user.is_blocked ? 'Unblock' : 'Block'}
+                            </button>
+                        </td>
+                    `;
 
-                // Add block button handler
-                const blockBtn = row.querySelector('.block-btn');
-                blockBtn.addEventListener('click', async () => {
-                    const isCurrentlyBlocked = blockBtn.textContent.trim() === 'Unblock';
-                    const success = isCurrentlyBlocked ? 
-                        await ChatManager.unblockUser(user.id) : 
-                        await ChatManager.blockUser(user.id);
-                    
-                    if (success) {
-                        if (isCurrentlyBlocked) {
-                            ChatManager.blockedUsers.delete(user.id);
+                    // Add event listeners
+                    const chatBtn = row.querySelector('.chat-btn');
+                    chatBtn.addEventListener('click', () => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
+                        if (modal) {
+                            modal.hide();
+                        }
+                        ChatManager.startChat(user.id, user.username);
+                    });
+
+                    const blockBtn = row.querySelector('.block-btn');
+                    blockBtn.addEventListener('click', async () => {
+                        const isBlocked = row.classList.contains('blocked-user');
+                        if (isBlocked) {
+                            const success = await ChatManager.unblockUser(user.id);
+                            if (success) {
+                                blockBtn.textContent = 'Block';
+                                blockBtn.title = `Block ${user.username}`;
+                                row.classList.remove('blocked-user');
+                                chatBtn.disabled = false;
+                            }
                         } else {
-                            ChatManager.blockedUsers.add(user.id);
+                            const success = await ChatManager.blockUser(user.id);
+                            if (success) {
+                                blockBtn.textContent = 'Unblock';
+                                blockBtn.title = `Unblock ${user.username}`;
+                                row.classList.add('blocked-user');
+                                chatBtn.disabled = true;
+                                // Close chat if it's open with the blocked user
+                                if (ChatManager.currentChatPartner?.id === user.id) {
+                                    ChatManager.closeChat();
+                                }
+                            }
                         }
-                        this.refreshUsersList();
-                    }
-                });
+                    });
 
-                tableBody.appendChild(row);
-            });
-        } catch (error) {
-            console.error('Error refreshing users list:', error);
-            UIManager.showToast('Failed to load users list', 'danger');
-        }
-    }
+                    tableBody.appendChild(row);
 
-    static async searchUsers(query) {
-        try {
-            const response = await AuthManager.fetchWithAuth(
-                `${AuthManager.API_BASE}users/search/?q=${encodeURIComponent(query)}`
-            );
-            
-            if (!response.ok) throw new Error('Search failed');
-            
-            return await response.json();
-        } catch (error) {
-            console.error('User search error:', error);
-            UIManager.showToast('Failed to search users', 'danger');
-            return [];
-        }
-    }
-
-    static async getUserProfile(userId) {
-        try {
-            const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/${userId}/`);
-            if (!response.ok) throw new Error('Failed to fetch user profile');
-            return await response.json();
-        } catch (error) {
-            console.error('Error fetching user profile:', error);
-            return null;
-        }
-    }
-
-    static async getUserMatches(userId) {
-        try {
-            const response = await AuthManager.fetchWithAuth(
-                `${AuthManager.API_BASE}matches/history/${userId}/?limit=${AuthManager.RECENT_MATCHES_LIMIT}`
-            );
-            
-            if (!response.ok) throw new Error('Failed to fetch user matches');
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error fetching user matches:', error);
-            return [];
-        }
-    }
-
-    static initializeEventListeners() {
-        // Add search functionality
-        const searchInput = document.getElementById('user-search');
-        if (searchInput) {
-            let debounceTimeout;
-            
-            searchInput.addEventListener('input', (e) => {
-                clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(async () => {
-                    const query = e.target.value.trim();
-                    if (query.length >= 2) {
-                        const users = await this.searchUsers(query);
-                        this.updateUsersTable(users);
-                    } else if (query.length === 0) {
-                        this.refreshUsersList();
-                    }
-                }, 300);
-            });
-        }
-
-        // Add users modal event listener
-        const showUsersBtn = document.getElementById('show-users-btn');
-        if (showUsersBtn) {
-            showUsersBtn.addEventListener('click', async () => {
-                await this.refreshUsersList();
-                const usersModal = new bootstrap.Modal(document.getElementById('usersListModal'));
-                usersModal.show();
-            });
-        }
-
-        // Add modal cleanup on hide
-        const usersModal = document.getElementById('usersListModal');
-        if (usersModal) {
-            usersModal.addEventListener('hidden.bs.modal', () => {
-                const searchInput = document.getElementById('user-search');
-                if (searchInput) {
-                    searchInput.value = ''; // Clear search input
-                }
-                // Remove modal backdrop and reset body styles
-                const backdrop = document.querySelector('.modal-backdrop');
-                if (backdrop) {
-                    backdrop.remove();
-                }
-                document.body.classList.remove('modal-open');
-                document.body.style.removeProperty('padding-right');
-                document.body.style.removeProperty('overflow');
-                
-                // Optionally refresh the users list for next time
-                this.refreshUsersList();
-            });
-        }
-    }
-
-    static updateUsersTable(users) {
-        const tableBody = document.getElementById('users-table-body');
-        if (!tableBody) return;
-
-        tableBody.innerHTML = '';
-
-        if (users.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td colspan="3" class="text-center">
-                    No users found
-                </td>
-            `;
-            tableBody.appendChild(row);
-            return;
-        }
-
-        users.forEach(user => {
-            if (user.id === AuthManager.currentUser?.id) return;
-
-            const row = document.createElement('tr');
-            row.setAttribute('data-user-id', user.id);
-            
-            const isOnline = ChatManager.onlineUsers.has(user.id);
-            const isBlocked = ChatManager.blockedUsers.has(user.id);
-
-            row.innerHTML = `
-                <td>
-                    <div class="d-flex align-items-center">
-                        <img src="${user.avatar_url || '/media/avatars/default.svg'}" 
-                             alt="${user.username}" 
-                             class="rounded-circle me-2"
-                             style="width: 32px; height: 32px;"
-                             onerror="this.src='/media/avatars/default.svg'">
-                        <span class="username" style="cursor: pointer; text-decoration: underline;">
-                            ${user.username}
-                        </span>
-                    </div>
-                </td>
-                <td>
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-sm btn-primary chat-btn" ${isBlocked ? 'disabled' : ''}>
-                            Chat
-                        </button>
-                        <button class="btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} block-btn">
-                            ${isBlocked ? 'Unblock' : 'Block'}
-                        </button>
-                    </div>
-                </td>
-                <td>
-                    <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
-                          data-user-status="${user.id}">
-                        ${isOnline ? 'Online' : 'Offline'}
-                    </span>
-                </td>
-            `;
-
-            // Add event listeners
-            const usernameElement = row.querySelector('.username');
-            UIManager.makeUsernameClickable(usernameElement, user.id, user.username);
-
-            // Add chat button handler with modal closing
-            const chatBtn = row.querySelector('.chat-btn');
-            chatBtn.addEventListener('click', () => {
-                const usersModal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
-                if (usersModal) {
-                    usersModal.hide();
-                    // Remove modal backdrop and reset body styles
-                    const backdrop = document.querySelector('.modal-backdrop');
-                    if (backdrop) {
-                        backdrop.remove();
-                    }
-                    document.body.classList.remove('modal-open');
-                    document.body.style.removeProperty('padding-right');
-                    document.body.style.removeProperty('overflow');
-                }
-                ChatManager.startChat(user.id, user.username);
-            });
-
-            const blockBtn = row.querySelector('.block-btn');
-            blockBtn.addEventListener('click', async () => {
-                const isCurrentlyBlocked = blockBtn.textContent.trim() === 'Unblock';
-                const success = isCurrentlyBlocked ? 
-                    await ChatManager.unblockUser(user.id) : 
-                    await ChatManager.blockUser(user.id);
-                
-                if (success) {
-                    if (isCurrentlyBlocked) {
-                        ChatManager.blockedUsers.delete(user.id);
-                    } else {
-                        ChatManager.blockedUsers.add(user.id);
-                    }
-                    this.refreshUsersList();
+                    // Make username clickable
+                    const usernameEl = row.querySelector('.user-username');
+                    UIManager.makeUsernameClickable(usernameEl, user.id, user.username);
                 }
             });
+        } catch (error) {
+            console.error('Error updating users list:', error);
+            UIManager.showToast('Failed to update users list', 'danger');
+        }
+    }
 
-            tableBody.appendChild(row);
-        });
+    static async refreshUsersList() {
+        if (document.getElementById('usersListModal').classList.contains('show')) {
+            await this.loadUsersList();
+        }
     }
 } 

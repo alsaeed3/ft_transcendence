@@ -136,7 +136,7 @@ export class AuthManager {
                 return;
             }
 
-            // Check for 2FA requirement
+            // Check for 2FA requirement (changed from is_2fa_enabled to 2fa_required)
             if (data['2fa_required']) {
                 sessionStorage.setItem('tempUsername', username);
                 if (data.is_2fa_enabled) {
@@ -147,7 +147,7 @@ export class AuthManager {
                     document.getElementById('login-form').classList.add('d-none');
                     document.getElementById('2fa-form').classList.remove('d-none');
                     
-                    this.startOTPTimer();
+                    AuthManager.startOTPTimer();
                     return;
                 }
                 sessionStorage.setItem('tempPassword', password);
@@ -156,7 +156,7 @@ export class AuthManager {
                 document.getElementById('login-form').classList.add('d-none');
                 document.getElementById('2fa-form').classList.remove('d-none');
                 
-                this.startOTPTimer();
+                AuthManager.startOTPTimer();
                 return;
             }
 
@@ -164,31 +164,6 @@ export class AuthManager {
         } catch (error) {
             UIManager.showToast(error.message || 'Login failed', 'danger');
         }
-    }
-
-    static async processSuccessfulAuth(data) {
-        // Store tokens
-        this.accessToken = data.access;
-        this.refreshToken = data.refresh;
-        localStorage.setItem('accessToken', this.accessToken);
-        localStorage.setItem('refreshToken', this.refreshToken);
-
-        // Store user data
-        this.currentUser = data.user;
-        localStorage.setItem('currentUser', JSON.stringify(data.user));
-
-        // Clean up any temporary data
-        sessionStorage.removeItem('tempUsername');
-        sessionStorage.removeItem('tempPassword');
-        sessionStorage.removeItem('tempUserEmail');
-
-        // Initialize WebSocket connection
-        ChatManager.cleanup();
-        ChatManager.initStatusWebSocket();
-
-        // Redirect to home page
-        UIManager.showPage(UIManager.pages.home);
-        await UIManager.loadMainPage();
     }
 
     static async register(userData) {
@@ -231,57 +206,192 @@ export class AuthManager {
                     errorMessage = 'Registration failed. Please try again.';
                 }
 
-                UIManager.showToast(errorMessage.trim(), 'danger');
+                throw new Error(errorMessage.trim());
+            }
+
+            // Show success message and return to login form
+            UIManager.showToast('Registration successful! Please login.', 'success');
+            UIManager.toggleForms();
+        } catch (error) {
+            const errorLines = error.message.split('\n');
+            const formattedError = errorLines.join('\n');
+            UIManager.showToast(formattedError, 'danger');
+        }
+    }
+
+    static async verify2FA(otp) {
+        try {
+            const email = sessionStorage.getItem('tempUserEmail');
+            const username = sessionStorage.getItem('tempUsername');
+            const password = sessionStorage.getItem('tempPassword');
+            
+            if (!email || !username || !password) {
+                throw new Error('Session expired. Please login again.');
+            }
+
+            const response = await fetch(`${this.API_BASE}auth/2fa/verify/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp, username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Show remaining attempts if available
+                if (data.remaining_attempts !== undefined) {
+                    if (data.remaining_attempts === 0) {
+                        UIManager.showToast('Too many failed attempts. Please wait 5 minutes.', 'danger');
+                        // Optionally return to login form
+                        UIManager.showLoginForm();
+                    } else {
+                        UIManager.showToast(`Invalid code. ${data.remaining_attempts} attempts remaining.`, 'warning');
+                    }
+                } else {
+                    UIManager.showToast(data.error || 'Invalid or expired OTP', 'danger');
+                }
                 return;
             }
 
-            UIManager.showToast('Registration successful! Please log in.', 'success');
-            UIManager.toggleForms();
+            // Success - clear storage and process auth
+            sessionStorage.removeItem('tempUserEmail');
+            sessionStorage.removeItem('tempUsername');
+            sessionStorage.removeItem('tempPassword');
+            await this.processSuccessfulAuth(data);
+
         } catch (error) {
-            console.error('Registration error:', error);
-            UIManager.showToast('Registration failed. Please try again.', 'danger');
+            console.error('2FA verification error:', error);
+            UIManager.showToast(error.message, 'danger');
         }
     }
 
-    static logout() {
-        // Clear all stored data
-        localStorage.clear();
-        sessionStorage.clear();
-        this.accessToken = null;
-        this.refreshToken = null;
-        this.currentUser = null;
+    static async processSuccessfulAuth(data) {
+        try {
+        // Check the structure of data
+        console.log('Auth data received:', data);  // Debug log
+        
+        // Handle both standard login and OAuth flows
+        const access = data.access || data.access_token;
+        const refresh = data.refresh || data.refresh_token;
+        
+        if (!access || !refresh) {
+            console.error('Invalid auth data:', data);  // Debug log
+            throw new Error('Invalid authentication response');
+        }
+        
+            this.accessToken = access;
+            this.refreshToken = refresh;
+        
+        // Ensure we have the complete user object with ID
+        if (!data.user || !data.user.id) {
+            // Fetch user profile if not provided in auth response
+            const profileResponse = await this.fetchWithAuth(`${this.API_BASE}users/me/`);
+            if (!profileResponse.ok) {
+                throw new Error('Failed to fetch user profile');
+            }
+            this.currentUser = await profileResponse.json();
+        } else {
+            this.currentUser = data.user;
+        }
 
-        // Clean up WebSocket connections
-        ChatManager.cleanup();
+        // Store tokens and user data
+        localStorage.setItem('accessToken', this.accessToken);
+        localStorage.setItem('refreshToken', this.refreshToken);
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
 
-        // Redirect to login page
-        UIManager.showLoginForm();
+        // Clear temporary storage
+        sessionStorage.removeItem('tempUsername');
+        sessionStorage.removeItem('tempPassword');
+        sessionStorage.removeItem('tempUserEmail');
+        
+            // Initialize WebSocket connection with the new token
+            ChatManager.cleanup(); // Clean up any existing connections
+            ChatManager.initStatusWebSocket(); // Initialize with new token
+
+            // Navigate to home page and ensure it's loaded
+            window.location.hash = '#/home';
+            await UIManager.loadMainPage();
+        } catch (error) {
+            console.error('Error during auth processing:', error);
+            UIManager.showToast('Authentication failed', 'danger');
+            window.location.hash = '#/';
+        }
+    }
+
+    static async logout() {
+        try {
+            if (this.accessToken && this.refreshToken) {
+                await this.fetchWithAuth(`${this.API_BASE}auth/logout/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: this.refreshToken }),
+                });
+            }
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            // Clean up all resources
+            ChatManager.cleanup();
+            localStorage.clear();
+            sessionStorage.clear();
+            this.accessToken = null;
+            this.refreshToken = null;
+            this.currentUser = null;
+
+            // Navigate to login page
+            window.location.hash = '#/';
+        }
     }
 
     static startOTPTimer() {
-        let timeLeft = 300; // 5 minutes in seconds
-        const timerDisplay = document.getElementById('otp-timer');
-        
         if (this.currentOTPTimer) {
             clearInterval(this.currentOTPTimer);
         }
-        
+
+        const timerElement = document.getElementById('otp-timer');
+        let timeLeft = 300;
+
         this.currentOTPTimer = setInterval(() => {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
-            
-            if (timerDisplay) {
-                timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            }
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
             
             if (timeLeft <= 0) {
                 clearInterval(this.currentOTPTimer);
                 this.currentOTPTimer = null;
-                UIManager.showLoginForm();
                 UIManager.showToast('OTP expired. Please try again.', 'warning');
+                UIManager.showLoginForm();
             }
-            
             timeLeft--;
         }, 1000);
+    }
+
+    static async fetchMatchHistory() {
+        try {
+            if (!AuthManager.currentUser?.id) {
+                console.log('No current user ID available');
+                return [];
+            }
+            
+            const url = `${AuthManager.API_BASE}matches/history/${AuthManager.currentUser.id}/`;
+            const response = await AuthManager.fetchWithAuth(url);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return [];
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const matches = await response.json();
+            return matches.sort((a, b) => {
+                const dateA = new Date(a.end_time || a.start_time);
+                const dateB = new Date(b.end_time || b.start_time);
+                return dateB - dateA;
+            });
+        } catch (error) {
+            console.error('Error fetching matches:', error);
+            return [];
+        }
     }
 } 
