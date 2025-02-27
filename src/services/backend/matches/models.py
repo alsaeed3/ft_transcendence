@@ -7,6 +7,7 @@ class Match(models.Model):
         ('Pong', 'Pong'),
         ('Tournament', 'Tournament'),
         ('Territory', 'Territory'),
+        ('4-Player Pong', '4-Player Pong'),
     ]
     
     # Fields used by all match types
@@ -51,12 +52,12 @@ class Match(models.Model):
                (self.player2_score > self.player1_score and self.winner_name != self.player2_name) or \
                (self.player1_score == self.player2_score):
                 raise ValidationError('Winner does not match the scores')
-        else:
-            # For Tournament and Territory matches, only validate no player details are included
+        elif self.match_type in ['Tournament', 'Territory', '4-Player Pong']:
+            # For Tournament, Territory, and 4P Pong matches, validate no player details are included
             if (self.player1_name or self.player2_name or 
                 self.player1_score is not None or 
                 self.player2_score is not None):
-                raise ValidationError('Tournament and Territory matches should not include player details')
+                raise ValidationError(f"{self.match_type} matches should not include player details")
 
     def __str__(self):
         if self.match_type == 'Pong':

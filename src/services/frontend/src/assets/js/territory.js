@@ -1,9 +1,17 @@
+import { AuthManager } from './modules/authManager.js';
+import { UIManager } from './modules/uiManager.js';
+
+let gameStartTime;
+
 function initTerritory() {
     const GRID_SIZE = 20;
     const CELL_SIZE = 25;
     const PLAYER_SPEED = 5;
     let gameActive = true;
     let animationFrameId = null;
+
+    // Initialize game start time when game starts
+    const gameStartTime = Date.now();
 
     // Player data
     const players = [
@@ -100,11 +108,13 @@ function initTerritory() {
             });
         });
 
-        // Update score display
+        // Update score display if elements exist
         const scoreElements = document.querySelectorAll('.player-score');
-        scoreElements[0].textContent = `Red: ${scores[0]}`;
-        scoreElements[1].textContent = `Blue: ${scores[1]}`;
-        scoreElements[2].textContent = `Green: ${scores[2]}`;
+        if (scoreElements && scoreElements.length === 3) {
+            scoreElements[0].textContent = `Red: ${scores[0]}`;
+            scoreElements[1].textContent = `Blue: ${scores[1]}`;
+            scoreElements[2].textContent = `Green: ${scores[2]}`;
+        }
 
         // Check for winner (when one player has more than 30% of total cells)
         const totalCells = GRID_SIZE * GRID_SIZE;
@@ -120,7 +130,9 @@ function initTerritory() {
         drawGame();
 
         // Store the animation frame ID
-        animationFrameId = requestAnimationFrame(updateGame);
+        if (gameActive) {
+            animationFrameId = requestAnimationFrame(updateGame);
+        }
     }
 
     function drawGame() {
@@ -166,24 +178,40 @@ function initTerritory() {
         });
     }
 
-    function announceWinner(playerId) {
+    function announceWinner(winner) {
+        // Stop the game
+        gameActive = false;
+        
+        // Create announcement container if it doesn't exist
+        let announcementContainer = document.getElementById('territory-announcement');
+        if (!announcementContainer) {
+            announcementContainer = document.createElement('div');
+            announcementContainer.id = 'territory-announcement';
+            announcementContainer.className = 'position-absolute top-50 start-50 translate-middle text-white text-center';
+            announcementContainer.style.cssText = 'font-size: 2rem; z-index: 1000;';
+            document.getElementById('game-container').appendChild(announcementContainer);
+        }
+        
+        // Show winner announcement
         const colors = ['Red', 'Light Blue', 'Green'];
-        const announcement = document.createElement('div');
-        announcement.className = 'winner-announcement';
-        announcement.style.color = players[playerId - 1].color;
-        announcement.textContent = `${colors[playerId - 1]} Player Wins!`;
-        gameContainer.appendChild(announcement);
+        announcementContainer.textContent = `${colors[winner - 1]} Player Wins!`;
+        
+        // Save match result
+        const matchData = {
+            match_type: 'Territory',
+            start_time: new Date(gameStartTime).toISOString(),
+            end_time: new Date().toISOString(),
+            winner_name: colors[winner - 1],
+            created_by: AuthManager.currentUser?.username || 'Anonymous',
+            duration: Math.floor((Date.now() - gameStartTime) / 1000)
+        };
 
-        // Update explanation text
-        const explanation = document.createElement('div');
-        explanation.className = 'winner-explanation';
-        explanation.textContent = `(First to capture 30% of the board)`;
-        announcement.appendChild(explanation);
-
-        // Automatically redirect after 3 seconds
-        setTimeout(() => {
-            document.getElementById('back-to-menu').click();
-        }, 3000);
+        // Save match and redirect
+        saveMatchResult(matchData).then(() => {
+            setTimeout(() => {
+                UIManager.showPage(UIManager.pages.home);
+            }, 3000);
+        });
     }
 
     function resetGame() {
@@ -206,6 +234,28 @@ function initTerritory() {
         }
     }
 
+    async function saveMatchResult(matchData) {
+        try {
+            const response = await fetch(`${AuthManager.API_BASE}matches/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${AuthManager.accessToken}`
+                },
+                body: JSON.stringify(matchData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save match result');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving match result:', error);
+            UIManager.showToast('Failed to save match result', 'error');
+        }
+    }
+
     // Start game
     updateGame();
 
@@ -216,3 +266,6 @@ function initTerritory() {
         handleKeyUp
     };
 }
+
+// Export the initTerritory function
+export { initTerritory };

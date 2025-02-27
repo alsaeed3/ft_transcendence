@@ -1,0 +1,63 @@
+/* User Profile Modal Styles */
+#userProfileModal .modal-content {
+    background-color: #1e2124;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#userProfileModal .stats-section {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+}
+
+#userProfileModal .stat-card {
+    background: rgba(255, 255, 255, 0.05);
+    transition: transform 0.2s;
+}
+
+#userProfileModal .stat-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#userProfileModal .stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+#userProfileModal .stat-label {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+#userProfileModal .recent-matches-section .list-group-item {
+    transition: background-color 0.2s;
+}
+
+#userProfileModal .recent-matches-section .list-group-item:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+#userProfileModal .match-players {
+    font-size: 0.9rem;
+}
+
+#userProfileModal .match-score {
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+#modal-user-avatar {
+    box-shadow: 0 0 20px rgba(13, 110, 253, 0.3);
+    border: 3px solid #0d6efd;
+    transition: transform 0.2s;
+}
+
+#modal-user-avatar:hover {
+    transform: scale(1.05);
+}
+
+.text-primary {
+    color: #0d6efd !important;
+} 
