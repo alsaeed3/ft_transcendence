@@ -321,3 +321,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'chat_message',
             'message': message_data
         }))
+
+class BlockedUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Get users blocked by current user
+        blocked_users = BlockedUser.objects.filter(blocker=request.user).values_list('blocked_id', flat=True)
+        # Get users who blocked current user
+        blocked_by = BlockedUser.objects.filter(blocked=request.user).values_list('blocker_id', flat=True)
+        
+        return Response({
+            'blocked_users': list(blocked_users),
+            'blocked_by': list(blocked_by)
+        })

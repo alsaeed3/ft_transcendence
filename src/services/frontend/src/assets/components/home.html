@@ -1,0 +1,89 @@
+<!-- Main/Home Page -->
+<div class="container mt-4">
+    <div class="row">
+        <!-- Player Stats -->
+        <div class="col-md-3 mb-4">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Player Stats</h5>
+                    <div id="player-stats" class="p-3 bg-dark rounded" style="background-color: #2b3035 !important; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="mb-4 text-center">
+                            <h6 class="text-light mb-2">Username</h6>
+                            <span class="fs-5 fw-bold text-white" id="stats-username"></span>
+                        </div>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-light">Match Wins</span>
+                                <span class="fs-5 fw-bold text-white" id="stats-match-wins">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-light">Total Matches</span>
+                                <span class="fs-5 fw-bold text-white" id="stats-total-matches">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-light">Total Tournaments</span>
+                                <span class="fs-5 fw-bold text-white" id="stats-total-tourneys">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Options -->
+        <div class="col-md-6 mb-4">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card game-option-card bg-success">
+                        <div class="card-body text-center">
+                            <h5>Play Against Player</h5>
+                            <button class="btn btn-light" id="play-player-btn">Start Match</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card game-option-card bg-warning">
+                        <div class="card-body text-center">
+                            <h5>Play Against AI</h5>
+                            <button class="btn btn-light" id="play-ai-btn">Start AI Match</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card game-option-card bg-info">
+                        <div class="card-body text-center">
+                            <h5>Create Tournament</h5>
+                            <button class="btn btn-light" id="create-tournament-btn">Setup Tournament</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card game-option-card bg-purple">
+                        <div class="card-body text-center">
+                            <h5>3-Player Territory Battle</h5>
+                            <button class="btn btn-light" id="play-territory-btn">Start Territory Battle</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card game-option-card bg-secondary">
+                        <div class="card-body text-center">
+                            <h5>4-Player Pong Battle</h5>
+                            <button class="btn btn-light" id="play-4player-btn">Start 4-Player Game</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Match History -->
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Recent Matches</h5>
+                    <div id="match-history"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
