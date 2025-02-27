@@ -29,12 +29,12 @@ export class LanguageManager {
 				logout: "Logout",
 				twoFASection: "Two-Factor Authentication",
 				usersList: "Users List",
-				newPasswordoptional: "New Password (optional)",
+				newPasswordOptional: "New Password (optional)",
 				currentAvatar: "Current Avatar",
 				changeAvatar: "Change Avatar",
 				confirmPassword: "Confirm Password",
 				enableDisable2FA: "Enable/Disable Two-Factor Authentication",
-				backttoMain: "Back to Main",
+				backToMain: "Back to Main",
 				nautilusPongGame: "Nautilus Pong",
 				nautilusPong: "Nautilus Pong",
 				actions: "Actions",
@@ -66,7 +66,11 @@ export class LanguageManager {
 				twoFactorDisabled: "Two-Factor Authentication is disabled",
 				twoFactorToggleSuccess: "Two-Factor Authentication status updated",
 				twoFactorToggleError: "Failed to update Two-Factor Authentication status",
-				twoFactor42Message: "Your 2FA settings are managed by your 42 School account"
+				twoFactor42Message: "Your 2FA settings are managed by your 42 School account",
+				enterCurrentPassword: "Enter your current password",
+				chooseFile: "Choose File",
+				noFileChosen: "No file chosen",
+				browseFiles: "Browse Files"
 		},
 		ar: {
 				welcome: "مرحباً",
@@ -97,12 +101,12 @@ export class LanguageManager {
 				logout: "تسجيل الخروج",
 				twoFASection: "المصادقة الثنائية",
 				usersList: "قائمة المستخدمين",
-				newPasswordoptional: "كلمة المرور الجديدة (اختياري)",
+				newPasswordOptional: "كلمة المرور الجديدة (اختياري)",
 				currentAvatar: "الصورة الرمزية الحالية",
 				changeAvatar: "تغيير الصورة الرمزية",
 				confirmPassword: "تأكيد كلمة المرور",
 				enableDisable2FA: "تمكين/تعطيل المصادقة الثنائية",
-				backttoMain: "العودة إلى الصفحة الرئيسية",
+				backToMain: "العودة للرئيسية",
 				nautilusPongGame: "نوتيلوس بونج",
 				nautilusPong: "نوتيلوس بونج",
 				actions: "الإجراءات",
@@ -134,7 +138,11 @@ export class LanguageManager {
 				twoFactorDisabled: "المصادقة الثنائية معطلة",
 				twoFactorToggleSuccess: "تم تحديث حالة المصادقة الثنائية",
 				twoFactorToggleError: "فشل تحديث حالة المصادقة الثنائية",
-				twoFactor42Message: "يتم إدارة إعدادات المصادقة الثنائية من خلال حساب مدرسة 42 الخاص بك"
+				twoFactor42Message: "يتم إدارة إعدادات المصادقة الثنائية من خلال حساب مدرسة 42 الخاص بك",
+				enterCurrentPassword: "أدخل كلمة المرور الحالية",
+				chooseFile: "اختيار ملف",
+				noFileChosen: "لم يتم اختيار ملف",
+				browseFiles: "تصفح الملفات"
 		},
 		ml: {
 				welcome: "സ്വാഗതം",
@@ -165,12 +173,12 @@ export class LanguageManager {
 				logout: "ലോഗൗട്ട്",
 				twoFASection: "ടു-ഫാക്ടർ ഓഥന്റിക്കേഷൻ",
 				usersList: "ഉപയോക്താക്കളുടെ പട്ടിക",
-				newPasswordoptional: "പുതിയ പാസ്വേഡ് (ഐച്ഛികം)",
+				newPasswordOptional: "പുതിയ പാസ്വേഡ് (ഓപ്ഷണൽ)",
 				currentAvatar: "നിലവിലെ അവതാരം",
 				changeAvatar: "അവതാരം മാറ്റുക",
 				confirmPassword: "പാസ്വേഡ് സ്ഥിരീകരിക്കുക",
 				enableDisable2FA: "ടു-ഫാക്ടർ ഓഥന്റിക്കേഷൻ സജ്ജീകരിക്കുക/അടയ്ക്കുക",
-				backttoMain: "പ്രധാനത്തിലേക്ക് മടങ്ങുക",
+				backToMain: "മെയിനിലേക്ക് മടങ്ങുക",
 				nautilusPongGame: "നൗട്ടിലസ് പോങ്",
 				nautilusPong: "നൗട്ടിലസ് പോങ്",
 				actions: "നടപടികൾ",
@@ -202,7 +210,11 @@ export class LanguageManager {
 				twoFactorDisabled: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ പ്രവർത്തനരഹിതമാണ്",
 				twoFactorToggleSuccess: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ സ്റ്റാറ്റസ് അപ്ഡേറ്റ് ചെയ്തു",
 				twoFactorToggleError: "ടു-ഫാക്ടർ ഓതന്റിക്കേഷൻ സ്റ്റാറ്റസ് അപ്ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു",
-				twoFactor42Message: "നിങ്ങളുടെ 2FA ക്രമീകരണങ്ങൾ നിങ്ങളുടെ 42 സ്കൂൾ അക്കൗണ്ട് വഴി കൈകാര്യം ചെയ്യുന്നു"
+				twoFactor42Message: "നിങ്ങളുടെ 2FA ക്രമീകരണങ്ങൾ നിങ്ങളുടെ 42 സ്കൂൾ അക്കൗണ്ട് വഴി കൈകാര്യം ചെയ്യുന്നു",
+				enterCurrentPassword: "നിലവിലെ പാസ്‌വേഡ് നൽകുക",
+				chooseFile: "ഫയൽ തിരഞ്ഞെടുക്കുക",
+				noFileChosen: "ഫയലൊന്നും തിരഞ്ഞെടുത്തിട്ടില്ല",
+				browseFiles: "ഫയലുകൾ ബ്രൗസ് ചെയ്യുക"
 		}
 	};
 
@@ -240,13 +252,68 @@ export class LanguageManager {
 	}
 
 	static updateContent() {
+		// Update regular translations
 		document.querySelectorAll('[data-i18n]').forEach(element => {
 			const key = element.getAttribute('data-i18n');
 			if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
 				element.placeholder = this.getTranslation(key);
+			} else if (element.tagName === 'BUTTON') {
+				// Special handling for buttons to ensure they get translated
+				element.textContent = this.getTranslation(key);
 			} else {
 				element.textContent = this.getTranslation(key);
 			}
+		});
+
+		// Update file inputs
+		document.querySelectorAll('input[type="file"]').forEach(input => {
+			// Create a wrapper div if it doesn't exist
+			let wrapper = input.parentElement;
+			if (!wrapper.classList.contains('file-input-wrapper')) {
+				wrapper = document.createElement('div');
+				wrapper.className = 'file-input-wrapper position-relative';
+				input.parentNode.insertBefore(wrapper, input);
+				wrapper.appendChild(input);
+			}
+
+			// Create or update the custom button
+			let customButton = wrapper.querySelector('.custom-file-button');
+			if (!customButton) {
+				customButton = document.createElement('button');
+				customButton.type = 'button';
+				customButton.className = 'custom-file-button btn btn-secondary position-absolute';
+				customButton.style.right = '0';
+				customButton.style.top = '0';
+				wrapper.appendChild(customButton);
+			}
+			customButton.textContent = this.getTranslation('chooseFile');
+
+			// Create or update the filename display
+			let filenameDisplay = wrapper.querySelector('.filename-display');
+			if (!filenameDisplay) {
+				filenameDisplay = document.createElement('span');
+				filenameDisplay.className = 'filename-display form-control';
+				filenameDisplay.style.paddingRight = '100px'; // Make room for the button
+				wrapper.appendChild(filenameDisplay);
+			}
+			filenameDisplay.textContent = input.files[0]?.name || this.getTranslation('noFileChosen');
+
+			// Hide the original input but keep it functional
+			input.style.opacity = '0';
+			input.style.position = 'absolute';
+			input.style.top = '0';
+			input.style.right = '0';
+			input.style.width = '100%';
+			input.style.height = '100%';
+			input.style.cursor = 'pointer';
+
+			// Update click handler
+			customButton.onclick = () => input.click();
+
+			// Update change handler
+			input.onchange = () => {
+				filenameDisplay.textContent = input.files[0]?.name || this.getTranslation('noFileChosen');
+			};
 		});
 	}
 
@@ -265,5 +332,21 @@ export class LanguageManager {
 			default:
 					return content;
 		}
+	}
+
+	// Add method to handle file input translations
+	static updateFileInputs() {
+		document.querySelectorAll('input[type="file"]').forEach(input => {
+			const label = input.nextElementSibling;
+			if (label && label.classList.contains('form-file-text')) {
+				label.textContent = input.files.length > 0 ? 
+					input.files[0].name : 
+					this.getTranslation('noFileChosen');
+			}
+			const browseButton = input.parentElement?.querySelector('.form-file-button');
+			if (browseButton) {
+				browseButton.textContent = this.getTranslation('chooseFile');
+			}
+		});
 	}
 }

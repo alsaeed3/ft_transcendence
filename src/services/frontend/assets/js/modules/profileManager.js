@@ -141,6 +141,18 @@ export class ProfileManager {
                 LanguageManager.updateContent();
             }
 
+            // Add file input change listener
+            const fileInput = document.getElementById('update-avatar');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const fileName = e.target.files[0]?.name;
+                    const label = e.target.nextElementSibling;
+                    if (label) {
+                        label.textContent = fileName || LanguageManager.getTranslation('chooseFile');
+                    }
+                });
+            }
+
         } catch (error) {
             console.error('Profile update error:', error);
             UIManager.showToast(error.message || 'Failed to update profile', 'danger');
