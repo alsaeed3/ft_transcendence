@@ -3,15 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nautilus Pong Game</title>
-    <link rel="icon" type="image/x-icon" href="/src/assets/images/favicon.ico">
+    <title data-i18n="nautilusPongGame">Nautilus Pong Game</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/assets/css/chat.css">
-    <link rel="stylesheet" href="/assets/css/components.css">
-    <link rel="stylesheet" href="/assets/css/global.css">
-    <link rel="stylesheet" href="/assets/css/pages.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .page { display: none; }
         .active-page { display: block; }
@@ -22,7 +18,7 @@
             position: fixed;
             bottom: 0;
             right: 20px;
-            z-index: 1040;
+            z-index: 9999;
             width: 300px;
             margin: 0;
         }
@@ -345,88 +341,398 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* Add these styles to customize modal backdrop and content */
-        .modal-backdrop {
-            background-color: rgba(0, 0, 0, 0.5) !important; /* Lighter backdrop */
-        }
-        
-        .modal-content {
-            background: linear-gradient(145deg, rgba(30, 42, 58, 0.95), rgba(42, 56, 70, 0.95)) !important;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        /* Add these RTL styles to your existing styles */
+        [dir="rtl"] .navbar-brand {
+            margin-right: 0;
+            margin-left: 1rem;
         }
 
-        .table-dark {
-            background-color: transparent !important;
+        [dir="rtl"] .ms-auto {
+            margin-left: unset !important;
+            margin-right: auto !important;
         }
 
-        .table-dark td, .table-dark th {
-            background-color: transparent !important;
+        [dir="rtl"] .me-2 {
+            margin-right: unset !important;
+            margin-left: 0.5rem !important;
+        }
+
+        [dir="rtl"] .me-3 {
+            margin-right: unset !important;
+            margin-left: 1rem !important;
+        }
+
+        [dir="rtl"] .text-end {
+            text-align: left !important;
+        }
+
+        /* Language selector styles */
+        #language-select {
+            min-width: 120px;
+            background-color: transparent;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #language-select option {
+            background-color: #1e2a3a;
+            color: white;
         }
     </style>
 </head>
 <body class="bg-dark text-light">
-    <!-- Toast Container -->
+    <!-- Add this near the top of body -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
         <!-- Toasts will be inserted here -->
     </div>
     
-    <!-- Main Container -->
-    <div id="app-container">
-        <!-- Header will be loaded here -->
-        <div id="header"></div>
+    <div id="landing-page" class="page active-page">
+        <div class="container min-vh-100 d-flex flex-column justify-content-center">
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h2 class="card-title text-center mb-5 game-title fw-bold" data-text="Nautilus Pong" data-i18n="welcometoNautilusPong">Welcome to Nautilus Pong</h2>
+                            <form id="login-form">
+                                <!-- Login form fields -->
+                                <div class="mb-4">
+                                    <input type="text" class="form-control form-control-lg" placeholder="Username" required data-i18n="username">
+                                </div>
+                                <div class="mb-4">
+                                    <input type="password" class="form-control form-control-lg" placeholder="Password" required data-i18n="password">
+                                </div>
+                                 <button type="submit" class="btn btn-primary w-100 py-2 mb-4" data-i18n="login">Login</button>
+                                
+                                <!-- Create Account link -->
+                                <div class="text-center mb-4">
+                                    <span class="text-white-50">Don't have an account?</span>
+                                    <a href="#" id="register-link" class="text-white ms-2">Create Account</a>
+                                </div>
 
-        <!-- Pages Container -->
-        <div id="pages-container">
-            <!-- Active page will be loaded here -->
+                                <!-- Divider -->
+                                <div class="text-center position-relative my-4">
+                                    <hr class="text-white-50">
+                                    <span class="bg-secondary px-3 text-white-50 position-absolute top-50 start-50 translate-middle">
+                                        or login with 42
+                                    </span>
+                                </div>
+
+                                <!-- OAuth2 button -->
+                                <div class="mt-2">
+                                    <a href="#" id="oauth-42-btn" class="btn btn-light w-100 py-2 d-flex align-items-center justify-content-center">
+                                        <img src="/42.png" 
+                                             alt="42" 
+                                             style="height: 24px; width: auto; margin-right: 10px;">
+                                        Login with 42
+                                    </a>
+                                </div>
+                            </form>
+
+                            <form id="register-form" class="d-none">
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" id="register-username" name="username" placeholder="Username" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="email" class="form-control" id="register-email" name="email" placeholder="Email" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="password" class="form-control" id="register-password" name="password" placeholder="Password" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="password" class="form-control" id="register-repeat-password" name="repeat_password" placeholder="Repeat Password" required>
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">Register</button>
+                                <a href="#" id="login-link" class="text-white d-block text-center mt-2">Back to Login</a>
+                            </form>
+
+                            <form id="2fa-form" class="d-none">
+                                <div class="mb-3">
+                                    <h4 class="text-center">Two-Factor Authentication</h4>
+                                    <p class="text-center">Please enter the verification code sent to your email</p>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="otp-input" 
+                                           placeholder="Enter 6-digit code" 
+                                           maxlength="6" 
+                                           pattern="[0-9]*" 
+                                           required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 mb-3">Verify</button>
+                                <button type="button" id="back-to-login" class="btn btn-secondary w-100">Back to Login</button>
+                                <div class="text-center mt-2">
+                                    <small class="text-white">Code expires in <span id="otp-timer">5:00</span></small>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Chat Container -->
-    <div id="chat-container" class="card position-fixed bottom-0 end-0 m-3" style="width: 300px; display: none;">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" id="chat-header">
-            <span>Chat</span>
-            <div>
-                <button id="toggle-chat" class="btn btn-sm btn-outline-light">
-                    <i class="bi bi-dash-lg"></i>
-                </button>
-                <button id="close-chat" class="btn btn-sm btn-outline-light">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+    <div id="main-page" class="page">
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="#">
+                    <img src="/nautilus.png" 
+                         alt="Nautilus Logo" 
+                         class="me-2" 
+                         style="height: 30px; width: auto;">
+                    <span class="game-title fw-bold" data-text="Nautilus Pong" data-i18n="nautilusPong">Nautilus Pong</span>
+                </a>
+                <div class="ms-auto d-flex align-items-center">
+                    <!-- Users List Button -->
+                     <button class="btn btn-outline-light me-2" id="show-users-btn" data-i18n="users">
+                        <i class="bi bi-people-fill"></i> Users
+                    </button>
+                    <!-- Friends List Button -->
+                    <button class="btn btn-outline-light me-3" id="show-friends-btn" data-i18n="friends">
+                        <i class="bi bi-people-fill"></i> Friends
+                    </button>
+                    <!-- Add this inside the navbar, before the logout button -->
+                    <div class="nav-item dropdown me-3">
+                        <select id="language-select" class="form-select bg-transparent text-light border-light">
+                            <option value="en">English</option>
+                            <option value="ar">العربية</option>
+                            <option value="ml">മലയാളം</option>
+                        </select>
+                    </div>
+                    <!-- User Profile -->
+                    <div id="user-profile" class="me-3" style="cursor: pointer;">
+                        <div class="d-flex align-items-center">
+                            <img id="profile-avatar" 
+                                 src="/media/avatars/default.svg" 
+                                 alt="Avatar" 
+                                 class="rounded-circle" 
+                                 style="width: 40px; height: 40px;"
+                                 onerror="this.src='/media/avatars/default.svg'">
+                            <span id="username-display" class="text-white ms-2">Username</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" id="logout-btn" data-i18n="logout">Logout</button>
+                </div>
+            </div>
+            <!-- chat -->
+            <div id="chat-container" class="card position-fixed bottom-0 end-0 m-3" style="width: 300px; display: none;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" id="chat-header">
+                    <span>Chat</span>
+                    <div>
+                        <button id="block-user" class="btn btn-sm btn-danger me-2">
+                            <i class="bi bi-slash-circle"></i>
+                        </button>
+                        <button id="toggle-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <button id="close-chat" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="height: 400px;">
+                    <div id="chat-messages" class="overflow-auto mb-3" style="height: 320px;"></div>
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control" placeholder="Type a message...">
+                        <button id="send-button" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Modal -->
+            <div class="modal fade" id="usersModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Select User to Chat</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Users list will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mt-4">
+            <div class="row">
+                <!-- Player Stats -->
+                <div class="col-md-3 mb-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3" data-i18n="playerStats">Player Stats</h5>
+                            <div id="player-stats" class="p-3 bg-dark rounded" style="background-color: #2b3035 !important; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div class="mb-4 text-center">
+                                    <h6 class="text-light mb-2" data-i18n="username" >Username</h6>
+                                    <span class="fs-5 fw-bold text-white" id="stats-username"></span>
+                                </div>
+                                <div class="d-flex flex-column gap-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-light" data-i18n="matchWins">Match Wins</span>
+                                        <span class="fs-5 fw-bold text-white" id="stats-match-wins">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-light" data-i18n="tournamentWins">Tournament Wins</span>
+                                        <span class="fs-5 fw-bold text-white" id="stats-tourney-wins">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-light" data-i18n="totalMatches">Total Matches</span>
+                                        <span class="fs-5 fw-bold text-white" id="stats-total-matches">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-light" data-i18n="totalTournaments">Total Tournaments</span>
+                                        <span class="fs-5 fw-bold text-white" id="stats-total-tourneys">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Options -->
+                <div class="col-md-6 mb-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card game-option-card bg-success">
+                                <div class="card-body text-center">
+                                    <h5>Play Against Player</h5>
+                                    <button class="btn btn-light" id="play-player-btn" data-i18n="playAgainstPlayer">Play Against Player</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card game-option-card bg-warning">
+                                <div class="card-body text-center">
+                                    <h5>Play Against AI</h5>
+                                    <button class="btn btn-light" id="play-ai-btn" data-i18n="playAgainstAI">Start AI Match</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card game-option-card bg-info">
+                                <div class="card-body text-center">
+                                    <h5>Create Tournament</h5>
+                                    <button class="btn btn-light" id="create-tournament-btn" data-i18n="createTournament">Setup Tournament</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card game-option-card bg-purple">
+                                <div class="card-body text-center">
+                                    <h5>3-Player Territory Battle</h5>
+                                    <button class="btn btn-light" id="play-territory-btn" data-i18n="territoryBattle">Start Territory Battle</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card game-option-card bg-secondary">
+                                <div class="card-body text-center">
+                                    <h5>4-Player Pong Battle</h5>
+                                    <button class="btn btn-light" id="play-4player-btn" data-i18n="pongBattle">Start 4-Player Game</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match History -->
+                <div class="col-md-3">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title" data-i18n="recentMatches">Recent Matches</h5>
+                            <div id="match-history"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="card-body" style="height: 400px;">
-            <div id="chat-messages" class="overflow-auto mb-3" style="height: 320px;"></div>
-            <div class="input-group">
-                <input type="text" id="message-input" class="form-control" placeholder="Type a message...">
-                <button id="send-button" class="btn btn-primary">Send</button>
+    </div> <!-- Close main-page div -->
+
+    <!-- Update Profile Page -->
+    <div id="update-profile-page" class="page">
+        <div class="container min-vh-100 d-flex flex-column justify-content-center">
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h2 class="card-title text-center mb-4" data-i18n="updateProfile">Update Profile</h2>
+                            <!-- Profile Update Form -->
+                            <form id="update-profile-form" class="mb-4">
+                                <div class="mb-3">
+                                    <input type="email" 
+                                           class="form-control" 
+                                           id="update-email" 
+                                           name="email" 
+                                           placeholder="Email">
+                                </div>
+                                <div class="mb-3">
+                                    <input type="password" 
+                                           class="form-control" 
+                                           id="update-password" 
+                                           name="password" 
+                                           placeholder="New Password (optional)"
+                                           minlength="8" data-i18n="newPasswordoptional">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" data-i18n="currentAvatar">Current Avatar</label>
+                                    <div class="text-center mb-2">
+                                        <img id="current-avatar" 
+                                             src="/media/avatars/default.svg" 
+                                             alt="Current Avatar" 
+                                             class="rounded-circle" 
+                                             style="width: 100px; height: 100px; object-fit: cover;">
+                                    </div>
+                                    <label for="update-avatar" class="form-label" data-i18n="changeAvatar">Change Avatar</label>
+                                    <input type="file" 
+                                           class="form-control" 
+                                           id="update-avatar" 
+                                           name="avatar" 
+                                           accept="image/*">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100" data-i18n="updateProfile">Update Profile</button>
+                            </form>
+
+                            <!-- Update the 2FA Section -->
+                            <div id="2fa-section" class="border-top pt-4 mb-4">
+                                <h4 class="text-center mb-3" data-i18n="twoFASection">Two-Factor Authentication</h4>
+                                <div id="2fa-status" class="mb-3">
+                                    <!-- 2FA status will be inserted here by JavaScript -->
+                                </div>
+                                <form id="2fa-toggle-form">
+                                    <div class="mb-3">
+                                        <input type="password" 
+                                               id="2fa-password" 
+                                               class="form-control" 
+                                               placeholder="Confirm Password" data-i18n="confirmPassword"
+                                               required>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning w-100" data-i18n="enableDisable2FA">Enable/Disable 2FA</button>
+                                </form>
+                            </div>
+
+                            <button id="back-to-main" class="btn btn-secondary w-100" data-i18n="backttoMain">Back to Main</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Modals -->
     <!-- Users List Modal -->
     <div class="modal fade" id="usersListModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark text-light" style="background-color: rgba(33, 37, 41, 0.8) !important;">
+            <div class="modal-content bg-dark text-light">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Users List</h5>
+                    <h5 class="modal-title" data-i18n="usersList">Users List</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <input type="text" 
-                               id="user-search" 
-                               class="form-control bg-dark text-light" 
-                               placeholder="Search users...">
-                    </div>
                     <div class="table-responsive">
                         <table class="table table-dark table-hover">
                             <thead>
                                 <tr>
-                                    <th scope="col">Username</th>
-                                    <th scope="col">Actions</th>
-                                    <th scope="col">Status</th>
+                                    <th scope="col" data-i18n="username">Username</th>
+                                    <th scope="col" data-i18n="actions">Actions</th>
+                                    <th scope="col" data-i18n="status">Status</th>
                                 </tr>
                             </thead>
                             <tbody id="users-table-body">
@@ -439,7 +745,7 @@
         </div>
     </div>
 
-    <!-- User Profile Modal -->
+    <!-- Add this after the users modal -->
     <div class="modal fade" id="userProfileModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-light">
@@ -448,7 +754,32 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Profile content will be loaded dynamically -->
+                    <div class="text-center mb-4">
+                        <img id="modal-user-avatar" 
+                             src="/media/avatars/default.svg" 
+                             alt="User Avatar" 
+                             class="rounded-circle mb-3" 
+                             style="width: 100px; height: 100px; object-fit: cover;">
+                        <h4 id="modal-username" class="mb-3"></h4>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-muted">Match Statistics</h6>
+                            <p>Wins: <span id="modal-match-wins">0</span></p>
+                            <p>Total: <span id="modal-total-matches">0</span></p>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Tournament Statistics</h6>
+                            <p>Wins: <span id="modal-tourney-wins">0</span></p>
+                            <p>Total: <span id="modal-total-tourneys">0</span></p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <h6 class="text-muted mb-3">Recent Matches</h6>
+                        <div id="modal-recent-matches" class="border-top border-secondary pt-3">
+                            <!-- Recent matches will be populated here -->
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-primary" id="modal-chat-btn">Chat</button>
@@ -458,7 +789,7 @@
         </div>
     </div>
 
-    <!-- Add Friend Modal -->
+    <!-- Add this new modal after the userProfileModal -->
     <div class="modal fade" id="addFriendModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-light">
@@ -480,18 +811,18 @@
         </div>
     </div>
 
-    <!-- Friends List Modal -->
+    <!-- Add this modal at the bottom of the body, next to other modals -->
     <div class="modal fade" id="friendsListModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content bg-dark text-light">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Friends List</h5>
+                    <h5 class="modal-title" data-i18n="friendsList">Friends List</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="h6 mb-0">Your Friends</span>
-                        <button id="add-friend-btn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal">
+                        <span class="h6 mb-0" data-i18n="yourFriends">Your Friends</span>
+                        <button id="add-friend-btn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFriendModal" data-i18n="addFriend">
                             <i class="bi bi-person-plus"></i> Add Friend
                         </button>
                     </div>
@@ -499,9 +830,9 @@
                         <table class="table table-dark table-striped table-sm">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Status</th>
-                                    <th class="text-end">Actions</th>
+                                    <th data-i18n="name">Name</th>
+                                    <th data-i18n="status">Status</th>
+                                    <th class="text-end" data-i18n="actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="friend-list-body">
@@ -514,26 +845,9 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <!-- Bootstrap JS -->
+    <script src="/src/assets/js/pong.js"></script>
+    <script src="/src/assets/js/territory.js"></script>
+    <script src="index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Application Modules -->
-    <script type="module" src="/src/assets/js/modules/utils.js"></script>
-    <script type="module" src="/src/assets/js/modules/authManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/uiManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/chatManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/userManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/friendManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/profileManager.js"></script>
-    <script type="module" src="/src/assets/js/modules/router.js"></script>
-    
-    <!-- Main Application Entry -->
-    <script type="module" src="index.js"></script>
-    
-    <!-- Game Scripts -->
-    <script type="module" src="/src/assets/js/matchService.js"></script>
-    <script type="module" src="/src/assets/js/territory.js"></script>
-    <script type="module" src="/src/assets/js/pong.js"></script>
 </body>
 </html>
