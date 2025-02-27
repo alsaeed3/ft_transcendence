@@ -1,11 +1,16 @@
 // Import all required modules
-import { router } from '/src/assets/js/modules/router.js';
-import { AuthManager } from '/src/assets/js/modules/authManager.js';
-import { UIManager } from '/src/assets/js/modules/uiManager.js';
-import { UserManager } from '/src/assets/js/modules/userManager.js';
-import { FriendManager } from '/src/assets/js/modules/friendManager.js';
-import { ProfileManager } from '/src/assets/js/modules/profileManager.js';
-import { ChatManager } from '/src/assets/js/modules/chatManager.js';
+import { router } from '/assets/js/modules/router.js';
+import { AuthManager } from '/assets/js/modules/authManager.js';
+import { UIManager } from '/assets/js/modules/uiManager.js';
+import { UserManager } from '/assets/js/modules/userManager.js';
+import { FriendManager } from '/assets/js/modules/friendManager.js';
+import { ProfileManager } from '/assets/js/modules/profileManager.js';
+import { ChatManager } from '/assets/js/modules/chatManager.js';
+import { LanguageManager } from '/assets/js/modules/LanguageManager.js';
+
+// Initialize language support
+const savedLanguage = localStorage.getItem('language') || 'en';
+LanguageManager.setLanguage(savedLanguage);
 
 // Initialize router
 router.init();
@@ -86,6 +91,16 @@ function handleOAuthError(error) {
     UIManager.showPage(UIManager.pages.login);
 }
 
+// Add this function to handle URL parameters
+const getUrlParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        accessToken: params.get('access_token'),
+        refreshToken: params.get('refresh_token'),
+        authError: params.get('auth_error')
+    };
+};
+
 // Export all managers for use in other modules
 export {
     AuthManager,
@@ -93,5 +108,6 @@ export {
     UserManager,
     FriendManager,
     ProfileManager,
-    ChatManager
+    ChatManager,
+    LanguageManager
 };

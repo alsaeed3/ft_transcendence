@@ -5,6 +5,7 @@ import { ChatManager } from './chatManager.js';
 import { UserManager } from './userManager.js';
 import { FriendManager } from './friendManager.js';
 import { ProfileManager } from './profileManager.js';
+import { LanguageManager } from '/assets/js/modules/LanguageManager.js';
 
 const router = {
     routes: {},
@@ -249,6 +250,17 @@ const router = {
             showFriendsBtn.addEventListener('click', () => {
                 const friendsModal = new bootstrap.Modal(document.getElementById('friendsListModal'));
                 friendsModal.show();
+            });
+        }
+
+        // Add language selector handling
+        const languageSelect = document.getElementById('language-select');
+        if (languageSelect) {
+            // Set initial value
+            languageSelect.value = LanguageManager.currentLanguage || 'en';
+            
+            languageSelect.addEventListener('change', (e) => {
+                LanguageManager.setLanguage(e.target.value);
             });
         }
     },
@@ -748,7 +760,7 @@ const router = {
             component: '/assets/components/territory.html',
             init: async () => {
                 // Load territory.js script as a module
-                const { initTerritory } = await import('/src/assets/js/territory.js');
+                const { initTerritory } = await import('/assets/js/territory.js');
                 
                 // Initialize game after module is loaded
                 initTerritory();

@@ -1,6 +1,7 @@
 import { AuthManager } from './authManager.js';
 import { UIManager } from './uiManager.js';
 import { ChatManager } from './chatManager.js';
+import { LanguageManager } from './LanguageManager.js';
 
 export class UserManager {
     static usersModal = null;
@@ -73,11 +74,21 @@ export class UserManager {
             const users = await usersResponse.json();
             const blockedData = await blockedResponse.json();
             const tableBody = document.getElementById('users-table-body');
+            
+            // Update modal title and headers with translations
+            document.querySelector('#usersListModalLabel').setAttribute('data-i18n', 'usersList');
+            document.querySelector('#users-table th:nth-child(1)').setAttribute('data-i18n', 'username');
+            document.querySelector('#users-table th:nth-child(2)').setAttribute('data-i18n', 'status');
+            document.querySelector('#users-table th:nth-child(3)').setAttribute('data-i18n', 'actions');
+            
             tableBody.innerHTML = '';
 
             users.forEach(user => {
                 if (user.id !== AuthManager.currentUser.id) {
                     const isOnline = ChatManager.onlineUsers.has(user.id);
+                    const statusText = isOnline ? 
+                        LanguageManager.getTranslation('online') : 
+                        LanguageManager.getTranslation('offline');
                     const row = document.createElement('tr');
                     row.setAttribute('data-user-id', user.id);
                     
@@ -92,22 +103,23 @@ export class UserManager {
                     // Determine the actions cell content based on blocking status
                     let actionsContent;
                     if (isBlockedByUser) {
-                        actionsContent = '<span class="text-muted">Blocked by user</span>';
+                        actionsContent = `<span class="text-muted" data-i18n="blockedByUser">Blocked by user</span>`;
                     } else if (isBlocked) {
                         actionsContent = `
                             <button class="btn btn-sm btn-secondary block-btn" 
-                                    title="Unblock ${user.username}">
-                                Unblock
+                                    title="${LanguageManager.getTranslation('unblock')} ${user.username}">
+                                <span data-i18n="unblock">Unblock</span>
                             </button>`;
                     } else {
                         actionsContent = `
                             <button class="btn btn-sm btn-primary chat-btn" 
-                                    title="Chat with ${user.username}">
+                                    title="${LanguageManager.getTranslation('chat')} ${user.username}">
                                 <i class="bi bi-chat-dots"></i>
+                                <span data-i18n="chat">Chat</span>
                             </button>
                             <button class="btn btn-sm btn-danger block-btn" 
-                                    title="Block ${user.username}">
-                                Block
+                                    title="${LanguageManager.getTranslation('block')} ${user.username}">
+                                <span data-i18n="block">Block</span>
                             </button>`;
                     }
 
@@ -119,15 +131,18 @@ export class UserManager {
                                      class="rounded-circle me-2"
                                      style="width: 24px; height: 24px;"
                                      onerror="this.src='/media/avatars/default.svg'">
-                                <span class="user-username clickable-username">
+                                <span class="user-username">
                                     ${user.username}
                                 </span>
                             </div>
                         </td>
                         <td>
-                            <span class="badge" data-user-status="${user.id}" 
-                                  style="background-color: ${isOnline ? '#198754' : '#6c757d'}">
-                                ${isOnline ? 'Online' : 'Offline'}
+                            <span class="badge" 
+                                  data-user-status="${user.id}"
+                                  data-user-name="${user.username}"
+                                  style="background-color: ${isOnline ? '#198754' : '#6c757d'}"
+                                  data-i18n="${isOnline ? 'online' : 'offline'}">
+                                ${statusText}
                             </span>
                         </td>
                         <td class="text-end">
@@ -140,7 +155,6 @@ export class UserManager {
                         const chatBtn = row.querySelector('.chat-btn');
                         if (chatBtn && !isBlocked) {
                             chatBtn.addEventListener('click', () => {
-                                // Remove focus before hiding modal
                                 chatBtn.blur();
                                 const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
                                 if (modal) {
@@ -153,7 +167,6 @@ export class UserManager {
                         const blockBtn = row.querySelector('.block-btn');
                         if (blockBtn) {
                             blockBtn.addEventListener('click', async () => {
-                                // Remove focus before any potential modal updates
                                 blockBtn.blur();
                                 if (isBlocked) {
                                     const success = await ChatManager.unblockUser(user.id);
@@ -180,6 +193,9 @@ export class UserManager {
                     UIManager.makeUsernameClickable(usernameEl, user.id, user.username);
                 }
             });
+
+            // Update translations after adding new content
+            LanguageManager.updateContent();
         } catch (error) {
             console.error('Error updating users list:', error);
             UIManager.showToast('Failed to update users list', 'danger');

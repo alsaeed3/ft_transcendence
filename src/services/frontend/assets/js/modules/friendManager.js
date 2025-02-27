@@ -1,6 +1,7 @@
 import { AuthManager } from './authManager.js';
 import { UIManager } from './uiManager.js';
 import { ChatManager } from './chatManager.js';
+import { LanguageManager } from './LanguageManager.js';
 
 export class FriendManager {
     static friendsModal = null;
@@ -269,6 +270,12 @@ export class FriendManager {
                 return;
             }
 
+            // Update modal title and headers with translations
+            document.querySelector('#friendsListModalLabel').setAttribute('data-i18n', 'friendsList');
+            document.querySelector('#friends-table th:nth-child(1)').setAttribute('data-i18n', 'username');
+            document.querySelector('#friends-table th:nth-child(2)').setAttribute('data-i18n', 'status');
+            document.querySelector('#friends-table th:nth-child(3)').setAttribute('data-i18n', 'actions');
+
             friendListBody.innerHTML = '';
 
             if (!Array.isArray(friends) || friends.length === 0) {
@@ -277,7 +284,7 @@ export class FriendManager {
                     <td colspan="3" class="text-center py-4">
                         <div class="text-muted">
                             <i class="bi bi-people fs-2"></i>
-                            <p class="mt-2">No friends added yet</p>
+                            <p class="mt-2" data-i18n="noFriendsYet">No friends added yet</p>
                         </div>
                     </td>
                 `;
@@ -287,6 +294,9 @@ export class FriendManager {
 
             friends.forEach(friend => {
                 const isOnline = ChatManager.onlineUsers.has(friend.id);
+                const statusText = isOnline ? 
+                    LanguageManager.getTranslation('online') : 
+                    LanguageManager.getTranslation('offline');
                 
                 const row = document.createElement('tr');
                 row.setAttribute('data-user-id', friend.id);
@@ -298,7 +308,7 @@ export class FriendManager {
                                  class="rounded-circle me-2"
                                  style="width: 24px; height: 24px;"
                                  onerror="this.src='/media/avatars/default.svg'">
-                            <span class="friend-username clickable-username" data-user-id="${friend.id}">
+                            <span class="friend-username">
                                 ${friend.username}
                             </span>
                         </div>
@@ -307,18 +317,21 @@ export class FriendManager {
                         <span class="badge" 
                               data-user-status="${friend.id}"
                               data-user-name="${friend.username}"
-                              style="background-color: ${isOnline ? '#198754' : '#6c757d'}">
-                            ${isOnline ? 'Online' : 'Offline'}
+                              style="background-color: ${isOnline ? '#198754' : '#6c757d'}"
+                              data-i18n="${isOnline ? 'online' : 'offline'}">
+                            ${statusText}
                         </span>
                     </td>
                     <td class="text-end friend-actions">
                         <button class="btn btn-sm btn-primary me-1 chat-btn" 
-                                title="Chat with ${friend.username}">
+                                title="${LanguageManager.getTranslation('chat')} ${friend.username}">
                             <i class="bi bi-chat-dots"></i>
+                            <span data-i18n="chat">Chat</span>
                         </button>
                         <button class="btn btn-sm btn-danger remove-friend" 
-                                title="Remove ${friend.username}">
+                                title="${LanguageManager.getTranslation('removeFriend')} ${friend.username}">
                             <i class="bi bi-person-x"></i>
+                            <span data-i18n="removeFriend">Remove</span>
                         </button>
                     </td>
                 `;
@@ -326,7 +339,6 @@ export class FriendManager {
                 // Add event listeners
                 const chatBtn = row.querySelector('.chat-btn');
                 chatBtn.addEventListener('click', () => {
-                    // Hide the friends list modal before starting chat
                     if (this.friendsModal) {
                         this.friendsModal.hide();
                     }
@@ -336,17 +348,17 @@ export class FriendManager {
                 const removeBtn = row.querySelector('.remove-friend');
                 removeBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    if (confirm(`Are you sure you want to remove ${friend.username} from your friends list?`)) {
+                    const confirmMessage = LanguageManager.getTranslation('confirmRemoveFriend').replace('{username}', friend.username);
+                    if (confirm(confirmMessage)) {
                         await this.removeFriend(friend.id);
                     }
                 });
 
                 friendListBody.appendChild(row);
-
-                // After creating the row, make username clickable
-                const usernameEl = row.querySelector('.friend-username');
-                UIManager.makeUsernameClickable(usernameEl, friend.id, friend.username);
             });
+
+            // Update translations after adding new content
+            LanguageManager.updateContent();
         } catch (error) {
             console.error('Error updating friend list UI:', error);
             UIManager.showToast('Failed to update friends list', 'danger');

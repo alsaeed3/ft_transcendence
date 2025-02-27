@@ -1,5 +1,6 @@
 import { AuthManager } from './modules/authManager.js';
 import { UIManager } from './modules/uiManager.js';
+import { LanguageManager } from './modules/LanguageManager.js';
 
 // Game initialization function
 function initGame(mode = 'AI') {
@@ -1221,6 +1222,19 @@ function init4PlayerGame() {
 
     // Return cleanup function
     return cleanup;
+}
+
+// Add translation support for game messages
+function showGameMessage(key, ...args) {
+    const message = LanguageManager.getText(key);
+    // Replace placeholders with args
+    const formatted = args.reduce((msg, arg, i) => 
+        msg.replace(`{${i}}`, arg), message);
+    
+    const messageElement = document.getElementById('game-message');
+    if (messageElement) {
+        messageElement.textContent = formatted;
+    }
 }
 
 // Make functions available globally

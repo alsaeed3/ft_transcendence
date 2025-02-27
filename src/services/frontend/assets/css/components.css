@@ -17,3 +17,13 @@
     background-color: #0056b3;
     border-color: #0056b3;
 }
+
+/* Language selector styles */
+#language-select {
+    min-width: 100px;
+}
+
+#language-select option {
+    background-color: #1e2a3a;
+    color: white;
+}

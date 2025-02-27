@@ -4,7 +4,7 @@
         <div class="col-md-6 col-lg-4">
             <div class="card bg-secondary text-white">
                 <div class="card-body">
-                    <h2 class="card-title text-center mb-4">Update Profile</h2>
+                    <h2 class="card-title text-center mb-4" data-i18n="updateProfile">Update Profile</h2>
                     <!-- Profile Update Form -->
                     <form id="update-profile-form" class="mb-4">
                         <div class="mb-3">
@@ -12,6 +12,7 @@
                                    class="form-control" 
                                    id="update-email" 
                                    name="email" 
+                                   data-i18n="email"
                                    placeholder="Email">
                         </div>
                         <div class="mb-3">
@@ -19,11 +20,12 @@
                                    class="form-control" 
                                    id="update-password" 
                                    name="password" 
+                                   data-i18n="newPasswordoptional"
                                    placeholder="New Password (optional)"
                                    minlength="8">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Current Avatar</label>
+                            <label class="form-label" data-i18n="currentAvatar">Current Avatar</label>
                             <div class="text-center mb-2">
                                 <img id="current-avatar" 
                                      src="/media/avatars/default.svg" 
@@ -38,7 +40,7 @@
                                    name="avatar" 
                                    accept="image/*">
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Update Profile</button>
+                        <button type="submit" class="btn btn-primary w-100" data-i18n="updateProfile">Update Profile</button>
                     </form>
 
                     <!-- Update the 2FA Section -->
