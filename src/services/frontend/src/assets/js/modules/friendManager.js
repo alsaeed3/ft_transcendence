@@ -38,14 +38,17 @@ export class FriendManager {
             friendsListElement.addEventListener('shown.bs.modal', async () => {
                 await this.updateFriendListUI();
                 // Request status update for all friends
-            const friends = await this.fetchFriendList();
-            if (friends.length > 0 && ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
-                ChatManager.statusSocket.send(JSON.stringify({
-                    type: 'get_status',
-                    user_ids: friends.map(friend => friend.id)
-                }));
-            }
-        });
+                const friendIds = Array.from(document.querySelectorAll('#friend-list-body [data-user-status]'))
+                    .map(el => parseInt(el.getAttribute('data-user-status')))
+                    .filter(id => !isNaN(id));
+                
+                if (friendIds.length > 0 && ChatManager.statusSocket?.readyState === WebSocket.OPEN) {
+                    ChatManager.statusSocket.send(JSON.stringify({
+                        type: 'get_status',
+                        user_ids: friendIds
+                    }));
+                }
+            });
         }
 
         if (addFriendElement) {
@@ -135,8 +138,8 @@ export class FriendManager {
             // Update all friends' status based on the initial status list
             const statusBadges = document.querySelectorAll('#friend-list-body [data-user-status]');
             statusBadges.forEach(badge => {
-                const userId = badge.getAttribute('data-user-status');
-                const isOnline = data.online_users.includes(parseInt(userId));
+                const userId = parseInt(badge.getAttribute('data-user-status'));
+                const isOnline = data.online_users.includes(userId);
                 this.updateStatusBadge(badge, isOnline);
             });
         } else if (data.type === 'status_update') {
@@ -149,7 +152,8 @@ export class FriendManager {
     }
 
     static updateStatusBadge(badge, isOnline) {
-        badge.className = `badge ${isOnline ? 'bg-success' : 'bg-secondary'}`;
+        if (!badge) return;
+        badge.style.backgroundColor = isOnline ? '#198754' : '#6c757d';
         badge.textContent = isOnline ? 'Online' : 'Offline';
     }
 
@@ -282,9 +286,7 @@ export class FriendManager {
             }
 
             friends.forEach(friend => {
-                // Get the online status from the users list
-                const userInList = document.querySelector(`#users-table-body [data-user-status="${friend.id}"]`);
-                const isOnline = userInList?.classList.contains('bg-success') || false;
+                const isOnline = ChatManager.onlineUsers.has(friend.id);
                 
                 const row = document.createElement('tr');
                 row.setAttribute('data-user-id', friend.id);
@@ -302,9 +304,10 @@ export class FriendManager {
                         </div>
                     </td>
                     <td>
-                        <span class="badge ${isOnline ? 'bg-success' : 'bg-secondary'}" 
+                        <span class="badge" 
                               data-user-status="${friend.id}"
-                              data-user-name="${friend.username}">
+                              data-user-name="${friend.username}"
+                              style="background-color: ${isOnline ? '#198754' : '#6c757d'}">
                             ${isOnline ? 'Online' : 'Offline'}
                         </span>
                     </td>
