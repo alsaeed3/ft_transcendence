@@ -70,7 +70,8 @@ export class LanguageManager {
 				enterCurrentPassword: "Enter your current password",
 				chooseFile: "Choose File",
 				noFileChosen: "No file chosen",
-				browseFiles: "Browse Files"
+				browseFiles: "Browse Files",
+				noFriendsYet: "No friends added yet",
 		},
 		ar: {
 				welcome: "مرحباً",
@@ -142,7 +143,8 @@ export class LanguageManager {
 				enterCurrentPassword: "أدخل كلمة المرور الحالية",
 				chooseFile: "اختيار ملف",
 				noFileChosen: "لم يتم اختيار ملف",
-				browseFiles: "تصفح الملفات"
+				browseFiles: "تصفح الملفات",
+				noFriendsYet: "لم تتم إضافة أصدقاء بعد",
 		},
 		ml: {
 				welcome: "സ്വാഗതം",
@@ -214,7 +216,8 @@ export class LanguageManager {
 				enterCurrentPassword: "നിലവിലെ പാസ്‌വേഡ് നൽകുക",
 				chooseFile: "ഫയൽ തിരഞ്ഞെടുക്കുക",
 				noFileChosen: "ഫയലൊന്നും തിരഞ്ഞെടുത്തിട്ടില്ല",
-				browseFiles: "ഫയലുകൾ ബ്രൗസ് ചെയ്യുക"
+				browseFiles: "ഫയലുകൾ ബ്രൗസ് ചെയ്യുക",
+				noFriendsYet: "സുഹൃത്തുക്കളൊന്നും ചേർത്തിട്ടില്ല",
 		}
 	};
 

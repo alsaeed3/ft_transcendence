@@ -270,12 +270,6 @@ export class FriendManager {
                 return;
             }
 
-            // Update modal title and headers with translations
-            document.querySelector('#friendsListModalLabel').setAttribute('data-i18n', 'friendsList');
-            document.querySelector('#friends-table th:nth-child(1)').setAttribute('data-i18n', 'username');
-            document.querySelector('#friends-table th:nth-child(2)').setAttribute('data-i18n', 'status');
-            document.querySelector('#friends-table th:nth-child(3)').setAttribute('data-i18n', 'actions');
-
             friendListBody.innerHTML = '';
 
             if (!Array.isArray(friends) || friends.length === 0) {
@@ -284,11 +278,12 @@ export class FriendManager {
                     <td colspan="3" class="text-center py-4">
                         <div class="text-muted">
                             <i class="bi bi-people fs-2"></i>
-                            <p class="mt-2" data-i18n="noFriendsYet">No friends added yet</p>
+                            <p class="mt-2 text-light" data-i18n="noFriendsYet">No friends added yet</p>
                         </div>
                     </td>
                 `;
                 friendListBody.appendChild(emptyRow);
+                LanguageManager.updateContent();
                 return;
             }
 
