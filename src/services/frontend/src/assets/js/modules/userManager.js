@@ -69,9 +69,33 @@ export class UserManager {
                     row.setAttribute('data-user-id', user.id);
                     
                     // Check if either user has blocked the other
-                    const isBlocked = user.is_blocked || blockedData.blocked_by.includes(user.id);
-                    if (isBlocked) {
+                    const isBlocked = user.is_blocked;
+                    const isBlockedByUser = blockedData.blocked_by.includes(user.id);
+                    
+                    if (isBlocked || isBlockedByUser) {
                         row.classList.add('blocked-user');
+                    }
+
+                    // Determine the actions cell content based on blocking status
+                    let actionsContent;
+                    if (isBlockedByUser) {
+                        actionsContent = '<span class="text-muted">Blocked by user</span>';
+                    } else if (isBlocked) {
+                        actionsContent = `
+                            <button class="btn btn-sm btn-secondary block-btn" 
+                                    title="Unblock ${user.username}">
+                                Unblock
+                            </button>`;
+                    } else {
+                        actionsContent = `
+                            <button class="btn btn-sm btn-primary chat-btn" 
+                                    title="Chat with ${user.username}">
+                                <i class="bi bi-chat-dots"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger block-btn" 
+                                    title="Block ${user.username}">
+                                Block
+                            </button>`;
                     }
 
                     row.innerHTML = `
@@ -94,50 +118,42 @@ export class UserManager {
                             </span>
                         </td>
                         <td class="text-end">
-                            ${!blockedData.blocked_by.includes(user.id) ? `
-                                <button class="btn btn-sm btn-primary chat-btn" 
-                                        ${isBlocked ? 'disabled' : ''}
-                                        title="Chat with ${user.username}">
-                                    <i class="bi bi-chat-dots"></i>
-                                </button>
-                                <button class="btn btn-sm ${user.is_blocked ? 'btn-secondary' : 'btn-danger'} block-btn" 
-                                        title="${user.is_blocked ? 'Unblock' : 'Block'} ${user.username}">
-                                    ${user.is_blocked ? 'Unblock' : 'Block'}
-                                </button>
-                            ` : '<span class="text-muted">Blocked by user</span>'}
+                            ${actionsContent}
                         </td>
                     `;
 
                     // Add event listeners
-                    if (!blockedData.blocked_by.includes(user.id)) {
+                    if (!isBlockedByUser) {
                         const chatBtn = row.querySelector('.chat-btn');
-                        chatBtn?.addEventListener('click', () => {
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
-                            if (modal) {
-                                modal.hide();
-                            }
-                            ChatManager.startChat(user.id, user.username);
-                        });
+                        if (chatBtn && !isBlocked) {
+                            chatBtn.addEventListener('click', () => {
+                                const modal = bootstrap.Modal.getInstance(document.getElementById('usersListModal'));
+                                if (modal) {
+                                    modal.hide();
+                                }
+                                ChatManager.startChat(user.id, user.username);
+                            });
+                        }
 
                         const blockBtn = row.querySelector('.block-btn');
-                        blockBtn?.addEventListener('click', async () => {
-                            const isBlocked = row.classList.contains('blocked-user');
-                            if (isBlocked) {
-                                const success = await ChatManager.unblockUser(user.id);
-                                if (success) {
-                                    await this.loadUsersList(); // Refresh the list
-                                }
-                            } else {
-                                const success = await ChatManager.blockUser(user.id);
-                                if (success) {
-                                    await this.loadUsersList(); // Refresh the list
-                                    // Close chat if it's open with the blocked user
-                                    if (ChatManager.currentChatPartner?.id === user.id) {
-                                        ChatManager.closeChat();
+                        if (blockBtn) {
+                            blockBtn.addEventListener('click', async () => {
+                                if (isBlocked) {
+                                    const success = await ChatManager.unblockUser(user.id);
+                                    if (success) {
+                                        await this.loadUsersList();
+                                    }
+                                } else {
+                                    const success = await ChatManager.blockUser(user.id);
+                                    if (success) {
+                                        await this.loadUsersList();
+                                        if (ChatManager.currentChatPartner?.id === user.id) {
+                                            ChatManager.closeChat();
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
                     }
 
                     tableBody.appendChild(row);

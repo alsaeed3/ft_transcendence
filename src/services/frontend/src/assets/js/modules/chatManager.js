@@ -203,6 +203,22 @@ export class ChatManager {
             return;
         }
 
+        // Check if user is blocked
+        try {
+            const blockedResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/blocked/`);
+            if (!blockedResponse.ok) throw new Error('Failed to check blocked status');
+            
+            const blockedData = await blockedResponse.json();
+            if (blockedData.blocked_by.includes(userId)) {
+                UIManager.showToast('Cannot start chat: You have been blocked by this user', 'warning');
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking blocked status:', error);
+            UIManager.showToast('Unable to verify chat availability', 'danger');
+            return;
+        }
+
         const userRow = document.querySelector(`[data-user-id="${userId}"]`);
         if (userRow?.classList.contains('blocked-user')) {
             UIManager.showToast('Cannot chat with blocked user', 'warning');
@@ -439,12 +455,23 @@ export class ChatManager {
             const response = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/unblock/${userId}/`, {
                 method: 'POST'
             });
-            
-            if (!response.ok) throw new Error('Failed to unblock user');
-            
-            this.updateBlockedStatus(userId, false);
-            UIManager.showToast('User unblocked successfully', 'success');
 
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to unblock user');
+            }
+
+            // Update blocked users list
+            const blockedResponse = await AuthManager.fetchWithAuth(`${AuthManager.API_BASE}users/blocked/`);
+            if (blockedResponse.ok) {
+                const blockedData = await blockedResponse.json();
+                this.blockedUsers = new Set(blockedData.blocked);
+            }
+
+            // Only try to update UI if elements exist
+            this.updateBlockedStatus(userId, false);
+
+            UIManager.showToast('User unblocked successfully', 'success');
             return true;
         } catch (error) {
             console.error('Error unblocking user:', error);
@@ -454,39 +481,48 @@ export class ChatManager {
     }
 
     static updateBlockedStatus(userId, isBlocked) {
-        const userRow = document.querySelector(`[data-user-id="${userId}"]`);
-        if (userRow) {
-            const chatBtn = userRow.querySelector('.chat-btn');
-            const blockBtn = userRow.querySelector('.block-btn');
-            const statusBadge = userRow.querySelector(`[data-user-status="${userId}"]`);
-            const wasOnline = statusBadge?.classList.contains('bg-success');
-            
-            if (isBlocked) {
-                userRow.classList.add('blocked-user');
-                chatBtn.disabled = true;
-                blockBtn.textContent = 'Unblock';
-                blockBtn.classList.replace('btn-danger', 'btn-secondary');
-            } else {
-                userRow.classList.remove('blocked-user');
-                chatBtn.disabled = false;
-                blockBtn.textContent = 'Block';
-                blockBtn.classList.replace('btn-secondary', 'btn-danger');
-            }
+        try {
+            // Find all relevant UI elements
+            const chatContainer = document.getElementById('chat-container');
+            const blockBtn = document.querySelector(`[data-user-id="${userId}"] .block-btn`);
+            const chatBtn = document.querySelector(`[data-user-id="${userId}"] .chat-btn`);
 
-            if (statusBadge) {
-                statusBadge.className = `badge ${wasOnline ? 'bg-success' : 'bg-secondary'}`;
-                statusBadge.textContent = wasOnline ? 'Online' : 'Offline';
-            }
-
-            if (this.currentChatPartner?.id === userId) {
-                const chatHeader = document.getElementById('chat-header');
-                if (chatHeader) {
-                    const blockButton = chatHeader.querySelector('#block-user');
-                    if (blockButton) {
-                        blockButton.className = `btn btn-sm ${isBlocked ? 'btn-secondary' : 'btn-danger'} me-2`;
-                    }
+            // Update block button if it exists
+            if (blockBtn) {
+                if (isBlocked) {
+                    blockBtn.classList.remove('btn-danger');
+                    blockBtn.classList.add('btn-secondary');
+                    blockBtn.textContent = 'Unblock';
+                } else {
+                    blockBtn.classList.remove('btn-secondary');
+                    blockBtn.classList.add('btn-danger');
+                    blockBtn.textContent = 'Block';
                 }
             }
+
+            // Update chat container if it exists and is for the relevant user
+            if (chatContainer && this.currentChatPartner?.id === userId) {
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.getElementById('send-button');
+                
+                if (messageInput && sendButton) {
+                    messageInput.disabled = isBlocked;
+                    sendButton.disabled = isBlocked;
+                }
+
+                if (isBlocked) {
+                    this.closeChat();
+                }
+            }
+
+            // Update chat button if it exists
+            if (chatBtn) {
+                chatBtn.style.display = isBlocked ? 'none' : 'inline-block';
+            }
+
+        } catch (error) {
+            console.error('Error updating blocked status UI:', error);
+            // Don't throw the error - just log it and continue
         }
     }
 
@@ -531,13 +567,26 @@ export class ChatManager {
             // Handle block updates
             const { blocker_id, blocked_id } = data;
             
-            // Close chat if necessary
-            if (this.currentChatPartner && 
-                (this.currentChatPartner.id === blocker_id || this.currentChatPartner.id === blocked_id)) {
-                this.closeChat();
+            // If current user is the blocked user, update their UI
+            if (blocked_id === AuthManager.currentUser?.id) {
+                // Find and update the blocker's row in the users list
+                const userRow = document.querySelector(`[data-user-id="${blocker_id}"]`);
+                if (userRow) {
+                    const chatBtn = userRow.querySelector('.chat-btn');
+                    const actionCell = userRow.querySelector('td:last-child');
+                    if (actionCell) {
+                        actionCell.innerHTML = '<span class="text-muted">Blocked by user</span>';
+                    }
+                }
+                
+                // Close chat if it's open with the blocker
+                if (this.currentChatPartner && this.currentChatPartner.id === blocker_id) {
+                    this.closeChat();
+                    UIManager.showToast('You have been blocked by this user', 'warning');
+                }
             }
             
-            // Refresh users list
+            // Refresh users list to update UI
             UserManager.refreshUsersList();
         }
     }
