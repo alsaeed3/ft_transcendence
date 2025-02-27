@@ -1,5 +1,4 @@
 // Import required modules
-// import { AuthManager, UIManager, UserManager, FriendManager, ProfileManager, ChatManager } from '/index.js';
 import { AuthManager } from './authManager.js';
 import { UIManager } from './uiManager.js';
 import { ChatManager } from './chatManager.js';
@@ -7,9 +6,6 @@ import { UserManager } from './userManager.js';
 import { FriendManager } from './friendManager.js';
 import { ProfileManager } from './profileManager.js';
 
-
-
-// Create and export the router instance
 const router = {
     routes: {},
     currentPage: null,
@@ -779,17 +775,6 @@ const router = {
                 // Initialize 4-player game
                 const cleanup = window.init4PlayerGame();
                 return cleanup;
-            }
-        });
-
-        // Add route for user profile modal
-        this.addRoute('#/user-profile', {
-            component: '/assets/components/userProfile.html',
-            init: async () => {
-                const userId = new URLSearchParams(window.location.search).get('id');
-                if (userId) {
-                    await UIManager.showUserProfile(userId);
-                }
             }
         });
 
