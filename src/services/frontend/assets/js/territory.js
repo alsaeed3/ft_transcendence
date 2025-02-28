@@ -1,5 +1,6 @@
 import { AuthManager } from './modules/authManager.js';
 import { UIManager } from './modules/uiManager.js';
+import { LanguageManager } from './modules/LanguageManager.js';
 
 let gameStartTime;
 
@@ -31,25 +32,25 @@ function initTerritory() {
     const ctx = canvas.getContext('2d');
     gameContainer.appendChild(canvas);
 
-    // Create score display
+    // Create score display with translations
     const scoreDisplay = document.createElement('div');
     scoreDisplay.className = 'score-display';
     scoreDisplay.innerHTML = `
-        <div class="player-score" style="color: #FF0000">Red: 0</div>
-        <div class="player-score" style="color: #4444FF">Blue: 0</div>
-        <div class="player-score" style="color: #00FF00">Green: 0</div>
+        <div class="player-score" style="color: #FF0000"><span data-i18n="redPlayer">Red</span>: 0</div>
+        <div class="player-score" style="color: #4444FF"><span data-i18n="bluePlayer">Blue</span>: 0</div>
+        <div class="player-score" style="color: #00FF00"><span data-i18n="greenPlayer">Green</span>: 0</div>
     `;
     gameContainer.appendChild(scoreDisplay);
 
-    // Create instructions
+    // Create instructions with translations
     const instructions = document.createElement('div');
     instructions.className = 'instructions';
     instructions.innerHTML = `
-        <h3>Controls:</h3>
-        <p>Red Player: WASD</p>
-        <p>Blue Player: IJKL</p>
-        <p>Green Player: Arrow Keys</p>
-        <p>Capture territory by moving around!</p>
+        <h3 data-i18n="playerControls">Controls:</h3>
+        <p data-i18n="redControls">Red Player: WASD</p>
+        <p data-i18n="blueControls">Blue Player: IJKL</p>
+        <p data-i18n="greenControls">Green Player: Arrow Keys</p>
+        <p data-i18n="territoryInstructions">Capture territory by moving around!</p>
     `;
     gameContainer.appendChild(instructions);
 
@@ -193,8 +194,12 @@ function initTerritory() {
         }
         
         // Show winner announcement
-        const colors = ['Red', 'Light Blue', 'Green'];
-        announcementContainer.textContent = `${colors[winner - 1]} Player Wins!`;
+        const colors = [
+            LanguageManager.getTranslation('redPlayer'),
+            LanguageManager.getTranslation('bluePlayer'),
+            LanguageManager.getTranslation('greenPlayer')
+        ];
+        announcementContainer.textContent = LanguageManager.getTranslation('playerWins').replace('{0}', colors[winner - 1]);
         
         // Save match result
         const matchData = {
@@ -258,6 +263,9 @@ function initTerritory() {
 
     // Start game
     updateGame();
+
+    // Apply translations after adding elements
+    LanguageManager.updateContent();
 
     // Return game controller
     return {
