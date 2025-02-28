@@ -90,6 +90,17 @@ export class LanguageManager {
 				next: "Next",
 				versus: "VS",
 				winnerAdvances: "Winner advances to play against {0}",
+				tournamentSetup: "Tournament Setup",
+				numberOfPlayers: "Number of Players",
+				players4: "4 Players",
+				players8: "8 Players",
+				player: "Player",
+				playerYou: "Player 1 (You)",
+				startTournament: "Start Tournament",
+				playerNicknameError: "All player nicknames are required",
+				nicknameLengthError: "Nicknames must be 8 characters or less",
+				nicknameCharError: "Nicknames can only contain letters and numbers",
+				uniqueNicknameError: "Each player must have a unique nickname"
 		},
 		ar: {
 				welcome: "مرحباً",
@@ -181,6 +192,17 @@ export class LanguageManager {
 				next: "التالي",
 				versus: "ضد",
 				winnerAdvances: "الفائز يتقدم للعب ضد {0}",
+				tournamentSetup: "إعداد البطولة",
+				numberOfPlayers: "عدد اللاعبين",
+				players4: "4 لاعبين",
+				players8: "8 لاعبين",
+				player: "اللاعب",
+				playerYou: "اللاعب 1 (أنت)",
+				startTournament: "بدأ البطولة",
+				playerNicknameError: "جميع اسماء اللاعبين مطلوبة",
+				nicknameLengthError: "يجب أن تكون أسماء اللاعبين 8 أحرف أو أقل",
+				nicknameCharError: "يمكن أن تحتوي أسماء اللاعبين على حروف وأرقام فقط",
+				uniqueNicknameError: "يجب أن يكون لكل لاعب اسم مميز"
 		},
 		ml: {
 				welcome: "സ്വാഗതം",
@@ -272,6 +294,17 @@ export class LanguageManager {
 				next: "അടുത്തത്",
 				versus: "VS",
 				winnerAdvances: "വിജയി {0}-നെതിരെ കളിക്കും",
+				tournamentSetup: "ടൂർണമെന്റ് സൃഷ്ടിക്കുക",
+				numberOfPlayers: "ലായിപ്പ്കൾ എണ്ണം",
+				players4: "4 ലായിപ്പ്കൾ",
+				players8: "8 ലായിപ്പ്കൾ",
+				player: "ലായിപ്പ്",
+				playerYou: "ലായിപ്പ് 1 (നിങ്ങളോ)",
+				startTournament: "ടൂർണമെന്റ് തുടങ്ങുക",
+				playerNicknameError: "ലായിപ്പ്കൾക്ക് പനാമങ്ങൾ ആവശ്യമാണ്",
+				nicknameLengthError: "പനാമങ്ങൾ 8 അക്ഷരങ്ങളോ കുറയുന്നതായിരിക്കണം",
+				nicknameCharError: "പനാമങ്ങൾ അക്ഷരങ്ങളോ സംഖ്യങ്ങളോ ഉള്ളിരിക്കണം",
+				uniqueNicknameError: "ഒരു ലായിപ്പ്ക്ക് പനാമം അന്ന്യമായിരിക്കണം"
 		}
 	};
 

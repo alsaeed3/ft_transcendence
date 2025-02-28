@@ -724,15 +724,10 @@ const router = {
                         inputs.forEach(input => {
                             const nickname = input.value.trim();
                             
-                            if (!nickname || nickname.length > 8 || !/^[a-zA-Z0-9]+$/.test(nickname) || players.includes(nickname)) {
-                                hasError = true;
-                                input.classList.add('is-invalid');
-                                if (!nickname) errorMessages.add('All player nicknames are required');
-                                if (nickname.length > 8) errorMessages.add('Nicknames must be 8 characters or less');
-                                if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('Nicknames can only contain letters and numbers');
-                                if (players.includes(nickname)) errorMessages.add('Each player must have a unique nickname');
-                                return;
-                            }
+                            if (!nickname) errorMessages.add('playerNicknameError');
+                            if (nickname.length > 8) errorMessages.add('nicknameLengthError');
+                            if (!/^[a-zA-Z0-9]+$/.test(nickname)) errorMessages.add('nicknameCharError');
+                            if (players.includes(nickname)) errorMessages.add('uniqueNicknameError');
                             
                             input.classList.remove('is-invalid');
                             players.push(nickname);
@@ -741,7 +736,7 @@ const router = {
                         if (hasError) {
                             const alert = document.createElement('div');
                             alert.className = 'alert alert-danger mt-3';
-                            alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+                            alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => `<li>${LanguageManager.getTranslation(msg)}</li>`).join('')}</ul>`;
                             const existingAlert = document.querySelector('.alert');
                             if (existingAlert) existingAlert.remove();
                             setupForm.insertBefore(alert, setupForm.firstChild);

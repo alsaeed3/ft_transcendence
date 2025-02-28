@@ -1,26 +1,26 @@
 <div class="container min-vh-100 d-flex justify-content-center align-items-center">
     <div class="card bg-dark text-white" style="width: 400px;">
         <div class="card-header text-center">
-            <h4>Tournament Setup</h4>
+            <h4 data-i18n="tournamentSetup">Tournament Setup</h4>
         </div>
         <div class="card-body">
             <!-- Player Count Selection -->
             <div class="mb-3">
-                <label class="form-label">Number of Players</label>
+                <label class="form-label" data-i18n="numberOfPlayers">Number of Players</label>
                 <div class="btn-group w-100 mb-3">
-                    <button class="btn btn-primary active player-count-btn" data-count="4">4 Players</button>
-                    <button class="btn btn-primary player-count-btn" data-count="8">8 Players</button>
+                    <button class="btn btn-primary active player-count-btn" data-count="4" data-i18n="players4">4 Players</button>
+                    <button class="btn btn-primary player-count-btn" data-count="8" data-i18n="players8">8 Players</button>
                 </div>
             </div>
 
             <form id="tournamentForm">
                 <div class="mb-3">
-                    <label for="currentPlayer" class="form-label">Player 1 (You)</label>
+                    <label for="currentPlayer" class="form-label" data-i18n="playerYou">Player 1 (You)</label>
                     <input type="text" class="form-control" id="currentPlayer" required>
                 </div>
                 <div id="playerInputs"></div>
-                <button type="submit" class="btn btn-primary w-100 mb-3">Start Tournament</button>
-                <button type="button" id="cancelBtn" class="btn btn-secondary w-100">Cancel</button>
+                <button type="submit" class="btn btn-primary w-100 mb-3" data-i18n="startTournament">Start Tournament</button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary w-100" data-i18n="cancel">Cancel</button>
             </form>
         </div>
     </div>
@@ -56,11 +56,13 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let i = 2; i <= count; i++) {
             playerInputs.innerHTML += `
                 <div class="mb-3">
-                    <label for="player${i}" class="form-label">Player ${i}</label>
+                    <label for="player${i}" class="form-label" data-i18n="player">${LanguageManager.getTranslation('player')} ${i}</label>
                     <input type="text" class="form-control" id="player${i}" required>
                 </div>
             `;
         }
+        // Update translations for newly added elements
+        LanguageManager.updateContent();
     }
 
     // Initialize with default player count (4)
@@ -97,6 +99,19 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.removeItem('tournamentPlayers');
         window.location.href = '/';
     });
+
+    // Update error messages to use translations
+    if (hasError) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger mt-3';
+        alert.innerHTML = `<ul class="mb-0">${[...errorMessages].map(msg => 
+            `<li>${LanguageManager.getTranslation(msg)}</li>`
+        ).join('')}</ul>`;
+        const existingAlert = document.querySelector('.alert');
+        if (existingAlert) existingAlert.remove();
+        form.insertBefore(alert, form.firstChild);
+        return;
+    }
 });
 </script>
 </html> 
