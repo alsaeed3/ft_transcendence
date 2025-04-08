@@ -4,10 +4,10 @@ A full-stack, real-time web application developed as a capstone project at 42 Ab
 
 # Our Team 🎮✨
 
-1- Me.
-2- Mahmoud Abdelsalam.
-3- Abdullah Salem.
-4- Lakshmi.
+- Me.
+- Mahmoud Abdelsalam.
+- Abdullah Salem.
+- Lakshmi.
 
 ---
 
