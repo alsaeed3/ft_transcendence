@@ -2,7 +2,7 @@
 
 A full-stack, real-time web application developed as a capstone project at 42 Abu Dhabi. This multiplayer gaming platform combines social networking features with classic and AI-driven gameplay — all built with modern web technologies and a focus on performance, security, and user experience.
 
-# Our Team 🎮✨
+# Our Team 👥✨
 
 - Me.
 - Mahmoud Abdelsalam.
