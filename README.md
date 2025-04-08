@@ -67,4 +67,4 @@ A full-stack, real-time web application developed as a capstone project at 42 Ab
 git clone https://github.com/alsaeed3/ft_transcendence.git
 cd ft_transcendence
 make up
-Access the app at http://localhost
+Access the app at https://localhost
