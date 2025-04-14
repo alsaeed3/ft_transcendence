@@ -279,6 +279,7 @@ export class ChatManager {
         }
 
         // Establish new WebSocket connection with correct URL pattern
+        // This means: If your site is accessed over https://, it will use wss://. If it's accessed over http://, it will use ws://. So as long as users access your site via HTTPS, the app will automatically use WSS.
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const currentUserId = AuthManager.currentUser.id;
         // Sort user IDs to match backend's room name creation
